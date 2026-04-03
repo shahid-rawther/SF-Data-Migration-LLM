@@ -36,7 +36,7 @@ export function MigrationDetail() {
     if (progress?.status && progress.status !== status) {
       setStatus(progress.status);
     }
-  }, [progress]);
+  }, [progress, status]);
 
   if (loading) return <div style={pageStyle}><p>Loading…</p></div>;
   if (!session) return <div style={pageStyle}><p>Session not found</p></div>;
