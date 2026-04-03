@@ -1,0 +1,168 @@
+{
+    "priority": 1,
+    "operation": "update",
+    "servicenow_tables": [
+        "problem"
+    ],
+    "joins": [
+    ],
+    "filters": [],
+    "salesforce_object": "Problem",
+    "look_up_table_names": ["problem_Problem_"],
+    "transformation_name": "UpdateProblemFinal",
+    "fields": [
+        {
+            "source_field": "problem.assignment_group",
+            "transformation_function": "look_up_assignement_group",
+            "destination_field": "AssignedGroupId"
+        },
+        {
+            "source_field": "problem.category",
+            "transformation_function": "look_up_problem_category",
+            "destination_field": "Category"
+        },
+        {
+            "source_field": "problem.comments",
+            "destination_field": "Comments"
+        },
+        {
+            "source_field": "problem.opened_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "problem.opened_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "problem.description",
+            "destination_field": "Description"
+        },
+        {
+            "source_field": "problem.impact",
+            "transformation_function": "look_up_impact",
+            "destination_field": "Impact"
+        },
+        {
+            "source_field": "problem.priority",
+            "transformation_function": "look_up_priority",
+            "destination_field": "Priority"
+        },
+        {
+            "source_field": "problem.assigned_to",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "problem.opened_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "ReportedById"
+        },
+        {
+            "source_field": "problem.resolved_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "ResolutionDateTime"
+        },
+        {
+            "source_field": "problem.resolution_code",
+            "transformation_function": "look_up_resolution_code",
+            "destination_field": "ResolutionStatusCode"
+        },
+        {
+            "source_field": "problem.fix_notes",
+            "transformation_function": "convert_resolution_summary",
+            "destination_field": "ResolutionSummary"
+        },
+        {
+            "source_field": ["problem.resolved_by", "problem.closed_by"],
+            "transformation_function": "look_up_resolved_by_for_problem",
+            "destination_field": "ResolvedById"
+        },
+        {
+            "source_field": "problem.state",
+            "transformation_function": "look_up_problem_status",
+            "destination_field": "Status"
+        },
+        {
+            "source_field": ["problem.number","problem.short_description"],
+            "transformation_function": "populate_subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "problem.urgency",
+            "transformation_function": "look_up_problem_urgency",
+            "destination_field": "Urgency"
+        },
+        {
+            "source_field": "problem.workaround",
+            "destination_field": "Workaround"
+        },
+        {
+            "source_field": "problem.business_service",
+            "transformation_function": "look_up_service_sys_id",
+            "destination_field": "Service__c"
+        },
+        {
+            "source_field": "problem.service_offering",
+            "transformation_function": "look_up_service_offering_sys_id",
+            "destination_field": "Service_Offering__c"
+        },
+        {
+            "use_constant": "BUSINESSHOURSID",
+            "destination_field": "BusinessHoursId"
+        },
+        
+        {
+            "source_field": "problem.cause_notes",
+            "destination_field": "Cause_notes__c"
+        },
+        {
+            "source_field": "problem.close_notes",
+            "destination_field": "Close_Notes__c"
+        },
+        {
+            "source_field": "problem.closed_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Completed__c"
+        },
+        {
+            "source_field": "problem.closed_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "Completed_by__c"
+        },
+        {
+            "source_field": "problem.confirmed_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Confirmed__c"
+        },
+        {
+            "source_field": "problem.confirmed_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "Confirmed_by__c"
+        },
+        {
+            "source_field": "problem.fix_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Fix_communicated__c"
+        },
+        {
+            "source_field": "problem.fix_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "Fix_communicated_by__c"
+        },
+        {
+            "source_field": "problem.fix_notes",
+            "destination_field": "Fix_Notes__c"
+        },
+        {
+            "source_field": "problem.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "problem.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        }
+    ]
+}

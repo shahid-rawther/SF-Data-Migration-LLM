@@ -1,0 +1,23 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_user_group"
+    ],
+    "joins": [],
+    "filters": [
+    ],
+    "salesforce_object": "QueueSobject",
+    "transformation_name": "QueueSvcCatalogRequest",
+    "fields": [
+        {
+            "source_field": "sys_id",
+            "transformation_function": "look_up_group_sys_id",
+            "destination_field": "QueueId"
+        },
+        {
+            "use_constant": "QSVCSOBJECTTYPE",
+            "destination_field": "SobjectType"
+        }
+    ]
+}

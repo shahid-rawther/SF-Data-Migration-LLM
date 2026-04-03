@@ -1,0 +1,28 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "cmn_department"
+    ],
+    "joins": [
+    ],
+    "filters": [
+    ],
+    "salesforce_object": "Department__c",
+    "fields": [
+        {
+            "source_field": "cmn_department.sys_created_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "cmn_department.name",
+            "destination_field": "Name"
+        },
+        {
+            "source_field": "cmn_department.sys_updated_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "LastModifiedById"
+        }
+    ]
+}

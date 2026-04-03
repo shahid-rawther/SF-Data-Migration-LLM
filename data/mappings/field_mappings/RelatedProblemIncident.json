@@ -1,0 +1,41 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "incident"
+    ],
+    "joins": [],
+    "filters": [
+        {
+            "table": "incident",
+            "field": "problem_id",
+            "operator": "is_not_null"
+        }
+    ],
+    "salesforce_object": "ProblemIncident",
+    "transformation_name": "RelatedProblemIncident",
+    "salesforce_objects": [
+        {
+            "object_name": "ProblemIncident",
+            "fields": [
+                "Id"
+            ]
+        }
+    ],
+    "fields": [
+        {
+            "destination_field": "IssueId",
+            "transformation_function": "look_up_incident_sys_id",
+            "source_field": "incident.sys_id"
+        },
+        {
+            "destination_field": "RelatedIssueId",
+            "transformation_function": "look_up_problem_sys_id",
+            "source_field": "incident.problem_id"
+        },
+        {
+            "use_constant": "RELATIONSHIPTYPE",
+            "destination_field": "RelationshipType"
+        }            
+    ]
+}

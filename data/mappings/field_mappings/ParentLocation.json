@@ -1,0 +1,66 @@
+{
+    "priority": 1,
+    "servicenow_tables": [
+        "cmn_location"
+    ],
+    "joins": [],
+    "transformation_name": "ParentLocation",
+    "filters": [
+        {
+            "table": "cmn_location",
+            "field": "parent",
+            "operator": "is_null"
+        }
+    ],
+    "operation": "insert",
+    "salesforce_object": "Location",
+    "fields": [
+        {
+            "source_field": "cmn_location.sys_created_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "cmn_location.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "cmn_location.sys_updated_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "cmn_location.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "cmn_location.name",
+            "destination_field": "Name"
+        },
+        {
+            "source_field": "cmn_location.cmn_location_type",
+            "transformation_function": "look_up_location_type",
+            "destination_field": "Location_type__c"
+        },
+        {
+            "source_field": "cmn_location.sys_created_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "cmn_location.phone",
+            "transformation_function": "clean_phone_number",
+            "destination_field": "Phone__c"
+        },
+        {
+            "source_field": "cmn_location.u_region",
+            "destination_field": "Region__c"
+        },
+        {
+            "use_constant": "TIMEZONE",
+            "destination_field": "TimeZone"
+        }
+    ]
+}

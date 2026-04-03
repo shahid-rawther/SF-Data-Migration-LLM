@@ -1,0 +1,48 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_user",
+        "sys_user_has_role",
+        "cmn_department"
+    ],
+    "joins": [
+        {
+            "left_table": "sys_user",
+            "left_key": "sys_id",
+            "right_table": "sys_user_has_role",
+            "right_key": "user",
+            "type": "left"
+        }
+    ],
+    "filters": [
+        {
+            "table": "sys_user_has_role",
+            "field": "user",
+            "operator": "is_not_null"
+        }
+    ],
+    "salesforce_object": "Sample",
+    "fields": [
+        {
+            "source_field": "sys_user.first_name",
+            "transformation_function": "",
+            "destination_field": "FirstName"
+        },
+        {
+            "source_field": "sys_user.last_name",
+            "transformation_function": "",
+            "destination_field": "LastName"
+        },
+        {
+            "source_field": "sys_user.email",
+            "transformation_function": "mask_email",
+            "destination_field": "Email"
+        },
+        {
+            "source_field": "sys_user.mobile_phone",
+            "transformation_function": "",
+            "destination_field": "MobilePhone"
+        }
+    ]
+}

@@ -1,0 +1,98 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_user",
+        "cmn_department"
+    ],
+    "joins": [
+        {
+            "left_table": "sys_user",
+            "left_key": "department",
+            "right_table": "cmn_department",
+            "right_key": "sys_id",
+            "type": "left"
+        }
+    ],
+    "filters": [
+        {
+            "table": "sys_user",
+            "field": "sys_id",
+            "operator": "not_in",
+            "value": [
+                "a82910e61be2f4505efd748edc4bcbc0",
+                "96a8f9221b9b19505efd748edc4bcbd8",
+                "1f4313731bcf0410811f748edc4bcb1c",
+                "3d532266dbd70550a36dea7b039619fd",
+                "425357b31bcf0410811f748edc4bcbae",
+                "6e18c67c1b130810811f748edc4bcb60",
+                "1b915d90470aae50cf77e6c1516d43fe",
+                "3cdd113f2b897a500182f4f0ce91bf37",
+                "89e1999b1bef88105efd748edc4bcbe4",
+                "8d5c751e1b3cd9105efd748edc4bcbd1",
+                "966393f31bcf0410811f748edc4bcb1c",
+                "d2f701311b994d105efd748edc4bcba0",
+                "c65357b31bcf0410811f748edc4bcba4",
+                "4155d6501b025510bc23b802dd4bcb33",
+                "fd4cbdeb1bd7e1105efd748edc4bcbef",
+                "67fec4251b6391905efd748edc4bcb2a",
+                "2853d3b31bcf0410811f748edc4bcb90",
+                "8d371bb2fb4fd610abf0f46465efdc1c",
+                "ea56b0461b9045105efd748edc4bcb33",
+                "49d358693be1161031f1a78c24e45a30",
+                "8341c21c1bc48e105efd748edc4bcb23",
+                "316313f31bcf0410811f748edc4bcb62",
+                "28f4ddc0db0db110460745e813961913",
+                "b9f5f300db257010460745e8139619ba",
+                "b953181c1bba6410bc23b802dd4bcb3e",
+                "ba435f331bcf0410811f748edc4bcb0e",
+                "cbe74dfd1b594d105efd748edc4bcb34",
+                "503813b81b536410bc23b802dd4bcb2c",
+                "14639bb31bcf0410811f748edc4bcbec",
+                "ca7049a41bab6050bc23b802dd4bcbde",
+                "2ee1447a1ba348105efd748edc4bcbc3",
+                "59639fb31bcf0410811f748edc4bcb60",
+                "062ae04e4767161014836d62816d43de",
+                "325397b31bcf0410811f748edc4bcbd9"
+            ]
+        }
+    ],
+    "salesforce_object": "Account",
+    "fields": [
+        {
+            "source_field": "sys_user.first_name",
+            "destination_field": "FirstName"
+        },
+        {
+            "source_field": [
+                "sys_user.last_name",
+                "sys_user.first_name",
+                "sys_user.user_name",
+                "sys_user.sys_id"
+            ],
+            "transformation_function": "choose_one",
+            "destination_field": "LastName"
+        },
+        {
+            "source_field": "sys_user.middle_name",
+            "destination_field": "MiddleName"
+        },
+        {
+            "use_constant": "RECORDTYPEID",
+            "destination_field": "RecordTypeId"
+        },
+        {
+            "source_field": "cmn_department.name",
+            "destination_field": "PersonDepartment"
+        },
+        {
+            "source_field": "sys_user.email",
+            "transformation_function": "mask_email",
+            "destination_field": "PersonEmail"
+        },
+        {
+            "source_field": "sys_user.mobile_phone",
+            "destination_field": "Phone"
+        }
+    ]
+}

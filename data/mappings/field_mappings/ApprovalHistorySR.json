@@ -1,0 +1,75 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sysapproval_approver",
+        "sysapproval_group",
+        "sys_user_group"
+    ],
+    "joins": [
+        {
+            "left_table": "sysapproval_approver",
+            "left_key": "group",
+            "right_table": "sysapproval_group",
+            "right_key": "sys_id",
+            "type": "left"
+        },
+        {
+            "left_table": "sysapproval_group",
+            "left_key": "assignment_group",
+            "right_table": "sys_user_group",
+            "right_key": "sys_id",
+            "type": "left"
+        }
+    ],
+    "filters": [
+        {
+            "table": "sysapproval_approver",
+            "field": "source_table",
+            "operator": "in",
+            "value": ["sc_req_item"]
+        }
+        
+    ],
+    "salesforce_object": "ServiceNow_Approval_History__c",
+    "transformation_name": "ApprovalHistorySR",
+    "salesforce_objects": [
+        {
+            "object_name": "ServiceNow_Approval_History__c",
+            "fields": [
+                "Id"
+            ]
+        }
+    ],
+    "fields": [
+        {
+            "destination_field": "Approver__c",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "sysapproval_approver.approver"
+        },
+        {
+            "destination_field": "Case__c",
+            "transformation_function": "look_up_case_sys_id",
+            "source_field": "sysapproval_approver.document_id"
+        },
+        {
+            "destination_field": "Approver_Group__c",
+            "source_field": "sys_user_group.name"
+        },
+        {
+            "destination_field": "State__c",
+            "transformation_function": "look_up_approver_state",
+            "source_field": "sysapproval_approver.state"
+        },
+        {
+            "destination_field": "Approval_Date__c",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "sysapproval_approver.sys_updated_on"
+        },
+        {
+            "destination_field": "CreatedDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "sysapproval_approver.sys_created_on"
+        }
+    ]
+}

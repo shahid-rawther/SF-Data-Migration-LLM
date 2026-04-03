@@ -1,0 +1,901 @@
+2026-01-06 08:02:28,587 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:02:28,588 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:02:28,590 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:02:28,590 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:04:02,779 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:04:02,781 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:04:02,783 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:04:02,783 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:04:53,794 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:04:53,794 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:04:53,798 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:04:53,798 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:08:51,821 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:08:51,821 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:08:51,823 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:08:51,823 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:09:11,638 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:09:11,638 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:09:11,638 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:09:11,638 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:09:12,207 - INFO - [ThreadPoolExecutor-1_0] [itsm:44] - Job: 1, Job Table: 1
+2026-01-06 08:09:12,207 - INFO - [ThreadPoolExecutor-1_0] [itsm:45] - Servicenow table 'sys_user_group' extraction start at 2026-01-06 08:09:12.207778
+2026-01-06 08:09:13,166 - INFO - [ThreadPoolExecutor-1_0] [itsm:54] - Total rows in sys_user_group is 33
+2026-01-06 08:09:13,168 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:09:13.168650 Table: sys_user_group, Batch: 0, Job Batch Id: 1
+2026-01-06 08:09:13,168 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:09:13.168650 Table: sys_user_group, Batch: 0, Job Batch Id: 1
+2026-01-06 08:09:13,170 - INFO - [ThreadPoolExecutor-1_0] [itsm:111] - Servicenow table 'sys_user_group' extraction ends at 2026-01-06 08:09:13.170667
+2026-01-06 08:09:13,176 - INFO - [ThreadPoolExecutor-2_0] [itsm:44] - Job: 1, Job Table: 1
+2026-01-06 08:09:13,176 - INFO - [ThreadPoolExecutor-2_0] [itsm:45] - Servicenow table 'sys_user_group' extraction start at 2026-01-06 08:09:13.176738
+2026-01-06 08:09:14,099 - INFO - [ThreadPoolExecutor-2_0] [itsm:54] - Total rows in sys_user_group is 33
+2026-01-06 08:09:14,099 - INFO - [ThreadPoolExecutor-2_0] [itsm:69] - Start: 2026-01-06 08:09:14.099327 Table: sys_user_group, Batch: 0, Job Batch Id: 1
+2026-01-06 08:09:14,101 - INFO - [ThreadPoolExecutor-2_0] [itsm:97] - End: 2026-01-06 08:09:14.101345 Table: sys_user_group, Batch: 0, Job Batch Id: 1
+2026-01-06 08:09:14,101 - INFO - [ThreadPoolExecutor-2_0] [itsm:111] - Servicenow table 'sys_user_group' extraction ends at 2026-01-06 08:09:14.101345
+2026-01-06 08:09:14,105 - INFO - [ThreadPoolExecutor-3_0] [itsm:44] - Job: 1, Job Table: 16
+2026-01-06 08:09:14,105 - INFO - [ThreadPoolExecutor-3_0] [itsm:45] - Servicenow table 'sys_user' extraction start at 2026-01-06 08:09:14.105388
+2026-01-06 08:09:14,109 - INFO - [ThreadPoolExecutor-3_1] [itsm:44] - Job: 1, Job Table: 17
+2026-01-06 08:09:14,109 - INFO - [ThreadPoolExecutor-3_1] [itsm:45] - Servicenow table 'core_company' extraction start at 2026-01-06 08:09:14.109425
+2026-01-06 08:09:14,109 - INFO - [ThreadPoolExecutor-3_2] [itsm:44] - Job: 1, Job Table: 18
+2026-01-06 08:09:14,109 - INFO - [ThreadPoolExecutor-3_2] [itsm:45] - Servicenow table 'cmn_department' extraction start at 2026-01-06 08:09:14.109425
+2026-01-06 08:09:14,113 - INFO - [ThreadPoolExecutor-3_3] [itsm:44] - Job: 1, Job Table: 19
+2026-01-06 08:09:14,113 - INFO - [ThreadPoolExecutor-3_3] [itsm:45] - Servicenow table 'change_request' extraction start at 2026-01-06 08:09:14.113180
+2026-01-06 08:09:15,534 - INFO - [ThreadPoolExecutor-3_2] [itsm:54] - Total rows in cmn_department is 727
+2026-01-06 08:09:15,538 - INFO - [ThreadPoolExecutor-3_0] [itsm:54] - Total rows in sys_user is 15531
+2026-01-06 08:09:15,538 - INFO - [ThreadPoolExecutor-3_2] [itsm:69] - Start: 2026-01-06 08:09:15.538767 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:15,540 - INFO - [ThreadPoolExecutor-3_0] [itsm:69] - Start: 2026-01-06 08:09:15.540792 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:15,540 - INFO - [ThreadPoolExecutor-3_2] [itsm:97] - End: 2026-01-06 08:09:15.540792 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:15,540 - INFO - [ThreadPoolExecutor-3_2] [itsm:111] - Servicenow table 'cmn_department' extraction ends at 2026-01-06 08:09:15.540792
+2026-01-06 08:09:15,540 - INFO - [ThreadPoolExecutor-3_0] [itsm:97] - End: 2026-01-06 08:09:15.540792 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:15,542 - INFO - [ThreadPoolExecutor-3_0] [itsm:69] - Start: 2026-01-06 08:09:15.542809 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:15,542 - INFO - [ThreadPoolExecutor-3_0] [itsm:97] - End: 2026-01-06 08:09:15.542809 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:15,544 - INFO - [ThreadPoolExecutor-3_0] [itsm:69] - Start: 2026-01-06 08:09:15.544833 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:15,544 - INFO - [ThreadPoolExecutor-3_0] [itsm:97] - End: 2026-01-06 08:09:15.544833 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:15,544 - INFO - [ThreadPoolExecutor-3_0] [itsm:69] - Start: 2026-01-06 08:09:15.544833 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:15,546 - INFO - [ThreadPoolExecutor-3_0] [itsm:97] - End: 2026-01-06 08:09:15.546600 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:15,546 - INFO - [ThreadPoolExecutor-3_0] [itsm:111] - Servicenow table 'sys_user' extraction ends at 2026-01-06 08:09:15.546600
+2026-01-06 08:09:15,566 - INFO - [ThreadPoolExecutor-3_1] [itsm:54] - Total rows in core_company is 3233
+2026-01-06 08:09:15,568 - INFO - [ThreadPoolExecutor-3_3] [itsm:54] - Total rows in change_request is 535
+2026-01-06 08:09:15,569 - INFO - [ThreadPoolExecutor-3_1] [itsm:69] - Start: 2026-01-06 08:09:15.568161 Table: core_company, Batch: 0, Job Batch Id: 18
+2026-01-06 08:09:15,572 - INFO - [ThreadPoolExecutor-3_3] [itsm:69] - Start: 2026-01-06 08:09:15.572163 Table: change_request, Batch: 0, Job Batch Id: 17
+2026-01-06 08:09:15,573 - INFO - [ThreadPoolExecutor-3_1] [itsm:97] - End: 2026-01-06 08:09:15.573171 Table: core_company, Batch: 0, Job Batch Id: 18
+2026-01-06 08:09:15,573 - INFO - [ThreadPoolExecutor-3_1] [itsm:111] - Servicenow table 'core_company' extraction ends at 2026-01-06 08:09:15.573171
+2026-01-06 08:09:15,574 - INFO - [ThreadPoolExecutor-3_3] [itsm:97] - End: 2026-01-06 08:09:15.574181 Table: change_request, Batch: 0, Job Batch Id: 17
+2026-01-06 08:09:15,574 - INFO - [ThreadPoolExecutor-3_3] [itsm:111] - Servicenow table 'change_request' extraction ends at 2026-01-06 08:09:15.574181
+2026-01-06 08:09:15,589 - INFO - [ThreadPoolExecutor-4_0] [itsm:44] - Job: 1, Job Table: 16
+2026-01-06 08:09:15,589 - INFO - [ThreadPoolExecutor-4_0] [itsm:45] - Servicenow table 'sys_user' extraction start at 2026-01-06 08:09:15.589733
+2026-01-06 08:09:15,592 - INFO - [ThreadPoolExecutor-4_1] [itsm:44] - Job: 1, Job Table: 17
+2026-01-06 08:09:15,592 - INFO - [ThreadPoolExecutor-4_1] [itsm:45] - Servicenow table 'core_company' extraction start at 2026-01-06 08:09:15.592822
+2026-01-06 08:09:15,593 - INFO - [ThreadPoolExecutor-4_2] [itsm:44] - Job: 1, Job Table: 18
+2026-01-06 08:09:15,594 - INFO - [ThreadPoolExecutor-4_2] [itsm:45] - Servicenow table 'cmn_department' extraction start at 2026-01-06 08:09:15.594815
+2026-01-06 08:09:16,867 - INFO - [ThreadPoolExecutor-4_2] [itsm:54] - Total rows in cmn_department is 727
+2026-01-06 08:09:16,869 - INFO - [ThreadPoolExecutor-4_2] [itsm:69] - Start: 2026-01-06 08:09:16.869067 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:16,870 - INFO - [ThreadPoolExecutor-4_2] [itsm:97] - End: 2026-01-06 08:09:16.869067 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:16,870 - INFO - [ThreadPoolExecutor-4_2] [itsm:111] - Servicenow table 'cmn_department' extraction ends at 2026-01-06 08:09:16.870604
+2026-01-06 08:09:16,928 - INFO - [ThreadPoolExecutor-4_1] [itsm:54] - Total rows in core_company is 3233
+2026-01-06 08:09:16,930 - INFO - [ThreadPoolExecutor-4_1] [itsm:69] - Start: 2026-01-06 08:09:16.930819 Table: core_company, Batch: 0, Job Batch Id: 18
+2026-01-06 08:09:16,931 - INFO - [ThreadPoolExecutor-4_1] [itsm:97] - End: 2026-01-06 08:09:16.931818 Table: core_company, Batch: 0, Job Batch Id: 18
+2026-01-06 08:09:16,931 - INFO - [ThreadPoolExecutor-4_1] [itsm:111] - Servicenow table 'core_company' extraction ends at 2026-01-06 08:09:16.931818
+2026-01-06 08:09:16,944 - INFO - [ThreadPoolExecutor-4_0] [itsm:54] - Total rows in sys_user is 15531
+2026-01-06 08:09:16,945 - INFO - [ThreadPoolExecutor-4_0] [itsm:69] - Start: 2026-01-06 08:09:16.945490 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:16,945 - INFO - [ThreadPoolExecutor-4_0] [itsm:97] - End: 2026-01-06 08:09:16.945490 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:16,946 - INFO - [ThreadPoolExecutor-4_0] [itsm:69] - Start: 2026-01-06 08:09:16.946484 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:16,947 - INFO - [ThreadPoolExecutor-4_0] [itsm:97] - End: 2026-01-06 08:09:16.947489 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:16,948 - INFO - [ThreadPoolExecutor-4_0] [itsm:69] - Start: 2026-01-06 08:09:16.948491 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:16,948 - INFO - [ThreadPoolExecutor-4_0] [itsm:97] - End: 2026-01-06 08:09:16.948491 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:16,949 - INFO - [ThreadPoolExecutor-4_0] [itsm:69] - Start: 2026-01-06 08:09:16.949514 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:16,950 - INFO - [ThreadPoolExecutor-4_0] [itsm:97] - End: 2026-01-06 08:09:16.950517 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:16,950 - INFO - [ThreadPoolExecutor-4_0] [itsm:111] - Servicenow table 'sys_user' extraction ends at 2026-01-06 08:09:16.950517
+2026-01-06 08:09:16,954 - INFO - [ThreadPoolExecutor-5_0] [itsm:44] - Job: 1, Job Table: 24
+2026-01-06 08:09:16,954 - INFO - [ThreadPoolExecutor-5_0] [itsm:45] - Servicenow table 'sys_user_grmember' extraction start at 2026-01-06 08:09:16.954517
+2026-01-06 08:09:17,896 - INFO - [ThreadPoolExecutor-5_0] [itsm:54] - Total rows in sys_user_grmember is 347
+2026-01-06 08:09:17,898 - INFO - [ThreadPoolExecutor-5_0] [itsm:69] - Start: 2026-01-06 08:09:17.898565 Table: sys_user_grmember, Batch: 0, Job Batch Id: 43
+2026-01-06 08:09:17,898 - INFO - [ThreadPoolExecutor-5_0] [itsm:97] - End: 2026-01-06 08:09:17.898565 Table: sys_user_grmember, Batch: 0, Job Batch Id: 43
+2026-01-06 08:09:17,898 - INFO - [ThreadPoolExecutor-5_0] [itsm:111] - Servicenow table 'sys_user_grmember' extraction ends at 2026-01-06 08:09:17.898565
+2026-01-06 08:09:17,903 - INFO - [ThreadPoolExecutor-6_0] [itsm:44] - Job: 1, Job Table: 16
+2026-01-06 08:09:17,903 - INFO - [ThreadPoolExecutor-6_0] [itsm:45] - Servicenow table 'sys_user' extraction start at 2026-01-06 08:09:17.903622
+2026-01-06 08:09:18,786 - INFO - [ThreadPoolExecutor-6_0] [itsm:54] - Total rows in sys_user is 15531
+2026-01-06 08:09:18,788 - INFO - [ThreadPoolExecutor-6_0] [itsm:69] - Start: 2026-01-06 08:09:18.788834 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:18,788 - INFO - [ThreadPoolExecutor-6_0] [itsm:97] - End: 2026-01-06 08:09:18.788834 Table: sys_user, Batch: 0, Job Batch Id: 16
+2026-01-06 08:09:18,788 - INFO - [ThreadPoolExecutor-6_0] [itsm:69] - Start: 2026-01-06 08:09:18.788834 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:18,790 - INFO - [ThreadPoolExecutor-6_0] [itsm:97] - End: 2026-01-06 08:09:18.790858 Table: sys_user, Batch: 1, Job Batch Id: 20
+2026-01-06 08:09:18,790 - INFO - [ThreadPoolExecutor-6_0] [itsm:69] - Start: 2026-01-06 08:09:18.790858 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:18,790 - INFO - [ThreadPoolExecutor-6_0] [itsm:97] - End: 2026-01-06 08:09:18.790858 Table: sys_user, Batch: 2, Job Batch Id: 21
+2026-01-06 08:09:18,792 - INFO - [ThreadPoolExecutor-6_0] [itsm:69] - Start: 2026-01-06 08:09:18.792872 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:18,792 - INFO - [ThreadPoolExecutor-6_0] [itsm:97] - End: 2026-01-06 08:09:18.792872 Table: sys_user, Batch: 3, Job Batch Id: 22
+2026-01-06 08:09:18,792 - INFO - [ThreadPoolExecutor-6_0] [itsm:111] - Servicenow table 'sys_user' extraction ends at 2026-01-06 08:09:18.792872
+2026-01-06 08:09:18,798 - INFO - [ThreadPoolExecutor-7_0] [itsm:44] - Job: 1, Job Table: 30
+2026-01-06 08:09:18,798 - INFO - [ThreadPoolExecutor-7_0] [itsm:45] - Servicenow table 'cmn_location' extraction start at 2026-01-06 08:09:18.798677
+2026-01-06 08:09:18,801 - INFO - [ThreadPoolExecutor-7_1] [itsm:44] - Job: 1, Job Table: 18
+2026-01-06 08:09:18,801 - INFO - [ThreadPoolExecutor-7_1] [itsm:45] - Servicenow table 'cmn_department' extraction start at 2026-01-06 08:09:18.801398
+2026-01-06 08:09:19,929 - INFO - [ThreadPoolExecutor-7_1] [itsm:54] - Total rows in cmn_department is 727
+2026-01-06 08:09:19,929 - INFO - [ThreadPoolExecutor-7_1] [itsm:69] - Start: 2026-01-06 08:09:19.929669 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:19,931 - INFO - [ThreadPoolExecutor-7_1] [itsm:97] - End: 2026-01-06 08:09:19.931683 Table: cmn_department, Batch: 0, Job Batch Id: 19
+2026-01-06 08:09:19,931 - INFO - [ThreadPoolExecutor-7_1] [itsm:111] - Servicenow table 'cmn_department' extraction ends at 2026-01-06 08:09:19.931683
+2026-01-06 08:09:19,995 - INFO - [ThreadPoolExecutor-7_0] [itsm:54] - Total rows in cmn_location is 81
+2026-01-06 08:09:19,996 - INFO - [ThreadPoolExecutor-7_0] [itsm:69] - Start: 2026-01-06 08:09:19.996833 Table: cmn_location, Batch: 0, Job Batch Id: 66
+2026-01-06 08:09:19,996 - INFO - [ThreadPoolExecutor-7_0] [itsm:97] - End: 2026-01-06 08:09:19.996833 Table: cmn_location, Batch: 0, Job Batch Id: 66
+2026-01-06 08:09:19,996 - INFO - [ThreadPoolExecutor-7_0] [itsm:111] - Servicenow table 'cmn_location' extraction ends at 2026-01-06 08:09:19.996833
+2026-01-06 08:09:20,004 - INFO - [ThreadPoolExecutor-8_0] [itsm:44] - Job: 1, Job Table: 31
+2026-01-06 08:09:20,004 - INFO - [ThreadPoolExecutor-8_0] [itsm:45] - Servicenow table 'cmdb_ci_service' extraction start at 2026-01-06 08:09:20.004110
+2026-01-06 08:09:20,006 - INFO - [ThreadPoolExecutor-8_1] [itsm:44] - Job: 1, Job Table: 30
+2026-01-06 08:09:20,006 - INFO - [ThreadPoolExecutor-8_1] [itsm:45] - Servicenow table 'cmn_location' extraction start at 2026-01-06 08:09:20.006117
+2026-01-06 08:09:21,128 - INFO - [ThreadPoolExecutor-8_0] [itsm:54] - Total rows in cmdb_ci_service is 101
+2026-01-06 08:09:21,128 - INFO - [ThreadPoolExecutor-8_0] [itsm:69] - Start: 2026-01-06 08:09:21.128382 Table: cmdb_ci_service, Batch: 0, Job Batch Id: 67
+2026-01-06 08:09:21,130 - INFO - [ThreadPoolExecutor-8_0] [itsm:97] - End: 2026-01-06 08:09:21.130398 Table: cmdb_ci_service, Batch: 0, Job Batch Id: 67
+2026-01-06 08:09:21,130 - INFO - [ThreadPoolExecutor-8_0] [itsm:111] - Servicenow table 'cmdb_ci_service' extraction ends at 2026-01-06 08:09:21.130398
+2026-01-06 08:09:21,136 - INFO - [ThreadPoolExecutor-8_1] [itsm:54] - Total rows in cmn_location is 81
+2026-01-06 08:09:21,138 - INFO - [ThreadPoolExecutor-8_1] [itsm:69] - Start: 2026-01-06 08:09:21.138264 Table: cmn_location, Batch: 0, Job Batch Id: 66
+2026-01-06 08:09:21,139 - INFO - [ThreadPoolExecutor-8_1] [itsm:97] - End: 2026-01-06 08:09:21.139902 Table: cmn_location, Batch: 0, Job Batch Id: 66
+2026-01-06 08:09:21,139 - INFO - [ThreadPoolExecutor-8_1] [itsm:111] - Servicenow table 'cmn_location' extraction ends at 2026-01-06 08:09:21.139902
+2026-01-06 08:09:21,159 - INFO - [ThreadPoolExecutor-9_0] [itsm:44] - Job: 1, Job Table: 32
+2026-01-06 08:09:21,159 - INFO - [ThreadPoolExecutor-9_0] [itsm:45] - Servicenow table 'service_offering' extraction start at 2026-01-06 08:09:21.159856
+2026-01-06 08:09:22,026 - INFO - [ThreadPoolExecutor-9_0] [itsm:54] - Total rows in service_offering is 84
+2026-01-06 08:09:22,028 - INFO - [ThreadPoolExecutor-9_0] [itsm:69] - Start: 2026-01-06 08:09:22.028782 Table: service_offering, Batch: 0, Job Batch Id: 68
+2026-01-06 08:09:22,028 - INFO - [ThreadPoolExecutor-9_0] [itsm:97] - End: 2026-01-06 08:09:22.028782 Table: service_offering, Batch: 0, Job Batch Id: 68
+2026-01-06 08:09:22,028 - INFO - [ThreadPoolExecutor-9_0] [itsm:111] - Servicenow table 'service_offering' extraction ends at 2026-01-06 08:09:22.028782
+2026-01-06 08:09:22,044 - INFO - [ThreadPoolExecutor-10_0] [itsm:44] - Job: 1, Job Table: 50
+2026-01-06 08:09:22,044 - INFO - [ThreadPoolExecutor-10_0] [itsm:45] - Servicenow table 'incident' extraction start at 2026-01-06 08:09:22.044787
+2026-01-06 08:09:22,968 - INFO - [ThreadPoolExecutor-10_0] [itsm:54] - Total rows in incident is 156439
+2026-01-06 08:09:22,970 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.970235 Table: incident, Batch: 0, Job Batch Id: 92
+2026-01-06 08:09:22,970 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.970235 Table: incident, Batch: 0, Job Batch Id: 92
+2026-01-06 08:09:22,970 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.970235 Table: incident, Batch: 1, Job Batch Id: 93
+2026-01-06 08:09:22,972 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.972259 Table: incident, Batch: 1, Job Batch Id: 93
+2026-01-06 08:09:22,972 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.972259 Table: incident, Batch: 2, Job Batch Id: 94
+2026-01-06 08:09:22,972 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.972259 Table: incident, Batch: 2, Job Batch Id: 94
+2026-01-06 08:09:22,974 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.974285 Table: incident, Batch: 3, Job Batch Id: 95
+2026-01-06 08:09:22,974 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.974285 Table: incident, Batch: 3, Job Batch Id: 95
+2026-01-06 08:09:22,974 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.974285 Table: incident, Batch: 4, Job Batch Id: 96
+2026-01-06 08:09:22,976 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.976314 Table: incident, Batch: 4, Job Batch Id: 96
+2026-01-06 08:09:22,976 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.976314 Table: incident, Batch: 5, Job Batch Id: 97
+2026-01-06 08:09:22,978 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.978344 Table: incident, Batch: 5, Job Batch Id: 97
+2026-01-06 08:09:22,978 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.978344 Table: incident, Batch: 6, Job Batch Id: 98
+2026-01-06 08:09:22,978 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.978344 Table: incident, Batch: 6, Job Batch Id: 98
+2026-01-06 08:09:22,980 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.980375 Table: incident, Batch: 7, Job Batch Id: 99
+2026-01-06 08:09:22,980 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.980375 Table: incident, Batch: 7, Job Batch Id: 99
+2026-01-06 08:09:22,982 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.982156 Table: incident, Batch: 8, Job Batch Id: 100
+2026-01-06 08:09:22,982 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.982156 Table: incident, Batch: 8, Job Batch Id: 100
+2026-01-06 08:09:22,982 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.982156 Table: incident, Batch: 9, Job Batch Id: 101
+2026-01-06 08:09:22,984 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.984185 Table: incident, Batch: 9, Job Batch Id: 101
+2026-01-06 08:09:22,984 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.984185 Table: incident, Batch: 10, Job Batch Id: 102
+2026-01-06 08:09:22,984 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.984185 Table: incident, Batch: 10, Job Batch Id: 102
+2026-01-06 08:09:22,986 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.986211 Table: incident, Batch: 11, Job Batch Id: 103
+2026-01-06 08:09:22,986 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.986211 Table: incident, Batch: 11, Job Batch Id: 103
+2026-01-06 08:09:22,988 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.988240 Table: incident, Batch: 12, Job Batch Id: 104
+2026-01-06 08:09:22,988 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.988240 Table: incident, Batch: 12, Job Batch Id: 104
+2026-01-06 08:09:22,988 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.988240 Table: incident, Batch: 13, Job Batch Id: 105
+2026-01-06 08:09:22,990 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.990270 Table: incident, Batch: 13, Job Batch Id: 105
+2026-01-06 08:09:22,990 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.990270 Table: incident, Batch: 14, Job Batch Id: 106
+2026-01-06 08:09:22,990 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.990270 Table: incident, Batch: 14, Job Batch Id: 106
+2026-01-06 08:09:22,992 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.992295 Table: incident, Batch: 15, Job Batch Id: 107
+2026-01-06 08:09:22,992 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.992295 Table: incident, Batch: 15, Job Batch Id: 107
+2026-01-06 08:09:22,994 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.994326 Table: incident, Batch: 16, Job Batch Id: 108
+2026-01-06 08:09:22,997 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.997383 Table: incident, Batch: 16, Job Batch Id: 108
+2026-01-06 08:09:22,999 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:22.999412 Table: incident, Batch: 17, Job Batch Id: 109
+2026-01-06 08:09:22,999 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:22.999412 Table: incident, Batch: 17, Job Batch Id: 109
+2026-01-06 08:09:23,001 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.001442 Table: incident, Batch: 18, Job Batch Id: 110
+2026-01-06 08:09:23,001 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.001442 Table: incident, Batch: 18, Job Batch Id: 110
+2026-01-06 08:09:23,001 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.001442 Table: incident, Batch: 19, Job Batch Id: 111
+2026-01-06 08:09:23,003 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.003483 Table: incident, Batch: 19, Job Batch Id: 111
+2026-01-06 08:09:23,003 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.003483 Table: incident, Batch: 20, Job Batch Id: 112
+2026-01-06 08:09:23,003 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.003483 Table: incident, Batch: 20, Job Batch Id: 112
+2026-01-06 08:09:23,005 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.005512 Table: incident, Batch: 21, Job Batch Id: 113
+2026-01-06 08:09:23,005 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.005512 Table: incident, Batch: 21, Job Batch Id: 113
+2026-01-06 08:09:23,005 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.005512 Table: incident, Batch: 22, Job Batch Id: 114
+2026-01-06 08:09:23,007 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.007538 Table: incident, Batch: 22, Job Batch Id: 114
+2026-01-06 08:09:23,007 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.007538 Table: incident, Batch: 23, Job Batch Id: 115
+2026-01-06 08:09:23,007 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.007538 Table: incident, Batch: 23, Job Batch Id: 115
+2026-01-06 08:09:23,009 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.009570 Table: incident, Batch: 24, Job Batch Id: 116
+2026-01-06 08:09:23,009 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.009570 Table: incident, Batch: 24, Job Batch Id: 116
+2026-01-06 08:09:23,011 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.011601 Table: incident, Batch: 25, Job Batch Id: 117
+2026-01-06 08:09:23,011 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.011601 Table: incident, Batch: 25, Job Batch Id: 117
+2026-01-06 08:09:23,011 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.011601 Table: incident, Batch: 26, Job Batch Id: 118
+2026-01-06 08:09:23,013 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.013377 Table: incident, Batch: 26, Job Batch Id: 118
+2026-01-06 08:09:23,013 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.013377 Table: incident, Batch: 27, Job Batch Id: 119
+2026-01-06 08:09:23,015 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.013377 Table: incident, Batch: 27, Job Batch Id: 119
+2026-01-06 08:09:23,015 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.015409 Table: incident, Batch: 28, Job Batch Id: 120
+2026-01-06 08:09:23,015 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.015409 Table: incident, Batch: 28, Job Batch Id: 120
+2026-01-06 08:09:23,017 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.017440 Table: incident, Batch: 29, Job Batch Id: 121
+2026-01-06 08:09:23,017 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.017440 Table: incident, Batch: 29, Job Batch Id: 121
+2026-01-06 08:09:23,017 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.017440 Table: incident, Batch: 30, Job Batch Id: 122
+2026-01-06 08:09:23,019 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.019470 Table: incident, Batch: 30, Job Batch Id: 122
+2026-01-06 08:09:23,019 - INFO - [ThreadPoolExecutor-10_0] [itsm:69] - Start: 2026-01-06 08:09:23.019470 Table: incident, Batch: 31, Job Batch Id: 123
+2026-01-06 08:09:23,019 - INFO - [ThreadPoolExecutor-10_0] [itsm:97] - End: 2026-01-06 08:09:23.019470 Table: incident, Batch: 31, Job Batch Id: 123
+2026-01-06 08:09:23,019 - INFO - [ThreadPoolExecutor-10_0] [itsm:111] - Servicenow table 'incident' extraction ends at 2026-01-06 08:09:23.019470
+2026-01-06 08:09:23,023 - INFO - [ThreadPoolExecutor-11_0] [itsm:44] - Job: 1, Job Table: 50
+2026-01-06 08:09:23,025 - INFO - [ThreadPoolExecutor-11_0] [itsm:45] - Servicenow table 'incident' extraction start at 2026-01-06 08:09:23.023522
+2026-01-06 08:09:23,947 - INFO - [ThreadPoolExecutor-11_0] [itsm:54] - Total rows in incident is 156439
+2026-01-06 08:09:23,949 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.949661 Table: incident, Batch: 0, Job Batch Id: 92
+2026-01-06 08:09:23,951 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.951678 Table: incident, Batch: 0, Job Batch Id: 92
+2026-01-06 08:09:23,951 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.951678 Table: incident, Batch: 1, Job Batch Id: 93
+2026-01-06 08:09:23,953 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.953192 Table: incident, Batch: 1, Job Batch Id: 93
+2026-01-06 08:09:23,953 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.953192 Table: incident, Batch: 2, Job Batch Id: 94
+2026-01-06 08:09:23,953 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.953192 Table: incident, Batch: 2, Job Batch Id: 94
+2026-01-06 08:09:23,955 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.955212 Table: incident, Batch: 3, Job Batch Id: 95
+2026-01-06 08:09:23,955 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.955212 Table: incident, Batch: 3, Job Batch Id: 95
+2026-01-06 08:09:23,955 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.955212 Table: incident, Batch: 4, Job Batch Id: 96
+2026-01-06 08:09:23,957 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.957225 Table: incident, Batch: 4, Job Batch Id: 96
+2026-01-06 08:09:23,957 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.957225 Table: incident, Batch: 5, Job Batch Id: 97
+2026-01-06 08:09:23,959 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.959238 Table: incident, Batch: 5, Job Batch Id: 97
+2026-01-06 08:09:23,959 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.959238 Table: incident, Batch: 6, Job Batch Id: 98
+2026-01-06 08:09:23,959 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.959238 Table: incident, Batch: 6, Job Batch Id: 98
+2026-01-06 08:09:23,961 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.961251 Table: incident, Batch: 7, Job Batch Id: 99
+2026-01-06 08:09:23,961 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.961251 Table: incident, Batch: 7, Job Batch Id: 99
+2026-01-06 08:09:23,961 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.961251 Table: incident, Batch: 8, Job Batch Id: 100
+2026-01-06 08:09:23,963 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.963264 Table: incident, Batch: 8, Job Batch Id: 100
+2026-01-06 08:09:23,964 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.964277 Table: incident, Batch: 9, Job Batch Id: 101
+2026-01-06 08:09:23,964 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.964277 Table: incident, Batch: 9, Job Batch Id: 101
+2026-01-06 08:09:23,964 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.964277 Table: incident, Batch: 10, Job Batch Id: 102
+2026-01-06 08:09:23,966 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.966290 Table: incident, Batch: 10, Job Batch Id: 102
+2026-01-06 08:09:23,971 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.966290 Table: incident, Batch: 11, Job Batch Id: 103
+2026-01-06 08:09:23,971 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.971400 Table: incident, Batch: 11, Job Batch Id: 103
+2026-01-06 08:09:23,973 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.973424 Table: incident, Batch: 12, Job Batch Id: 104
+2026-01-06 08:09:23,973 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.973424 Table: incident, Batch: 12, Job Batch Id: 104
+2026-01-06 08:09:23,973 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.973424 Table: incident, Batch: 13, Job Batch Id: 105
+2026-01-06 08:09:23,975 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.975442 Table: incident, Batch: 13, Job Batch Id: 105
+2026-01-06 08:09:23,975 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.975442 Table: incident, Batch: 14, Job Batch Id: 106
+2026-01-06 08:09:23,975 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.975442 Table: incident, Batch: 14, Job Batch Id: 106
+2026-01-06 08:09:23,977 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.977467 Table: incident, Batch: 15, Job Batch Id: 107
+2026-01-06 08:09:23,977 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.977467 Table: incident, Batch: 15, Job Batch Id: 107
+2026-01-06 08:09:23,979 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.979491 Table: incident, Batch: 16, Job Batch Id: 108
+2026-01-06 08:09:23,979 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.979491 Table: incident, Batch: 16, Job Batch Id: 108
+2026-01-06 08:09:23,979 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.979491 Table: incident, Batch: 17, Job Batch Id: 109
+2026-01-06 08:09:23,981 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.981514 Table: incident, Batch: 17, Job Batch Id: 109
+2026-01-06 08:09:23,981 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.981514 Table: incident, Batch: 18, Job Batch Id: 110
+2026-01-06 08:09:23,981 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.981514 Table: incident, Batch: 18, Job Batch Id: 110
+2026-01-06 08:09:23,983 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.983541 Table: incident, Batch: 19, Job Batch Id: 111
+2026-01-06 08:09:23,983 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.983541 Table: incident, Batch: 19, Job Batch Id: 111
+2026-01-06 08:09:23,985 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.985315 Table: incident, Batch: 20, Job Batch Id: 112
+2026-01-06 08:09:23,985 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.985315 Table: incident, Batch: 20, Job Batch Id: 112
+2026-01-06 08:09:23,985 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.985315 Table: incident, Batch: 21, Job Batch Id: 113
+2026-01-06 08:09:23,987 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.987336 Table: incident, Batch: 21, Job Batch Id: 113
+2026-01-06 08:09:23,987 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.987336 Table: incident, Batch: 22, Job Batch Id: 114
+2026-01-06 08:09:23,987 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.987336 Table: incident, Batch: 22, Job Batch Id: 114
+2026-01-06 08:09:23,989 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.989353 Table: incident, Batch: 23, Job Batch Id: 115
+2026-01-06 08:09:23,989 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.989353 Table: incident, Batch: 23, Job Batch Id: 115
+2026-01-06 08:09:23,991 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.989353 Table: incident, Batch: 24, Job Batch Id: 116
+2026-01-06 08:09:23,991 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.991378 Table: incident, Batch: 24, Job Batch Id: 116
+2026-01-06 08:09:23,991 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.991378 Table: incident, Batch: 25, Job Batch Id: 117
+2026-01-06 08:09:23,991 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.991378 Table: incident, Batch: 25, Job Batch Id: 117
+2026-01-06 08:09:23,993 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.993403 Table: incident, Batch: 26, Job Batch Id: 118
+2026-01-06 08:09:23,993 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.993403 Table: incident, Batch: 26, Job Batch Id: 118
+2026-01-06 08:09:23,995 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.995425 Table: incident, Batch: 27, Job Batch Id: 119
+2026-01-06 08:09:23,995 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.995425 Table: incident, Batch: 27, Job Batch Id: 119
+2026-01-06 08:09:23,995 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.995425 Table: incident, Batch: 28, Job Batch Id: 120
+2026-01-06 08:09:23,997 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.997445 Table: incident, Batch: 28, Job Batch Id: 120
+2026-01-06 08:09:23,997 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.997445 Table: incident, Batch: 29, Job Batch Id: 121
+2026-01-06 08:09:23,997 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.997445 Table: incident, Batch: 29, Job Batch Id: 121
+2026-01-06 08:09:23,999 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:23.999470 Table: incident, Batch: 30, Job Batch Id: 122
+2026-01-06 08:09:23,999 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:23.999470 Table: incident, Batch: 30, Job Batch Id: 122
+2026-01-06 08:09:24,001 - INFO - [ThreadPoolExecutor-11_0] [itsm:69] - Start: 2026-01-06 08:09:24.001239 Table: incident, Batch: 31, Job Batch Id: 123
+2026-01-06 08:09:24,001 - INFO - [ThreadPoolExecutor-11_0] [itsm:97] - End: 2026-01-06 08:09:24.001239 Table: incident, Batch: 31, Job Batch Id: 123
+2026-01-06 08:09:24,001 - INFO - [ThreadPoolExecutor-11_0] [itsm:111] - Servicenow table 'incident' extraction ends at 2026-01-06 08:09:24.001239
+2026-01-06 08:09:24,007 - INFO - [ThreadPoolExecutor-12_0] [itsm:44] - Job: 1, Job Table: 45
+2026-01-06 08:09:24,007 - INFO - [ThreadPoolExecutor-12_0] [itsm:45] - Servicenow table 'problem' extraction start at 2026-01-06 08:09:24.007289
+2026-01-06 08:09:24,009 - INFO - [ThreadPoolExecutor-12_1] [itsm:44] - Job: 1, Job Table: 19
+2026-01-06 08:09:24,009 - INFO - [ThreadPoolExecutor-12_1] [itsm:45] - Servicenow table 'change_request' extraction start at 2026-01-06 08:09:24.009942
+2026-01-06 08:09:25,119 - INFO - [ThreadPoolExecutor-12_0] [itsm:54] - Total rows in problem is 51
+2026-01-06 08:09:25,120 - INFO - [ThreadPoolExecutor-12_0] [itsm:69] - Start: 2026-01-06 08:09:25.120615 Table: problem, Batch: 0, Job Batch Id: 87
+2026-01-06 08:09:25,120 - INFO - [ThreadPoolExecutor-12_0] [itsm:97] - End: 2026-01-06 08:09:25.120615 Table: problem, Batch: 0, Job Batch Id: 87
+2026-01-06 08:09:25,122 - INFO - [ThreadPoolExecutor-12_0] [itsm:111] - Servicenow table 'problem' extraction ends at 2026-01-06 08:09:25.122644
+2026-01-06 08:09:25,200 - INFO - [ThreadPoolExecutor-12_1] [itsm:54] - Total rows in change_request is 535
+2026-01-06 08:09:25,201 - INFO - [ThreadPoolExecutor-12_1] [itsm:69] - Start: 2026-01-06 08:09:25.201465 Table: change_request, Batch: 0, Job Batch Id: 17
+2026-01-06 08:09:25,202 - INFO - [ThreadPoolExecutor-12_1] [itsm:97] - End: 2026-01-06 08:09:25.202464 Table: change_request, Batch: 0, Job Batch Id: 17
+2026-01-06 08:09:25,202 - INFO - [ThreadPoolExecutor-12_1] [itsm:111] - Servicenow table 'change_request' extraction ends at 2026-01-06 08:09:25.202464
+2026-01-06 08:09:25,206 - INFO - [ThreadPoolExecutor-13_0] [itsm:44] - Job: 1, Job Table: 60
+2026-01-06 08:09:25,206 - INFO - [ThreadPoolExecutor-13_0] [itsm:45] - Servicenow table 'sc_req_item' extraction start at 2026-01-06 08:09:25.206468
+2026-01-06 08:09:25,207 - INFO - [ThreadPoolExecutor-13_1] [itsm:44] - Job: 1, Job Table: 61
+2026-01-06 08:09:25,207 - INFO - [ThreadPoolExecutor-13_1] [itsm:45] - Servicenow table 'sc_request' extraction start at 2026-01-06 08:09:25.207466
+2026-01-06 08:09:26,363 - INFO - [ThreadPoolExecutor-13_1] [itsm:54] - Total rows in sc_request is 6148
+2026-01-06 08:09:26,364 - INFO - [ThreadPoolExecutor-13_1] [itsm:69] - Start: 2026-01-06 08:09:26.364632 Table: sc_request, Batch: 0, Job Batch Id: 678
+2026-01-06 08:09:26,365 - INFO - [ThreadPoolExecutor-13_1] [itsm:97] - End: 2026-01-06 08:09:26.365630 Table: sc_request, Batch: 0, Job Batch Id: 678
+2026-01-06 08:09:26,366 - INFO - [ThreadPoolExecutor-13_1] [itsm:69] - Start: 2026-01-06 08:09:26.366630 Table: sc_request, Batch: 1, Job Batch Id: 680
+2026-01-06 08:09:26,366 - INFO - [ThreadPoolExecutor-13_1] [itsm:97] - End: 2026-01-06 08:09:26.366630 Table: sc_request, Batch: 1, Job Batch Id: 680
+2026-01-06 08:09:26,366 - INFO - [ThreadPoolExecutor-13_1] [itsm:111] - Servicenow table 'sc_request' extraction ends at 2026-01-06 08:09:26.366630
+2026-01-06 08:09:26,392 - INFO - [ThreadPoolExecutor-13_0] [itsm:54] - Total rows in sc_req_item is 6306
+2026-01-06 08:09:26,393 - INFO - [ThreadPoolExecutor-13_0] [itsm:69] - Start: 2026-01-06 08:09:26.393932 Table: sc_req_item, Batch: 0, Job Batch Id: 679
+2026-01-06 08:09:26,394 - INFO - [ThreadPoolExecutor-13_0] [itsm:97] - End: 2026-01-06 08:09:26.394927 Table: sc_req_item, Batch: 0, Job Batch Id: 679
+2026-01-06 08:09:26,395 - INFO - [ThreadPoolExecutor-13_0] [itsm:69] - Start: 2026-01-06 08:09:26.395936 Table: sc_req_item, Batch: 1, Job Batch Id: 681
+2026-01-06 08:09:26,396 - INFO - [ThreadPoolExecutor-13_0] [itsm:97] - End: 2026-01-06 08:09:26.395936 Table: sc_req_item, Batch: 1, Job Batch Id: 681
+2026-01-06 08:09:26,396 - INFO - [ThreadPoolExecutor-13_0] [itsm:111] - Servicenow table 'sc_req_item' extraction ends at 2026-01-06 08:09:26.396930
+2026-01-06 08:11:06,181 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:11:06,181 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:11:06,182 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:11:06,182 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:11:06,777 - INFO - [ThreadPoolExecutor-1_0] [itsm:44] - Job: 4, Job Table: 55
+2026-01-06 08:11:06,777 - INFO - [ThreadPoolExecutor-1_0] [itsm:45] - Servicenow table 'sys_attachment' extraction start at 2026-01-06 08:11:06.777586
+2026-01-06 08:11:06,781 - INFO - [ThreadPoolExecutor-1_1] [itsm:44] - Job: 4, Job Table: 71
+2026-01-06 08:11:06,781 - INFO - [ThreadPoolExecutor-1_1] [itsm:45] - Servicenow table 'sys_attachment_doc' extraction start at 2026-01-06 08:11:06.781626
+2026-01-06 08:11:08,014 - INFO - [ThreadPoolExecutor-1_0] [itsm:54] - Total rows in sys_attachment is 458589
+2026-01-06 08:11:08,027 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.027992 Table: sys_attachment, Batch: 0, Job Batch Id: 252
+2026-01-06 08:11:08,030 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.030014 Table: sys_attachment, Batch: 0, Job Batch Id: 252
+2026-01-06 08:11:08,030 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.030014 Table: sys_attachment, Batch: 1, Job Batch Id: 253
+2026-01-06 08:11:08,032 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.032033 Table: sys_attachment, Batch: 1, Job Batch Id: 253
+2026-01-06 08:11:08,032 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.032033 Table: sys_attachment, Batch: 2, Job Batch Id: 254
+2026-01-06 08:11:08,032 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.032033 Table: sys_attachment, Batch: 2, Job Batch Id: 254
+2026-01-06 08:11:08,034 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.034053 Table: sys_attachment, Batch: 3, Job Batch Id: 255
+2026-01-06 08:11:08,034 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.034053 Table: sys_attachment, Batch: 3, Job Batch Id: 255
+2026-01-06 08:11:08,036 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.036071 Table: sys_attachment, Batch: 4, Job Batch Id: 256
+2026-01-06 08:11:08,036 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.036071 Table: sys_attachment, Batch: 4, Job Batch Id: 256
+2026-01-06 08:11:08,036 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.036071 Table: sys_attachment, Batch: 5, Job Batch Id: 257
+2026-01-06 08:11:08,038 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.038087 Table: sys_attachment, Batch: 5, Job Batch Id: 257
+2026-01-06 08:11:08,038 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.038087 Table: sys_attachment, Batch: 6, Job Batch Id: 258
+2026-01-06 08:11:08,040 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.040105 Table: sys_attachment, Batch: 6, Job Batch Id: 258
+2026-01-06 08:11:08,040 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.040105 Table: sys_attachment, Batch: 7, Job Batch Id: 259
+2026-01-06 08:11:08,040 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.040105 Table: sys_attachment, Batch: 7, Job Batch Id: 259
+2026-01-06 08:11:08,042 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.042123 Table: sys_attachment, Batch: 8, Job Batch Id: 260
+2026-01-06 08:11:08,042 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.042123 Table: sys_attachment, Batch: 8, Job Batch Id: 260
+2026-01-06 08:11:08,044 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.044140 Table: sys_attachment, Batch: 9, Job Batch Id: 261
+2026-01-06 08:11:08,044 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.044140 Table: sys_attachment, Batch: 9, Job Batch Id: 261
+2026-01-06 08:11:08,044 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.044140 Table: sys_attachment, Batch: 10, Job Batch Id: 262
+2026-01-06 08:11:08,045 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.045906 Table: sys_attachment, Batch: 10, Job Batch Id: 262
+2026-01-06 08:11:08,045 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.045906 Table: sys_attachment, Batch: 11, Job Batch Id: 263
+2026-01-06 08:11:08,047 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.047922 Table: sys_attachment, Batch: 11, Job Batch Id: 263
+2026-01-06 08:11:08,047 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.047922 Table: sys_attachment, Batch: 12, Job Batch Id: 264
+2026-01-06 08:11:08,047 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.047922 Table: sys_attachment, Batch: 12, Job Batch Id: 264
+2026-01-06 08:11:08,049 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.049939 Table: sys_attachment, Batch: 13, Job Batch Id: 265
+2026-01-06 08:11:08,049 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.049939 Table: sys_attachment, Batch: 13, Job Batch Id: 265
+2026-01-06 08:11:08,051 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.051955 Table: sys_attachment, Batch: 14, Job Batch Id: 266
+2026-01-06 08:11:08,051 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.051955 Table: sys_attachment, Batch: 14, Job Batch Id: 266
+2026-01-06 08:11:08,051 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.051955 Table: sys_attachment, Batch: 15, Job Batch Id: 267
+2026-01-06 08:11:08,053 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.053972 Table: sys_attachment, Batch: 15, Job Batch Id: 267
+2026-01-06 08:11:08,053 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.053972 Table: sys_attachment, Batch: 16, Job Batch Id: 268
+2026-01-06 08:11:08,053 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.053972 Table: sys_attachment, Batch: 16, Job Batch Id: 268
+2026-01-06 08:11:08,055 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.055993 Table: sys_attachment, Batch: 17, Job Batch Id: 269
+2026-01-06 08:11:08,055 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.055993 Table: sys_attachment, Batch: 17, Job Batch Id: 269
+2026-01-06 08:11:08,058 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.058009 Table: sys_attachment, Batch: 18, Job Batch Id: 270
+2026-01-06 08:11:08,058 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.058009 Table: sys_attachment, Batch: 18, Job Batch Id: 270
+2026-01-06 08:11:08,061 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.061111 Table: sys_attachment, Batch: 19, Job Batch Id: 271
+2026-01-06 08:11:08,061 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.061111 Table: sys_attachment, Batch: 19, Job Batch Id: 271
+2026-01-06 08:11:08,063 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.063129 Table: sys_attachment, Batch: 20, Job Batch Id: 272
+2026-01-06 08:11:08,063 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.063129 Table: sys_attachment, Batch: 20, Job Batch Id: 272
+2026-01-06 08:11:08,065 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.065148 Table: sys_attachment, Batch: 21, Job Batch Id: 273
+2026-01-06 08:11:08,065 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.065148 Table: sys_attachment, Batch: 21, Job Batch Id: 273
+2026-01-06 08:11:08,065 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.065148 Table: sys_attachment, Batch: 22, Job Batch Id: 274
+2026-01-06 08:11:08,067 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.067169 Table: sys_attachment, Batch: 22, Job Batch Id: 274
+2026-01-06 08:11:08,067 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.067169 Table: sys_attachment, Batch: 23, Job Batch Id: 275
+2026-01-06 08:11:08,067 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.067169 Table: sys_attachment, Batch: 23, Job Batch Id: 275
+2026-01-06 08:11:08,069 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.069180 Table: sys_attachment, Batch: 24, Job Batch Id: 276
+2026-01-06 08:11:08,069 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.069180 Table: sys_attachment, Batch: 24, Job Batch Id: 276
+2026-01-06 08:11:08,071 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.071194 Table: sys_attachment, Batch: 25, Job Batch Id: 277
+2026-01-06 08:11:08,071 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.071194 Table: sys_attachment, Batch: 25, Job Batch Id: 277
+2026-01-06 08:11:08,071 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.071194 Table: sys_attachment, Batch: 26, Job Batch Id: 278
+2026-01-06 08:11:08,073 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.073206 Table: sys_attachment, Batch: 26, Job Batch Id: 278
+2026-01-06 08:11:08,073 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.073206 Table: sys_attachment, Batch: 27, Job Batch Id: 279
+2026-01-06 08:11:08,073 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.073206 Table: sys_attachment, Batch: 27, Job Batch Id: 279
+2026-01-06 08:11:08,075 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.075219 Table: sys_attachment, Batch: 28, Job Batch Id: 280
+2026-01-06 08:11:08,075 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.075219 Table: sys_attachment, Batch: 28, Job Batch Id: 280
+2026-01-06 08:11:08,076 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.076979 Table: sys_attachment, Batch: 29, Job Batch Id: 281
+2026-01-06 08:11:08,076 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.076979 Table: sys_attachment, Batch: 29, Job Batch Id: 281
+2026-01-06 08:11:08,078 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.078993 Table: sys_attachment, Batch: 30, Job Batch Id: 282
+2026-01-06 08:11:08,078 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.078993 Table: sys_attachment, Batch: 30, Job Batch Id: 282
+2026-01-06 08:11:08,078 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.078993 Table: sys_attachment, Batch: 31, Job Batch Id: 283
+2026-01-06 08:11:08,081 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.081007 Table: sys_attachment, Batch: 31, Job Batch Id: 283
+2026-01-06 08:11:08,081 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.081007 Table: sys_attachment, Batch: 32, Job Batch Id: 284
+2026-01-06 08:11:08,083 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.083022 Table: sys_attachment, Batch: 32, Job Batch Id: 284
+2026-01-06 08:11:08,083 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.083022 Table: sys_attachment, Batch: 33, Job Batch Id: 285
+2026-01-06 08:11:08,083 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.083022 Table: sys_attachment, Batch: 33, Job Batch Id: 285
+2026-01-06 08:11:08,085 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.085035 Table: sys_attachment, Batch: 34, Job Batch Id: 286
+2026-01-06 08:11:08,085 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.085035 Table: sys_attachment, Batch: 34, Job Batch Id: 286
+2026-01-06 08:11:08,085 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.085035 Table: sys_attachment, Batch: 35, Job Batch Id: 287
+2026-01-06 08:11:08,087 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.087049 Table: sys_attachment, Batch: 35, Job Batch Id: 287
+2026-01-06 08:11:08,087 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.087049 Table: sys_attachment, Batch: 36, Job Batch Id: 288
+2026-01-06 08:11:08,089 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.089062 Table: sys_attachment, Batch: 36, Job Batch Id: 288
+2026-01-06 08:11:08,090 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.090075 Table: sys_attachment, Batch: 37, Job Batch Id: 289
+2026-01-06 08:11:08,090 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.090075 Table: sys_attachment, Batch: 37, Job Batch Id: 289
+2026-01-06 08:11:08,090 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.090075 Table: sys_attachment, Batch: 38, Job Batch Id: 290
+2026-01-06 08:11:08,092 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.092088 Table: sys_attachment, Batch: 38, Job Batch Id: 290
+2026-01-06 08:11:08,093 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.093100 Table: sys_attachment, Batch: 39, Job Batch Id: 291
+2026-01-06 08:11:08,093 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.093100 Table: sys_attachment, Batch: 39, Job Batch Id: 291
+2026-01-06 08:11:08,093 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.093100 Table: sys_attachment, Batch: 40, Job Batch Id: 292
+2026-01-06 08:11:08,095 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.095112 Table: sys_attachment, Batch: 40, Job Batch Id: 292
+2026-01-06 08:11:08,095 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.095112 Table: sys_attachment, Batch: 41, Job Batch Id: 293
+2026-01-06 08:11:08,097 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.097125 Table: sys_attachment, Batch: 41, Job Batch Id: 293
+2026-01-06 08:11:08,097 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.097125 Table: sys_attachment, Batch: 42, Job Batch Id: 294
+2026-01-06 08:11:08,097 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.097125 Table: sys_attachment, Batch: 42, Job Batch Id: 294
+2026-01-06 08:11:08,099 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.099138 Table: sys_attachment, Batch: 43, Job Batch Id: 295
+2026-01-06 08:11:08,099 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.099138 Table: sys_attachment, Batch: 43, Job Batch Id: 295
+2026-01-06 08:11:08,101 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.101151 Table: sys_attachment, Batch: 44, Job Batch Id: 296
+2026-01-06 08:11:08,101 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.101151 Table: sys_attachment, Batch: 44, Job Batch Id: 296
+2026-01-06 08:11:08,101 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.101151 Table: sys_attachment, Batch: 45, Job Batch Id: 297
+2026-01-06 08:11:08,103 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.103163 Table: sys_attachment, Batch: 45, Job Batch Id: 297
+2026-01-06 08:11:08,103 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.103163 Table: sys_attachment, Batch: 46, Job Batch Id: 298
+2026-01-06 08:11:08,103 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.103163 Table: sys_attachment, Batch: 46, Job Batch Id: 298
+2026-01-06 08:11:08,109 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.109103 Table: sys_attachment, Batch: 47, Job Batch Id: 299
+2026-01-06 08:11:08,109 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.109103 Table: sys_attachment, Batch: 47, Job Batch Id: 299
+2026-01-06 08:11:08,111 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.111119 Table: sys_attachment, Batch: 48, Job Batch Id: 300
+2026-01-06 08:11:08,111 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.111119 Table: sys_attachment, Batch: 48, Job Batch Id: 300
+2026-01-06 08:11:08,111 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.111119 Table: sys_attachment, Batch: 49, Job Batch Id: 301
+2026-01-06 08:11:08,113 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.113130 Table: sys_attachment, Batch: 49, Job Batch Id: 301
+2026-01-06 08:11:08,113 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.113130 Table: sys_attachment, Batch: 50, Job Batch Id: 302
+2026-01-06 08:11:08,113 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.113130 Table: sys_attachment, Batch: 50, Job Batch Id: 302
+2026-01-06 08:11:08,115 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.115144 Table: sys_attachment, Batch: 51, Job Batch Id: 303
+2026-01-06 08:11:08,115 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.115144 Table: sys_attachment, Batch: 51, Job Batch Id: 303
+2026-01-06 08:11:08,117 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.117157 Table: sys_attachment, Batch: 52, Job Batch Id: 304
+2026-01-06 08:11:08,117 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.117157 Table: sys_attachment, Batch: 52, Job Batch Id: 304
+2026-01-06 08:11:08,117 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.117157 Table: sys_attachment, Batch: 53, Job Batch Id: 305
+2026-01-06 08:11:08,119 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.119170 Table: sys_attachment, Batch: 53, Job Batch Id: 305
+2026-01-06 08:11:08,119 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.119170 Table: sys_attachment, Batch: 54, Job Batch Id: 306
+2026-01-06 08:11:08,119 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.119170 Table: sys_attachment, Batch: 54, Job Batch Id: 306
+2026-01-06 08:11:08,121 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.121683 Table: sys_attachment, Batch: 55, Job Batch Id: 307
+2026-01-06 08:11:08,121 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.121683 Table: sys_attachment, Batch: 55, Job Batch Id: 307
+2026-01-06 08:11:08,121 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.121683 Table: sys_attachment, Batch: 56, Job Batch Id: 308
+2026-01-06 08:11:08,123 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.123701 Table: sys_attachment, Batch: 56, Job Batch Id: 308
+2026-01-06 08:11:08,123 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.123701 Table: sys_attachment, Batch: 57, Job Batch Id: 309
+2026-01-06 08:11:08,125 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.125217 Table: sys_attachment, Batch: 57, Job Batch Id: 309
+2026-01-06 08:11:08,125 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.125217 Table: sys_attachment, Batch: 58, Job Batch Id: 310
+2026-01-06 08:11:08,125 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.125217 Table: sys_attachment, Batch: 58, Job Batch Id: 310
+2026-01-06 08:11:08,127 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.127239 Table: sys_attachment, Batch: 59, Job Batch Id: 311
+2026-01-06 08:11:08,127 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.127239 Table: sys_attachment, Batch: 59, Job Batch Id: 311
+2026-01-06 08:11:08,129 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.129257 Table: sys_attachment, Batch: 60, Job Batch Id: 312
+2026-01-06 08:11:08,129 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.129257 Table: sys_attachment, Batch: 60, Job Batch Id: 312
+2026-01-06 08:11:08,129 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.129257 Table: sys_attachment, Batch: 61, Job Batch Id: 313
+2026-01-06 08:11:08,131 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.131275 Table: sys_attachment, Batch: 61, Job Batch Id: 313
+2026-01-06 08:11:08,131 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.131275 Table: sys_attachment, Batch: 62, Job Batch Id: 314
+2026-01-06 08:11:08,131 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.131275 Table: sys_attachment, Batch: 62, Job Batch Id: 314
+2026-01-06 08:11:08,133 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.133292 Table: sys_attachment, Batch: 63, Job Batch Id: 315
+2026-01-06 08:11:08,133 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.133292 Table: sys_attachment, Batch: 63, Job Batch Id: 315
+2026-01-06 08:11:08,135 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.135308 Table: sys_attachment, Batch: 64, Job Batch Id: 316
+2026-01-06 08:11:08,135 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.135308 Table: sys_attachment, Batch: 64, Job Batch Id: 316
+2026-01-06 08:11:08,135 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.135308 Table: sys_attachment, Batch: 65, Job Batch Id: 317
+2026-01-06 08:11:08,137 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.137341 Table: sys_attachment, Batch: 65, Job Batch Id: 317
+2026-01-06 08:11:08,137 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.137341 Table: sys_attachment, Batch: 66, Job Batch Id: 318
+2026-01-06 08:11:08,137 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.137341 Table: sys_attachment, Batch: 66, Job Batch Id: 318
+2026-01-06 08:11:08,139 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.139358 Table: sys_attachment, Batch: 67, Job Batch Id: 319
+2026-01-06 08:11:08,139 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.139358 Table: sys_attachment, Batch: 67, Job Batch Id: 319
+2026-01-06 08:11:08,141 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.141123 Table: sys_attachment, Batch: 68, Job Batch Id: 320
+2026-01-06 08:11:08,141 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.141123 Table: sys_attachment, Batch: 68, Job Batch Id: 320
+2026-01-06 08:11:08,141 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.141123 Table: sys_attachment, Batch: 69, Job Batch Id: 321
+2026-01-06 08:11:08,143 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.143139 Table: sys_attachment, Batch: 69, Job Batch Id: 321
+2026-01-06 08:11:08,143 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.143139 Table: sys_attachment, Batch: 70, Job Batch Id: 322
+2026-01-06 08:11:08,145 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.145156 Table: sys_attachment, Batch: 70, Job Batch Id: 322
+2026-01-06 08:11:08,145 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.145156 Table: sys_attachment, Batch: 71, Job Batch Id: 323
+2026-01-06 08:11:08,145 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.145156 Table: sys_attachment, Batch: 71, Job Batch Id: 323
+2026-01-06 08:11:08,147 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.147172 Table: sys_attachment, Batch: 72, Job Batch Id: 324
+2026-01-06 08:11:08,147 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.147172 Table: sys_attachment, Batch: 72, Job Batch Id: 324
+2026-01-06 08:11:08,147 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.147172 Table: sys_attachment, Batch: 73, Job Batch Id: 325
+2026-01-06 08:11:08,149 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.149194 Table: sys_attachment, Batch: 73, Job Batch Id: 325
+2026-01-06 08:11:08,149 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.149194 Table: sys_attachment, Batch: 74, Job Batch Id: 326
+2026-01-06 08:11:08,151 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.151211 Table: sys_attachment, Batch: 74, Job Batch Id: 326
+2026-01-06 08:11:08,151 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.151211 Table: sys_attachment, Batch: 75, Job Batch Id: 327
+2026-01-06 08:11:08,154 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.154740 Table: sys_attachment, Batch: 75, Job Batch Id: 327
+2026-01-06 08:11:08,156 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.156758 Table: sys_attachment, Batch: 76, Job Batch Id: 328
+2026-01-06 08:11:08,156 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.156758 Table: sys_attachment, Batch: 76, Job Batch Id: 328
+2026-01-06 08:11:08,156 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.156758 Table: sys_attachment, Batch: 77, Job Batch Id: 329
+2026-01-06 08:11:08,158 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.158775 Table: sys_attachment, Batch: 77, Job Batch Id: 329
+2026-01-06 08:11:08,158 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.158775 Table: sys_attachment, Batch: 78, Job Batch Id: 330
+2026-01-06 08:11:08,160 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.158775 Table: sys_attachment, Batch: 78, Job Batch Id: 330
+2026-01-06 08:11:08,160 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.160792 Table: sys_attachment, Batch: 79, Job Batch Id: 331
+2026-01-06 08:11:08,160 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.160792 Table: sys_attachment, Batch: 79, Job Batch Id: 331
+2026-01-06 08:11:08,162 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.162805 Table: sys_attachment, Batch: 80, Job Batch Id: 332
+2026-01-06 08:11:08,162 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.162805 Table: sys_attachment, Batch: 80, Job Batch Id: 332
+2026-01-06 08:11:08,162 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.162805 Table: sys_attachment, Batch: 81, Job Batch Id: 333
+2026-01-06 08:11:08,164 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.164818 Table: sys_attachment, Batch: 81, Job Batch Id: 333
+2026-01-06 08:11:08,164 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.164818 Table: sys_attachment, Batch: 82, Job Batch Id: 334
+2026-01-06 08:11:08,164 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.164818 Table: sys_attachment, Batch: 82, Job Batch Id: 334
+2026-01-06 08:11:08,166 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.166828 Table: sys_attachment, Batch: 83, Job Batch Id: 335
+2026-01-06 08:11:08,166 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.166828 Table: sys_attachment, Batch: 83, Job Batch Id: 335
+2026-01-06 08:11:08,168 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.168842 Table: sys_attachment, Batch: 84, Job Batch Id: 336
+2026-01-06 08:11:08,168 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.168842 Table: sys_attachment, Batch: 84, Job Batch Id: 336
+2026-01-06 08:11:08,168 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.168842 Table: sys_attachment, Batch: 85, Job Batch Id: 337
+2026-01-06 08:11:08,170 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.170855 Table: sys_attachment, Batch: 85, Job Batch Id: 337
+2026-01-06 08:11:08,170 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.170855 Table: sys_attachment, Batch: 86, Job Batch Id: 338
+2026-01-06 08:11:08,172 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.172615 Table: sys_attachment, Batch: 86, Job Batch Id: 338
+2026-01-06 08:11:08,172 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.172615 Table: sys_attachment, Batch: 87, Job Batch Id: 339
+2026-01-06 08:11:08,172 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.172615 Table: sys_attachment, Batch: 87, Job Batch Id: 339
+2026-01-06 08:11:08,174 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.174628 Table: sys_attachment, Batch: 88, Job Batch Id: 340
+2026-01-06 08:11:08,174 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.174628 Table: sys_attachment, Batch: 88, Job Batch Id: 340
+2026-01-06 08:11:08,174 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.174628 Table: sys_attachment, Batch: 89, Job Batch Id: 341
+2026-01-06 08:11:08,176 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.176638 Table: sys_attachment, Batch: 89, Job Batch Id: 341
+2026-01-06 08:11:08,178 - INFO - [ThreadPoolExecutor-1_1] [itsm:54] - Total rows in sys_attachment_doc is 947162
+2026-01-06 08:11:08,180 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.180688 Table: sys_attachment, Batch: 90, Job Batch Id: 342
+2026-01-06 08:11:08,180 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.180688 Table: sys_attachment, Batch: 90, Job Batch Id: 342
+2026-01-06 08:11:08,180 - INFO - [ThreadPoolExecutor-1_1] [itsm:69] - Start: 2026-01-06 08:11:08.180688 Table: sys_attachment_doc, Batch: 0, Job Batch Id: 1193
+2026-01-06 08:11:08,194 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:11:08.194369 Table: sys_attachment, Batch: 91, Job Batch Id: 343
+2026-01-06 08:11:08,194 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:11:08.194369 Table: sys_attachment, Batch: 91, Job Batch Id: 343
+2026-01-06 08:11:08,194 - INFO - [ThreadPoolExecutor-1_0] [itsm:111] - Servicenow table 'sys_attachment' extraction ends at 2026-01-06 08:11:08.194369
+2026-01-06 08:11:43,661 - INFO - [ThreadPoolExecutor-1_1] [itsm:111] - Servicenow table 'sys_attachment_doc' extraction ends at 2026-01-06 08:11:43.661626
+2026-01-06 08:14:04,550 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:14:04,550 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:14:04,552 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:14:04,554 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:14:18,918 - INFO - [ThreadPoolExecutor-1_0] [itsm:44] - Job: 4, Job Table: 55
+2026-01-06 08:14:18,918 - INFO - [ThreadPoolExecutor-1_0] [itsm:45] - Servicenow table 'sys_attachment' extraction start at 2026-01-06 08:14:18.918144
+2026-01-06 08:14:20,276 - INFO - [ThreadPoolExecutor-1_1] [itsm:44] - Job: 4, Job Table: 71
+2026-01-06 08:14:23,294 - INFO - [ThreadPoolExecutor-1_0] [itsm:54] - Total rows in sys_attachment is 458589
+2026-01-06 08:14:23,296 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.296997 Table: sys_attachment, Batch: 0, Job Batch Id: 252
+2026-01-06 08:14:23,298 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.298001 Table: sys_attachment, Batch: 0, Job Batch Id: 252
+2026-01-06 08:14:23,299 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.299996 Table: sys_attachment, Batch: 1, Job Batch Id: 253
+2026-01-06 08:14:23,300 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.300996 Table: sys_attachment, Batch: 1, Job Batch Id: 253
+2026-01-06 08:14:23,302 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.302908 Table: sys_attachment, Batch: 2, Job Batch Id: 254
+2026-01-06 08:14:23,303 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.303605 Table: sys_attachment, Batch: 2, Job Batch Id: 254
+2026-01-06 08:14:23,304 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.304631 Table: sys_attachment, Batch: 3, Job Batch Id: 255
+2026-01-06 08:14:23,305 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.305630 Table: sys_attachment, Batch: 3, Job Batch Id: 255
+2026-01-06 08:14:23,306 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.306629 Table: sys_attachment, Batch: 4, Job Batch Id: 256
+2026-01-06 08:14:23,307 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.307629 Table: sys_attachment, Batch: 4, Job Batch Id: 256
+2026-01-06 08:14:23,308 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.308630 Table: sys_attachment, Batch: 5, Job Batch Id: 257
+2026-01-06 08:14:23,309 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.309627 Table: sys_attachment, Batch: 5, Job Batch Id: 257
+2026-01-06 08:14:23,311 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.311150 Table: sys_attachment, Batch: 6, Job Batch Id: 258
+2026-01-06 08:14:23,312 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.312502 Table: sys_attachment, Batch: 6, Job Batch Id: 258
+2026-01-06 08:14:23,313 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.313556 Table: sys_attachment, Batch: 7, Job Batch Id: 259
+2026-01-06 08:14:23,314 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.314559 Table: sys_attachment, Batch: 7, Job Batch Id: 259
+2026-01-06 08:14:23,315 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.315556 Table: sys_attachment, Batch: 8, Job Batch Id: 260
+2026-01-06 08:14:23,316 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.316560 Table: sys_attachment, Batch: 8, Job Batch Id: 260
+2026-01-06 08:14:23,317 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.317556 Table: sys_attachment, Batch: 9, Job Batch Id: 261
+2026-01-06 08:14:23,318 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.318559 Table: sys_attachment, Batch: 9, Job Batch Id: 261
+2026-01-06 08:14:23,319 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.319565 Table: sys_attachment, Batch: 10, Job Batch Id: 262
+2026-01-06 08:14:23,320 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.320558 Table: sys_attachment, Batch: 10, Job Batch Id: 262
+2026-01-06 08:14:23,321 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.321556 Table: sys_attachment, Batch: 11, Job Batch Id: 263
+2026-01-06 08:14:23,322 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.322559 Table: sys_attachment, Batch: 11, Job Batch Id: 263
+2026-01-06 08:14:23,323 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.323555 Table: sys_attachment, Batch: 12, Job Batch Id: 264
+2026-01-06 08:14:23,326 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.326565 Table: sys_attachment, Batch: 12, Job Batch Id: 264
+2026-01-06 08:14:23,327 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.327587 Table: sys_attachment, Batch: 13, Job Batch Id: 265
+2026-01-06 08:14:23,328 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.328592 Table: sys_attachment, Batch: 13, Job Batch Id: 265
+2026-01-06 08:14:23,329 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.329586 Table: sys_attachment, Batch: 14, Job Batch Id: 266
+2026-01-06 08:14:23,330 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.329586 Table: sys_attachment, Batch: 14, Job Batch Id: 266
+2026-01-06 08:14:23,331 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.331588 Table: sys_attachment, Batch: 15, Job Batch Id: 267
+2026-01-06 08:14:23,332 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.332586 Table: sys_attachment, Batch: 15, Job Batch Id: 267
+2026-01-06 08:14:23,333 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.333588 Table: sys_attachment, Batch: 16, Job Batch Id: 268
+2026-01-06 08:14:23,334 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.334580 Table: sys_attachment, Batch: 16, Job Batch Id: 268
+2026-01-06 08:14:23,335 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.335582 Table: sys_attachment, Batch: 17, Job Batch Id: 269
+2026-01-06 08:14:23,336 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.336582 Table: sys_attachment, Batch: 17, Job Batch Id: 269
+2026-01-06 08:14:23,337 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.337584 Table: sys_attachment, Batch: 18, Job Batch Id: 270
+2026-01-06 08:14:23,338 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.338583 Table: sys_attachment, Batch: 18, Job Batch Id: 270
+2026-01-06 08:14:23,339 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.339586 Table: sys_attachment, Batch: 19, Job Batch Id: 271
+2026-01-06 08:14:23,340 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.340582 Table: sys_attachment, Batch: 19, Job Batch Id: 271
+2026-01-06 08:14:23,340 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.340582 Table: sys_attachment, Batch: 20, Job Batch Id: 272
+2026-01-06 08:14:23,342 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.342096 Table: sys_attachment, Batch: 20, Job Batch Id: 272
+2026-01-06 08:14:23,343 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.343550 Table: sys_attachment, Batch: 21, Job Batch Id: 273
+2026-01-06 08:14:23,344 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:23.344607 Table: sys_attachment, Batch: 21, Job Batch Id: 273
+2026-01-06 08:14:23,345 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:23.345609 Table: sys_attachment, Batch: 22, Job Batch Id: 274
+2026-01-06 08:14:23,346 - INFO - [ThreadPoolExecutor-1_1] [itsm:45] - Servicenow table 'sys_attachment_doc' extraction start at 2026-01-06 08:14:22.421296
+2026-01-06 08:14:24,382 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.382153 Table: sys_attachment, Batch: 22, Job Batch Id: 274
+2026-01-06 08:14:24,384 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.384175 Table: sys_attachment, Batch: 23, Job Batch Id: 275
+2026-01-06 08:14:24,384 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.384175 Table: sys_attachment, Batch: 23, Job Batch Id: 275
+2026-01-06 08:14:24,386 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.386195 Table: sys_attachment, Batch: 24, Job Batch Id: 276
+2026-01-06 08:14:24,388 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.388224 Table: sys_attachment, Batch: 24, Job Batch Id: 276
+2026-01-06 08:14:24,388 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.388224 Table: sys_attachment, Batch: 25, Job Batch Id: 277
+2026-01-06 08:14:24,390 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.390247 Table: sys_attachment, Batch: 25, Job Batch Id: 277
+2026-01-06 08:14:24,392 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.392278 Table: sys_attachment, Batch: 26, Job Batch Id: 278
+2026-01-06 08:14:24,393 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.393192 Table: sys_attachment, Batch: 26, Job Batch Id: 278
+2026-01-06 08:14:24,394 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.394218 Table: sys_attachment, Batch: 27, Job Batch Id: 279
+2026-01-06 08:14:24,395 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.395217 Table: sys_attachment, Batch: 27, Job Batch Id: 279
+2026-01-06 08:14:24,396 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.396216 Table: sys_attachment, Batch: 28, Job Batch Id: 280
+2026-01-06 08:14:24,397 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.397217 Table: sys_attachment, Batch: 28, Job Batch Id: 280
+2026-01-06 08:14:24,398 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.398227 Table: sys_attachment, Batch: 29, Job Batch Id: 281
+2026-01-06 08:14:24,399 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.399222 Table: sys_attachment, Batch: 29, Job Batch Id: 281
+2026-01-06 08:14:24,400 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.400218 Table: sys_attachment, Batch: 30, Job Batch Id: 282
+2026-01-06 08:14:24,401 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.401217 Table: sys_attachment, Batch: 30, Job Batch Id: 282
+2026-01-06 08:14:24,402 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.402221 Table: sys_attachment, Batch: 31, Job Batch Id: 283
+2026-01-06 08:14:24,403 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.403215 Table: sys_attachment, Batch: 31, Job Batch Id: 283
+2026-01-06 08:14:24,404 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.404730 Table: sys_attachment, Batch: 32, Job Batch Id: 284
+2026-01-06 08:14:24,407 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.407670 Table: sys_attachment, Batch: 32, Job Batch Id: 284
+2026-01-06 08:14:24,408 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.408675 Table: sys_attachment, Batch: 33, Job Batch Id: 285
+2026-01-06 08:14:24,409 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.409673 Table: sys_attachment, Batch: 33, Job Batch Id: 285
+2026-01-06 08:14:24,411 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.411663 Table: sys_attachment, Batch: 34, Job Batch Id: 286
+2026-01-06 08:14:24,412 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.412676 Table: sys_attachment, Batch: 34, Job Batch Id: 286
+2026-01-06 08:14:24,413 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.413663 Table: sys_attachment, Batch: 35, Job Batch Id: 287
+2026-01-06 08:14:24,415 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.415664 Table: sys_attachment, Batch: 35, Job Batch Id: 287
+2026-01-06 08:14:24,416 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.416675 Table: sys_attachment, Batch: 36, Job Batch Id: 288
+2026-01-06 08:14:24,417 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.417520 Table: sys_attachment, Batch: 36, Job Batch Id: 288
+2026-01-06 08:14:24,419 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.419551 Table: sys_attachment, Batch: 37, Job Batch Id: 289
+2026-01-06 08:14:24,419 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.419551 Table: sys_attachment, Batch: 37, Job Batch Id: 289
+2026-01-06 08:14:24,421 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.421580 Table: sys_attachment, Batch: 38, Job Batch Id: 290
+2026-01-06 08:14:24,428 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.428083 Table: sys_attachment, Batch: 38, Job Batch Id: 290
+2026-01-06 08:14:24,430 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.429109 Table: sys_attachment, Batch: 39, Job Batch Id: 291
+2026-01-06 08:14:24,430 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.430106 Table: sys_attachment, Batch: 39, Job Batch Id: 291
+2026-01-06 08:14:24,431 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.431102 Table: sys_attachment, Batch: 40, Job Batch Id: 292
+2026-01-06 08:14:24,432 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.432111 Table: sys_attachment, Batch: 40, Job Batch Id: 292
+2026-01-06 08:14:24,433 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.433103 Table: sys_attachment, Batch: 41, Job Batch Id: 293
+2026-01-06 08:14:24,434 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.434109 Table: sys_attachment, Batch: 41, Job Batch Id: 293
+2026-01-06 08:14:24,435 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.435113 Table: sys_attachment, Batch: 42, Job Batch Id: 294
+2026-01-06 08:14:24,437 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.437875 Table: sys_attachment, Batch: 42, Job Batch Id: 294
+2026-01-06 08:14:24,438 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.438885 Table: sys_attachment, Batch: 43, Job Batch Id: 295
+2026-01-06 08:14:24,439 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.439894 Table: sys_attachment, Batch: 43, Job Batch Id: 295
+2026-01-06 08:14:24,441 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.441889 Table: sys_attachment, Batch: 44, Job Batch Id: 296
+2026-01-06 08:14:24,442 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.442888 Table: sys_attachment, Batch: 44, Job Batch Id: 296
+2026-01-06 08:14:24,443 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.443888 Table: sys_attachment, Batch: 45, Job Batch Id: 297
+2026-01-06 08:14:24,444 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.444878 Table: sys_attachment, Batch: 45, Job Batch Id: 297
+2026-01-06 08:14:24,445 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.445876 Table: sys_attachment, Batch: 46, Job Batch Id: 298
+2026-01-06 08:14:24,446 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.446876 Table: sys_attachment, Batch: 46, Job Batch Id: 298
+2026-01-06 08:14:24,447 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.447875 Table: sys_attachment, Batch: 47, Job Batch Id: 299
+2026-01-06 08:14:24,448 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.448876 Table: sys_attachment, Batch: 47, Job Batch Id: 299
+2026-01-06 08:14:24,449 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.449873 Table: sys_attachment, Batch: 48, Job Batch Id: 300
+2026-01-06 08:14:24,450 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.450882 Table: sys_attachment, Batch: 48, Job Batch Id: 300
+2026-01-06 08:14:24,451 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.451873 Table: sys_attachment, Batch: 49, Job Batch Id: 301
+2026-01-06 08:14:24,452 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.452885 Table: sys_attachment, Batch: 49, Job Batch Id: 301
+2026-01-06 08:14:24,453 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.453889 Table: sys_attachment, Batch: 50, Job Batch Id: 302
+2026-01-06 08:14:24,454 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.454901 Table: sys_attachment, Batch: 50, Job Batch Id: 302
+2026-01-06 08:14:24,455 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.455888 Table: sys_attachment, Batch: 51, Job Batch Id: 303
+2026-01-06 08:14:24,456 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.456889 Table: sys_attachment, Batch: 51, Job Batch Id: 303
+2026-01-06 08:14:24,457 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.457888 Table: sys_attachment, Batch: 52, Job Batch Id: 304
+2026-01-06 08:14:24,458 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.458889 Table: sys_attachment, Batch: 52, Job Batch Id: 304
+2026-01-06 08:14:24,459 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.459888 Table: sys_attachment, Batch: 53, Job Batch Id: 305
+2026-01-06 08:14:24,460 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.460889 Table: sys_attachment, Batch: 53, Job Batch Id: 305
+2026-01-06 08:14:24,461 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.461888 Table: sys_attachment, Batch: 54, Job Batch Id: 306
+2026-01-06 08:14:24,462 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.462892 Table: sys_attachment, Batch: 54, Job Batch Id: 306
+2026-01-06 08:14:24,463 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.463889 Table: sys_attachment, Batch: 55, Job Batch Id: 307
+2026-01-06 08:14:24,464 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.464890 Table: sys_attachment, Batch: 55, Job Batch Id: 307
+2026-01-06 08:14:24,465 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.465889 Table: sys_attachment, Batch: 56, Job Batch Id: 308
+2026-01-06 08:14:24,467 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.467203 Table: sys_attachment, Batch: 56, Job Batch Id: 308
+2026-01-06 08:14:24,468 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.468296 Table: sys_attachment, Batch: 57, Job Batch Id: 309
+2026-01-06 08:14:24,469 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.469297 Table: sys_attachment, Batch: 57, Job Batch Id: 309
+2026-01-06 08:14:24,470 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.470294 Table: sys_attachment, Batch: 58, Job Batch Id: 310
+2026-01-06 08:14:24,471 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.471295 Table: sys_attachment, Batch: 58, Job Batch Id: 310
+2026-01-06 08:14:24,472 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.472293 Table: sys_attachment, Batch: 59, Job Batch Id: 311
+2026-01-06 08:14:24,473 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.473295 Table: sys_attachment, Batch: 59, Job Batch Id: 311
+2026-01-06 08:14:24,474 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.474295 Table: sys_attachment, Batch: 60, Job Batch Id: 312
+2026-01-06 08:14:24,475 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.475295 Table: sys_attachment, Batch: 60, Job Batch Id: 312
+2026-01-06 08:14:24,476 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.475295 Table: sys_attachment, Batch: 61, Job Batch Id: 313
+2026-01-06 08:14:24,476 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.476293 Table: sys_attachment, Batch: 61, Job Batch Id: 313
+2026-01-06 08:14:24,477 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.477293 Table: sys_attachment, Batch: 62, Job Batch Id: 314
+2026-01-06 08:14:24,478 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.478295 Table: sys_attachment, Batch: 62, Job Batch Id: 314
+2026-01-06 08:14:24,479 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.479290 Table: sys_attachment, Batch: 63, Job Batch Id: 315
+2026-01-06 08:14:24,480 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.480292 Table: sys_attachment, Batch: 63, Job Batch Id: 315
+2026-01-06 08:14:24,481 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.481290 Table: sys_attachment, Batch: 64, Job Batch Id: 316
+2026-01-06 08:14:24,482 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.482292 Table: sys_attachment, Batch: 64, Job Batch Id: 316
+2026-01-06 08:14:24,483 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.483291 Table: sys_attachment, Batch: 65, Job Batch Id: 317
+2026-01-06 08:14:24,484 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.484307 Table: sys_attachment, Batch: 65, Job Batch Id: 317
+2026-01-06 08:14:24,485 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.485306 Table: sys_attachment, Batch: 66, Job Batch Id: 318
+2026-01-06 08:14:24,490 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.490310 Table: sys_attachment, Batch: 66, Job Batch Id: 318
+2026-01-06 08:14:24,491 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.491304 Table: sys_attachment, Batch: 67, Job Batch Id: 319
+2026-01-06 08:14:24,493 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.492309 Table: sys_attachment, Batch: 67, Job Batch Id: 319
+2026-01-06 08:14:24,493 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.493319 Table: sys_attachment, Batch: 68, Job Batch Id: 320
+2026-01-06 08:14:24,494 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.494310 Table: sys_attachment, Batch: 68, Job Batch Id: 320
+2026-01-06 08:14:24,495 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.495307 Table: sys_attachment, Batch: 69, Job Batch Id: 321
+2026-01-06 08:14:24,496 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.496315 Table: sys_attachment, Batch: 69, Job Batch Id: 321
+2026-01-06 08:14:24,497 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.497303 Table: sys_attachment, Batch: 70, Job Batch Id: 322
+2026-01-06 08:14:24,498 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:24.498307 Table: sys_attachment, Batch: 70, Job Batch Id: 322
+2026-01-06 08:14:24,498 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:24.498307 Table: sys_attachment, Batch: 71, Job Batch Id: 323
+2026-01-06 08:14:25,318 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.317636 Table: sys_attachment, Batch: 71, Job Batch Id: 323
+2026-01-06 08:14:25,320 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.320333 Table: sys_attachment, Batch: 72, Job Batch Id: 324
+2026-01-06 08:14:25,321 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.321511 Table: sys_attachment, Batch: 72, Job Batch Id: 324
+2026-01-06 08:14:25,322 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.322498 Table: sys_attachment, Batch: 73, Job Batch Id: 325
+2026-01-06 08:14:25,323 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.323500 Table: sys_attachment, Batch: 73, Job Batch Id: 325
+2026-01-06 08:14:25,325 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.325068 Table: sys_attachment, Batch: 74, Job Batch Id: 326
+2026-01-06 08:14:25,326 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.326093 Table: sys_attachment, Batch: 74, Job Batch Id: 326
+2026-01-06 08:14:25,327 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.327090 Table: sys_attachment, Batch: 75, Job Batch Id: 327
+2026-01-06 08:14:25,328 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.328106 Table: sys_attachment, Batch: 75, Job Batch Id: 327
+2026-01-06 08:14:25,329 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.329110 Table: sys_attachment, Batch: 76, Job Batch Id: 328
+2026-01-06 08:14:25,330 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.330117 Table: sys_attachment, Batch: 76, Job Batch Id: 328
+2026-01-06 08:14:25,331 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.331117 Table: sys_attachment, Batch: 77, Job Batch Id: 329
+2026-01-06 08:14:25,332 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.332117 Table: sys_attachment, Batch: 77, Job Batch Id: 329
+2026-01-06 08:14:25,333 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.332117 Table: sys_attachment, Batch: 78, Job Batch Id: 330
+2026-01-06 08:14:25,333 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.333118 Table: sys_attachment, Batch: 78, Job Batch Id: 330
+2026-01-06 08:14:25,335 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.335106 Table: sys_attachment, Batch: 79, Job Batch Id: 331
+2026-01-06 08:14:25,336 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.336112 Table: sys_attachment, Batch: 79, Job Batch Id: 331
+2026-01-06 08:14:25,337 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.337111 Table: sys_attachment, Batch: 80, Job Batch Id: 332
+2026-01-06 08:14:25,338 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.337111 Table: sys_attachment, Batch: 80, Job Batch Id: 332
+2026-01-06 08:14:25,339 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.338111 Table: sys_attachment, Batch: 81, Job Batch Id: 333
+2026-01-06 08:14:25,339 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.339111 Table: sys_attachment, Batch: 81, Job Batch Id: 333
+2026-01-06 08:14:25,340 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.340110 Table: sys_attachment, Batch: 82, Job Batch Id: 334
+2026-01-06 08:14:25,341 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.341110 Table: sys_attachment, Batch: 82, Job Batch Id: 334
+2026-01-06 08:14:25,343 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.343415 Table: sys_attachment, Batch: 83, Job Batch Id: 335
+2026-01-06 08:14:25,973 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.973835 Table: sys_attachment, Batch: 83, Job Batch Id: 335
+2026-01-06 08:14:25,976 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.976536 Table: sys_attachment, Batch: 84, Job Batch Id: 336
+2026-01-06 08:14:25,977 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:25.977713 Table: sys_attachment, Batch: 84, Job Batch Id: 336
+2026-01-06 08:14:25,979 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:25.979710 Table: sys_attachment, Batch: 85, Job Batch Id: 337
+2026-01-06 08:14:26,615 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.615352 Table: sys_attachment, Batch: 85, Job Batch Id: 337
+2026-01-06 08:14:26,617 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.617361 Table: sys_attachment, Batch: 86, Job Batch Id: 338
+2026-01-06 08:14:26,618 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.618368 Table: sys_attachment, Batch: 86, Job Batch Id: 338
+2026-01-06 08:14:26,619 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.619365 Table: sys_attachment, Batch: 87, Job Batch Id: 339
+2026-01-06 08:14:26,620 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.620363 Table: sys_attachment, Batch: 87, Job Batch Id: 339
+2026-01-06 08:14:26,621 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.621365 Table: sys_attachment, Batch: 88, Job Batch Id: 340
+2026-01-06 08:14:26,622 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.622365 Table: sys_attachment, Batch: 88, Job Batch Id: 340
+2026-01-06 08:14:26,624 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.624478 Table: sys_attachment, Batch: 89, Job Batch Id: 341
+2026-01-06 08:14:26,625 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.625638 Table: sys_attachment, Batch: 89, Job Batch Id: 341
+2026-01-06 08:14:26,627 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.627632 Table: sys_attachment, Batch: 90, Job Batch Id: 342
+2026-01-06 08:14:26,628 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.628640 Table: sys_attachment, Batch: 90, Job Batch Id: 342
+2026-01-06 08:14:26,629 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Start: 2026-01-06 08:14:26.629639 Table: sys_attachment, Batch: 91, Job Batch Id: 343
+2026-01-06 08:14:26,630 - INFO - [ThreadPoolExecutor-1_0] [itsm:97] - End: 2026-01-06 08:14:26.630639 Table: sys_attachment, Batch: 91, Job Batch Id: 343
+2026-01-06 08:14:26,630 - INFO - [ThreadPoolExecutor-1_0] [itsm:111] - Servicenow table 'sys_attachment' extraction ends at 2026-01-06 08:14:26.630639
+2026-01-06 08:14:32,030 - INFO - [ThreadPoolExecutor-1_1] [itsm:54] - Total rows in sys_attachment_doc is 947162
+2026-01-06 08:14:43,608 - INFO - [ThreadPoolExecutor-1_1] [itsm:69] - Start: 2026-01-06 08:14:42.917067 Table: sys_attachment_doc, Batch: 0, Job Batch Id: 1193
+2026-01-06 08:14:47,827 - INFO - [ThreadPoolExecutor-1_1] [itsm:97] - End: 2026-01-06 08:14:46.720551 Table: sys_attachment_doc, Batch: 0, Job Batch Id: 1193
+2026-01-06 08:15:31,893 - INFO - [ThreadPoolExecutor-1_1] [itsm:69] - Start: 2026-01-06 08:15:31.084024 Table: sys_attachment_doc, Batch: 1, Job Batch Id: 1194
+2026-01-06 08:17:46,855 - INFO - [ThreadPoolExecutor-1_1] [itsm:97] - End: 2026-01-06 08:17:46.016333 Table: sys_attachment_doc, Batch: 1, Job Batch Id: 1194
+2026-01-06 08:17:57,354 - INFO - [ThreadPoolExecutor-1_1] [itsm:69] - Start: 2026-01-06 08:17:57.354386 Table: sys_attachment_doc, Batch: 2, Job Batch Id: 1195
+2026-01-06 08:18:36,368 - INFO - [ThreadPoolExecutor-1_1] [itsm:111] - Servicenow table 'sys_attachment_doc' extraction ends at 2026-01-06 08:18:36.368468
+2026-01-06 08:43:46,785 - INFO - [MainThread] [itsm:27] - Initializing Service now client.
+2026-01-06 08:43:46,787 - INFO - [MainThread] [itsm:28] - Servicenow base URL: https://coolsys.service-now.com
+2026-01-06 08:43:46,789 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-01-06 08:43:46,789 - INFO - [MainThread] [itsm:42] - Salesforce base URL: https://customization-java-3553--cspartcopy.sandbox.my.salesforce.com
+2026-01-06 08:43:53,440 - INFO - [ThreadPoolExecutor-1_0] [itsm:42] - Job: 4, Job Table: 55
+2026-01-06 08:43:53,441 - INFO - [ThreadPoolExecutor-1_0] [itsm:43] - Servicenow table 'sys_attachment' extraction start at 2026-01-06 08:43:53.441500
+2026-01-06 08:43:54,493 - INFO - [ThreadPoolExecutor-1_0] [itsm:52] - Total rows in sys_attachment is 458589
+2026-01-06 08:43:54,498 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:43:54.498600 Table: sys_attachment, Batch: 0, Job Batch Id: 1196
+2026-01-06 08:43:54,524 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:43:54.524388 Table: sys_attachment, Batch: 2, Job Batch Id: 1197
+2026-01-06 08:43:54,532 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:43:54.531005 Table: sys_attachment, Batch: 1, Job Batch Id: 1198
+2026-01-06 08:43:54,541 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:43:54.541022 Table: sys_attachment, Batch: 6, Job Batch Id: 1199
+2026-01-06 08:43:54,552 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:43:54.552929 Table: sys_attachment, Batch: 7, Job Batch Id: 1200
+2026-01-06 08:43:54,580 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:43:54.580424 Table: sys_attachment, Batch: 4, Job Batch Id: 1201
+2026-01-06 08:43:54,636 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:43:54.636016 Table: sys_attachment, Batch: 8, Job Batch Id: 1202
+2026-01-06 08:43:54,637 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:43:54.637013 Table: sys_attachment, Batch: 3, Job Batch Id: 1203
+2026-01-06 08:43:54,640 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:43:54.640546 Table: sys_attachment, Batch: 5, Job Batch Id: 1204
+2026-01-06 08:43:54,654 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:43:54.654951 Table: sys_attachment, Batch: 9, Job Batch Id: 1205
+2026-01-06 08:44:04,697 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:04.697311 Table: sys_attachment, Batch: 0, Job Batch Id: 1196
+2026-01-06 08:44:04,716 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:04.716380 Table: sys_attachment, Batch: 10, Job Batch Id: 1206
+2026-01-06 08:44:05,298 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:05.298374 Table: sys_attachment, Batch: 6, Job Batch Id: 1199
+2026-01-06 08:44:05,302 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:05.302375 Table: sys_attachment, Batch: 11, Job Batch Id: 1207
+2026-01-06 08:44:05,411 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:05.411458 Table: sys_attachment, Batch: 2, Job Batch Id: 1197
+2026-01-06 08:44:05,427 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:05.427086 Table: sys_attachment, Batch: 12, Job Batch Id: 1208
+2026-01-06 08:44:06,054 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:06.054750 Table: sys_attachment, Batch: 7, Job Batch Id: 1200
+2026-01-06 08:44:06,080 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:06.080582 Table: sys_attachment, Batch: 13, Job Batch Id: 1209
+2026-01-06 08:44:06,081 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:06.081592 Table: sys_attachment, Batch: 8, Job Batch Id: 1202
+2026-01-06 08:44:06,161 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:06.161485 Table: sys_attachment, Batch: 14, Job Batch Id: 1210
+2026-01-06 08:44:06,722 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:06.722556 Table: sys_attachment, Batch: 9, Job Batch Id: 1205
+2026-01-06 08:44:06,750 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:06.750011 Table: sys_attachment, Batch: 4, Job Batch Id: 1201
+2026-01-06 08:44:06,791 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:06.791235 Table: sys_attachment, Batch: 15, Job Batch Id: 1211
+2026-01-06 08:44:06,874 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:06.874736 Table: sys_attachment, Batch: 16, Job Batch Id: 1212
+2026-01-06 08:44:06,886 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:06.886765 Table: sys_attachment, Batch: 5, Job Batch Id: 1204
+2026-01-06 08:44:06,927 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:06.927244 Table: sys_attachment, Batch: 1, Job Batch Id: 1198
+2026-01-06 08:44:06,928 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:06.928248 Table: sys_attachment, Batch: 17, Job Batch Id: 1213
+2026-01-06 08:44:06,947 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:06.947266 Table: sys_attachment, Batch: 3, Job Batch Id: 1203
+2026-01-06 08:44:06,978 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:06.978104 Table: sys_attachment, Batch: 18, Job Batch Id: 1214
+2026-01-06 08:44:07,000 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:07.000065 Table: sys_attachment, Batch: 19, Job Batch Id: 1215
+2026-01-06 08:44:13,821 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:13.821679 Table: sys_attachment, Batch: 10, Job Batch Id: 1206
+2026-01-06 08:44:13,838 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:13.838950 Table: sys_attachment, Batch: 20, Job Batch Id: 1216
+2026-01-06 08:44:14,879 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:14.879382 Table: sys_attachment, Batch: 12, Job Batch Id: 1208
+2026-01-06 08:44:14,895 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:14.895576 Table: sys_attachment, Batch: 21, Job Batch Id: 1217
+2026-01-06 08:44:15,240 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:15.240468 Table: sys_attachment, Batch: 11, Job Batch Id: 1207
+2026-01-06 08:44:15,256 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:15.256793 Table: sys_attachment, Batch: 22, Job Batch Id: 1218
+2026-01-06 08:44:15,656 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:15.656411 Table: sys_attachment, Batch: 13, Job Batch Id: 1209
+2026-01-06 08:44:15,682 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:15.682931 Table: sys_attachment, Batch: 23, Job Batch Id: 1219
+2026-01-06 08:44:15,700 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:15.700960 Table: sys_attachment, Batch: 14, Job Batch Id: 1210
+2026-01-06 08:44:15,739 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:15.739400 Table: sys_attachment, Batch: 24, Job Batch Id: 1220
+2026-01-06 08:44:16,646 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:16.646687 Table: sys_attachment, Batch: 19, Job Batch Id: 1215
+2026-01-06 08:44:16,663 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:16.663715 Table: sys_attachment, Batch: 25, Job Batch Id: 1221
+2026-01-06 08:44:16,824 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:16.823534 Table: sys_attachment, Batch: 16, Job Batch Id: 1212
+2026-01-06 08:44:16,865 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:16.865995 Table: sys_attachment, Batch: 26, Job Batch Id: 1222
+2026-01-06 08:44:17,162 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:17.162507 Table: sys_attachment, Batch: 15, Job Batch Id: 1211
+2026-01-06 08:44:17,162 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:17.162507 Table: sys_attachment, Batch: 17, Job Batch Id: 1213
+2026-01-06 08:44:17,181 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:17.181077 Table: sys_attachment, Batch: 27, Job Batch Id: 1223
+2026-01-06 08:44:17,192 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:17.191088 Table: sys_attachment, Batch: 28, Job Batch Id: 1224
+2026-01-06 08:44:17,463 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:17.463152 Table: sys_attachment, Batch: 18, Job Batch Id: 1214
+2026-01-06 08:44:17,500 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:17.499532 Table: sys_attachment, Batch: 29, Job Batch Id: 1225
+2026-01-06 08:44:23,473 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:23.473325 Table: sys_attachment, Batch: 20, Job Batch Id: 1216
+2026-01-06 08:44:23,494 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:23.494661 Table: sys_attachment, Batch: 30, Job Batch Id: 1226
+2026-01-06 08:44:23,824 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:23.824346 Table: sys_attachment, Batch: 21, Job Batch Id: 1217
+2026-01-06 08:44:23,840 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:23.839171 Table: sys_attachment, Batch: 31, Job Batch Id: 1227
+2026-01-06 08:44:25,308 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:25.308621 Table: sys_attachment, Batch: 22, Job Batch Id: 1218
+2026-01-06 08:44:25,324 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:25.324645 Table: sys_attachment, Batch: 32, Job Batch Id: 1228
+2026-01-06 08:44:25,881 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:25.881846 Table: sys_attachment, Batch: 24, Job Batch Id: 1220
+2026-01-06 08:44:25,901 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:25.899657 Table: sys_attachment, Batch: 33, Job Batch Id: 1229
+2026-01-06 08:44:26,060 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:26.060583 Table: sys_attachment, Batch: 23, Job Batch Id: 1219
+2026-01-06 08:44:26,081 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:26.080697 Table: sys_attachment, Batch: 34, Job Batch Id: 1230
+2026-01-06 08:44:26,893 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:26.893144 Table: sys_attachment, Batch: 25, Job Batch Id: 1221
+2026-01-06 08:44:26,906 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:26.906844 Table: sys_attachment, Batch: 35, Job Batch Id: 1231
+2026-01-06 08:44:27,337 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:27.337703 Table: sys_attachment, Batch: 26, Job Batch Id: 1222
+2026-01-06 08:44:27,363 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:27.363445 Table: sys_attachment, Batch: 36, Job Batch Id: 1232
+2026-01-06 08:44:27,455 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:27.455534 Table: sys_attachment, Batch: 28, Job Batch Id: 1224
+2026-01-06 08:44:27,480 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:27.480066 Table: sys_attachment, Batch: 37, Job Batch Id: 1233
+2026-01-06 08:44:27,587 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:27.587555 Table: sys_attachment, Batch: 27, Job Batch Id: 1223
+2026-01-06 08:44:27,606 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:27.606165 Table: sys_attachment, Batch: 38, Job Batch Id: 1234
+2026-01-06 08:44:27,981 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:27.981007 Table: sys_attachment, Batch: 29, Job Batch Id: 1225
+2026-01-06 08:44:27,998 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:27.998686 Table: sys_attachment, Batch: 39, Job Batch Id: 1235
+2026-01-06 08:44:32,227 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:32.227944 Table: sys_attachment, Batch: 30, Job Batch Id: 1226
+2026-01-06 08:44:32,248 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:32.248320 Table: sys_attachment, Batch: 40, Job Batch Id: 1236
+2026-01-06 08:44:33,132 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:33.132709 Table: sys_attachment, Batch: 31, Job Batch Id: 1227
+2026-01-06 08:44:33,151 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:33.151039 Table: sys_attachment, Batch: 41, Job Batch Id: 1237
+2026-01-06 08:44:34,113 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:34.113404 Table: sys_attachment, Batch: 32, Job Batch Id: 1228
+2026-01-06 08:44:34,129 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:34.129435 Table: sys_attachment, Batch: 42, Job Batch Id: 1238
+2026-01-06 08:44:35,490 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:35.490409 Table: sys_attachment, Batch: 33, Job Batch Id: 1229
+2026-01-06 08:44:35,575 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:35.574073 Table: sys_attachment, Batch: 43, Job Batch Id: 1239
+2026-01-06 08:44:35,653 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:35.653314 Table: sys_attachment, Batch: 34, Job Batch Id: 1230
+2026-01-06 08:44:35,670 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:35.670286 Table: sys_attachment, Batch: 44, Job Batch Id: 1240
+2026-01-06 08:44:36,552 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:36.552020 Table: sys_attachment, Batch: 35, Job Batch Id: 1231
+2026-01-06 08:44:36,568 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:36.568050 Table: sys_attachment, Batch: 45, Job Batch Id: 1241
+2026-01-06 08:44:36,957 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:36.957942 Table: sys_attachment, Batch: 39, Job Batch Id: 1235
+2026-01-06 08:44:36,992 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:36.992680 Table: sys_attachment, Batch: 46, Job Batch Id: 1242
+2026-01-06 08:44:37,234 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:37.234496 Table: sys_attachment, Batch: 38, Job Batch Id: 1234
+2026-01-06 08:44:37,255 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:37.255009 Table: sys_attachment, Batch: 47, Job Batch Id: 1243
+2026-01-06 08:44:37,644 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:37.644760 Table: sys_attachment, Batch: 36, Job Batch Id: 1232
+2026-01-06 08:44:37,718 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:37.718193 Table: sys_attachment, Batch: 48, Job Batch Id: 1244
+2026-01-06 08:44:37,806 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:37.806282 Table: sys_attachment, Batch: 37, Job Batch Id: 1233
+2026-01-06 08:44:37,825 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:37.825316 Table: sys_attachment, Batch: 49, Job Batch Id: 1245
+2026-01-06 08:44:41,282 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:41.282094 Table: sys_attachment, Batch: 40, Job Batch Id: 1236
+2026-01-06 08:44:41,306 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:41.306680 Table: sys_attachment, Batch: 50, Job Batch Id: 1246
+2026-01-06 08:44:41,679 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:41.679763 Table: sys_attachment, Batch: 41, Job Batch Id: 1237
+2026-01-06 08:44:41,718 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:41.718242 Table: sys_attachment, Batch: 51, Job Batch Id: 1247
+2026-01-06 08:44:42,894 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:42.894743 Table: sys_attachment, Batch: 42, Job Batch Id: 1238
+2026-01-06 08:44:42,909 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:42.909785 Table: sys_attachment, Batch: 52, Job Batch Id: 1248
+2026-01-06 08:44:44,682 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:44.682829 Table: sys_attachment, Batch: 43, Job Batch Id: 1239
+2026-01-06 08:44:44,699 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:44.699860 Table: sys_attachment, Batch: 53, Job Batch Id: 1249
+2026-01-06 08:44:44,882 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:44.882090 Table: sys_attachment, Batch: 44, Job Batch Id: 1240
+2026-01-06 08:44:44,904 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:44.904978 Table: sys_attachment, Batch: 54, Job Batch Id: 1250
+2026-01-06 08:44:45,510 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:45.509749 Table: sys_attachment, Batch: 45, Job Batch Id: 1241
+2026-01-06 08:44:45,539 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:45.539146 Table: sys_attachment, Batch: 55, Job Batch Id: 1251
+2026-01-06 08:44:45,877 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:45.877559 Table: sys_attachment, Batch: 46, Job Batch Id: 1242
+2026-01-06 08:44:45,900 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:45.900625 Table: sys_attachment, Batch: 56, Job Batch Id: 1252
+2026-01-06 08:44:46,452 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:46.452362 Table: sys_attachment, Batch: 47, Job Batch Id: 1243
+2026-01-06 08:44:46,472 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:46.472182 Table: sys_attachment, Batch: 57, Job Batch Id: 1253
+2026-01-06 08:44:47,149 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:47.149280 Table: sys_attachment, Batch: 49, Job Batch Id: 1245
+2026-01-06 08:44:47,158 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:47.158299 Table: sys_attachment, Batch: 48, Job Batch Id: 1244
+2026-01-06 08:44:47,178 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:47.178435 Table: sys_attachment, Batch: 58, Job Batch Id: 1254
+2026-01-06 08:44:47,199 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:47.199445 Table: sys_attachment, Batch: 59, Job Batch Id: 1255
+2026-01-06 08:44:50,157 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:50.157337 Table: sys_attachment, Batch: 50, Job Batch Id: 1246
+2026-01-06 08:44:50,174 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:50.174028 Table: sys_attachment, Batch: 60, Job Batch Id: 1256
+2026-01-06 08:44:50,400 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:50.400780 Table: sys_attachment, Batch: 51, Job Batch Id: 1247
+2026-01-06 08:44:50,419 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:50.419809 Table: sys_attachment, Batch: 61, Job Batch Id: 1257
+2026-01-06 08:44:51,880 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:44:51.878416 Table: sys_attachment, Batch: 52, Job Batch Id: 1248
+2026-01-06 08:44:51,899 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:44:51.899234 Table: sys_attachment, Batch: 62, Job Batch Id: 1258
+2026-01-06 08:44:54,223 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:44:54.223248 Table: sys_attachment, Batch: 53, Job Batch Id: 1249
+2026-01-06 08:44:54,238 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:44:54.238849 Table: sys_attachment, Batch: 63, Job Batch Id: 1259
+2026-01-06 08:44:54,432 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:44:54.432802 Table: sys_attachment, Batch: 54, Job Batch Id: 1250
+2026-01-06 08:44:54,450 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:44:54.450809 Table: sys_attachment, Batch: 64, Job Batch Id: 1260
+2026-01-06 08:44:55,309 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:44:55.309242 Table: sys_attachment, Batch: 55, Job Batch Id: 1251
+2026-01-06 08:44:55,324 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:44:55.324289 Table: sys_attachment, Batch: 65, Job Batch Id: 1261
+2026-01-06 08:44:55,571 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:44:55.571430 Table: sys_attachment, Batch: 57, Job Batch Id: 1253
+2026-01-06 08:44:55,592 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:44:55.592616 Table: sys_attachment, Batch: 66, Job Batch Id: 1262
+2026-01-06 08:44:56,217 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:44:56.217642 Table: sys_attachment, Batch: 56, Job Batch Id: 1252
+2026-01-06 08:44:56,233 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:44:56.233665 Table: sys_attachment, Batch: 67, Job Batch Id: 1263
+2026-01-06 08:44:56,600 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:44:56.600921 Table: sys_attachment, Batch: 59, Job Batch Id: 1255
+2026-01-06 08:44:56,624 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:44:56.623047 Table: sys_attachment, Batch: 68, Job Batch Id: 1264
+2026-01-06 08:44:56,813 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:44:56.813091 Table: sys_attachment, Batch: 58, Job Batch Id: 1254
+2026-01-06 08:44:56,865 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:44:56.865314 Table: sys_attachment, Batch: 69, Job Batch Id: 1265
+2026-01-06 08:44:59,084 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:44:59.084699 Table: sys_attachment, Batch: 61, Job Batch Id: 1257
+2026-01-06 08:44:59,100 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:44:59.100303 Table: sys_attachment, Batch: 70, Job Batch Id: 1266
+2026-01-06 08:44:59,502 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:44:59.502657 Table: sys_attachment, Batch: 60, Job Batch Id: 1256
+2026-01-06 08:44:59,543 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:44:59.543458 Table: sys_attachment, Batch: 71, Job Batch Id: 1267
+2026-01-06 08:45:01,371 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:45:01.371828 Table: sys_attachment, Batch: 62, Job Batch Id: 1258
+2026-01-06 08:45:01,409 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:45:01.407208 Table: sys_attachment, Batch: 72, Job Batch Id: 1268
+2026-01-06 08:45:03,297 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:45:03.297315 Table: sys_attachment, Batch: 63, Job Batch Id: 1259
+2026-01-06 08:45:03,333 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:45:03.333369 Table: sys_attachment, Batch: 73, Job Batch Id: 1269
+2026-01-06 08:45:03,790 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:45:03.790752 Table: sys_attachment, Batch: 64, Job Batch Id: 1260
+2026-01-06 08:45:03,815 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:45:03.815335 Table: sys_attachment, Batch: 74, Job Batch Id: 1270
+2026-01-06 08:45:04,876 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:45:04.876466 Table: sys_attachment, Batch: 65, Job Batch Id: 1261
+2026-01-06 08:45:04,898 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:45:04.898169 Table: sys_attachment, Batch: 75, Job Batch Id: 1271
+2026-01-06 08:45:04,928 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:45:04.928905 Table: sys_attachment, Batch: 66, Job Batch Id: 1262
+2026-01-06 08:45:04,970 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:45:04.969299 Table: sys_attachment, Batch: 76, Job Batch Id: 1272
+2026-01-06 08:45:05,799 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:45:05.799168 Table: sys_attachment, Batch: 67, Job Batch Id: 1263
+2026-01-06 08:45:05,814 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:45:05.813976 Table: sys_attachment, Batch: 77, Job Batch Id: 1273
+2026-01-06 08:45:06,647 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:45:06.647428 Table: sys_attachment, Batch: 68, Job Batch Id: 1264
+2026-01-06 08:45:06,656 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:45:06.656441 Table: sys_attachment, Batch: 69, Job Batch Id: 1265
+2026-01-06 08:45:06,687 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:45:06.686194 Table: sys_attachment, Batch: 78, Job Batch Id: 1274
+2026-01-06 08:45:06,722 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:45:06.722457 Table: sys_attachment, Batch: 79, Job Batch Id: 1275
+2026-01-06 08:45:08,237 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:45:08.237027 Table: sys_attachment, Batch: 70, Job Batch Id: 1266
+2026-01-06 08:45:08,251 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:45:08.251134 Table: sys_attachment, Batch: 80, Job Batch Id: 1276
+2026-01-06 08:45:08,655 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:45:08.655191 Table: sys_attachment, Batch: 71, Job Batch Id: 1267
+2026-01-06 08:45:08,669 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:45:08.669056 Table: sys_attachment, Batch: 81, Job Batch Id: 1277
+2026-01-06 08:45:10,476 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:45:10.476357 Table: sys_attachment, Batch: 72, Job Batch Id: 1268
+2026-01-06 08:45:10,493 - INFO - [ThreadPoolExecutor-2_6] [itsm:105] - Start: 2026-01-06 08:45:10.493613 Table: sys_attachment, Batch: 82, Job Batch Id: 1278
+2026-01-06 08:45:12,215 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:45:12.215728 Table: sys_attachment, Batch: 73, Job Batch Id: 1269
+2026-01-06 08:45:12,238 - INFO - [ThreadPoolExecutor-2_8] [itsm:105] - Start: 2026-01-06 08:45:12.238197 Table: sys_attachment, Batch: 83, Job Batch Id: 1279
+2026-01-06 08:45:12,919 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:45:12.919190 Table: sys_attachment, Batch: 74, Job Batch Id: 1270
+2026-01-06 08:45:12,937 - INFO - [ThreadPoolExecutor-2_7] [itsm:105] - Start: 2026-01-06 08:45:12.937685 Table: sys_attachment, Batch: 84, Job Batch Id: 1280
+2026-01-06 08:45:13,970 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:45:13.969612 Table: sys_attachment, Batch: 76, Job Batch Id: 1272
+2026-01-06 08:45:13,989 - INFO - [ThreadPoolExecutor-2_9] [itsm:105] - Start: 2026-01-06 08:45:13.989863 Table: sys_attachment, Batch: 85, Job Batch Id: 1281
+2026-01-06 08:45:14,549 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:45:14.549239 Table: sys_attachment, Batch: 75, Job Batch Id: 1271
+2026-01-06 08:45:14,568 - INFO - [ThreadPoolExecutor-2_3] [itsm:105] - Start: 2026-01-06 08:45:14.568691 Table: sys_attachment, Batch: 86, Job Batch Id: 1282
+2026-01-06 08:45:15,086 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:45:15.086546 Table: sys_attachment, Batch: 77, Job Batch Id: 1273
+2026-01-06 08:45:15,102 - INFO - [ThreadPoolExecutor-2_1] [itsm:105] - Start: 2026-01-06 08:45:15.102745 Table: sys_attachment, Batch: 87, Job Batch Id: 1283
+2026-01-06 08:45:16,105 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:45:16.105809 Table: sys_attachment, Batch: 78, Job Batch Id: 1274
+2026-01-06 08:45:16,122 - INFO - [ThreadPoolExecutor-2_4] [itsm:105] - Start: 2026-01-06 08:45:16.122831 Table: sys_attachment, Batch: 88, Job Batch Id: 1284
+2026-01-06 08:45:16,505 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:45:16.505785 Table: sys_attachment, Batch: 79, Job Batch Id: 1275
+2026-01-06 08:45:16,550 - INFO - [ThreadPoolExecutor-2_5] [itsm:105] - Start: 2026-01-06 08:45:16.550826 Table: sys_attachment, Batch: 89, Job Batch Id: 1285
+2026-01-06 08:45:17,214 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:45:17.213172 Table: sys_attachment, Batch: 80, Job Batch Id: 1276
+2026-01-06 08:45:17,229 - INFO - [ThreadPoolExecutor-2_2] [itsm:105] - Start: 2026-01-06 08:45:17.229195 Table: sys_attachment, Batch: 90, Job Batch Id: 1286
+2026-01-06 08:45:17,651 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:45:17.651310 Table: sys_attachment, Batch: 81, Job Batch Id: 1277
+2026-01-06 08:45:17,693 - INFO - [ThreadPoolExecutor-2_0] [itsm:105] - Start: 2026-01-06 08:45:17.693393 Table: sys_attachment, Batch: 91, Job Batch Id: 1287
+2026-01-06 08:45:19,639 - INFO - [ThreadPoolExecutor-2_6] [itsm:131] - End: 2026-01-06 08:45:19.639682 Table: sys_attachment, Batch: 82, Job Batch Id: 1278
+2026-01-06 08:45:21,917 - INFO - [ThreadPoolExecutor-2_8] [itsm:131] - End: 2026-01-06 08:45:21.915332 Table: sys_attachment, Batch: 83, Job Batch Id: 1279
+2026-01-06 08:45:22,056 - INFO - [ThreadPoolExecutor-2_7] [itsm:131] - End: 2026-01-06 08:45:22.055558 Table: sys_attachment, Batch: 84, Job Batch Id: 1280
+2026-01-06 08:45:22,913 - INFO - [ThreadPoolExecutor-2_9] [itsm:131] - End: 2026-01-06 08:45:22.913792 Table: sys_attachment, Batch: 85, Job Batch Id: 1281
+2026-01-06 08:45:23,676 - INFO - [ThreadPoolExecutor-2_3] [itsm:131] - End: 2026-01-06 08:45:23.676486 Table: sys_attachment, Batch: 86, Job Batch Id: 1282
+2026-01-06 08:45:24,196 - INFO - [ThreadPoolExecutor-2_1] [itsm:131] - End: 2026-01-06 08:45:24.196392 Table: sys_attachment, Batch: 87, Job Batch Id: 1283
+2026-01-06 08:45:24,874 - INFO - [ThreadPoolExecutor-2_4] [itsm:131] - End: 2026-01-06 08:45:24.874700 Table: sys_attachment, Batch: 88, Job Batch Id: 1284
+2026-01-06 08:45:25,022 - INFO - [ThreadPoolExecutor-2_0] [itsm:131] - End: 2026-01-06 08:45:25.022516 Table: sys_attachment, Batch: 91, Job Batch Id: 1287
+2026-01-06 08:45:26,022 - INFO - [ThreadPoolExecutor-2_5] [itsm:131] - End: 2026-01-06 08:45:26.022104 Table: sys_attachment, Batch: 89, Job Batch Id: 1285
+2026-01-06 08:45:26,915 - INFO - [ThreadPoolExecutor-2_2] [itsm:131] - End: 2026-01-06 08:45:26.915975 Table: sys_attachment, Batch: 90, Job Batch Id: 1286
+2026-01-06 08:45:26,917 - INFO - [ThreadPoolExecutor-1_0] [itsm:81] - Servicenow table 'sys_attachment' extraction ends at 2026-01-06 08:45:26.917975
+2026-01-06 08:45:26,934 - INFO - [ThreadPoolExecutor-1_0] [itsm:42] - Job: 4, Job Table: 71
+2026-01-06 08:45:26,934 - INFO - [ThreadPoolExecutor-1_0] [itsm:43] - Servicenow table 'sys_attachment_doc' extraction start at 2026-01-06 08:45:26.934688
+2026-01-06 08:45:28,148 - INFO - [ThreadPoolExecutor-1_0] [itsm:52] - Total rows in sys_attachment_doc is 947162
+2026-01-06 08:45:28,156 - INFO - [ThreadPoolExecutor-3_0] [itsm:105] - Start: 2026-01-06 08:45:28.155304 Table: sys_attachment_doc, Batch: 0, Job Batch Id: 1288
+2026-01-06 08:45:28,159 - INFO - [ThreadPoolExecutor-3_1] [itsm:105] - Start: 2026-01-06 08:45:28.159339 Table: sys_attachment_doc, Batch: 1, Job Batch Id: 1289
+2026-01-06 08:45:28,173 - INFO - [ThreadPoolExecutor-3_2] [itsm:105] - Start: 2026-01-06 08:45:28.173878 Table: sys_attachment_doc, Batch: 2, Job Batch Id: 1290
+2026-01-06 08:45:28,196 - INFO - [ThreadPoolExecutor-3_3] [itsm:105] - Start: 2026-01-06 08:45:28.196672 Table: sys_attachment_doc, Batch: 3, Job Batch Id: 1291
+2026-01-06 08:45:28,205 - INFO - [ThreadPoolExecutor-3_8] [itsm:105] - Start: 2026-01-06 08:45:28.205316 Table: sys_attachment_doc, Batch: 8, Job Batch Id: 1292
+2026-01-06 08:45:28,309 - INFO - [ThreadPoolExecutor-3_4] [itsm:105] - Start: 2026-01-06 08:45:28.309670 Table: sys_attachment_doc, Batch: 4, Job Batch Id: 1293
+2026-01-06 08:45:28,349 - INFO - [ThreadPoolExecutor-3_6] [itsm:105] - Start: 2026-01-06 08:45:28.349934 Table: sys_attachment_doc, Batch: 6, Job Batch Id: 1294
+2026-01-06 08:45:28,368 - INFO - [ThreadPoolExecutor-3_5] [itsm:105] - Start: 2026-01-06 08:45:28.368658 Table: sys_attachment_doc, Batch: 5, Job Batch Id: 1295
+2026-01-06 08:45:28,385 - INFO - [ThreadPoolExecutor-3_9] [itsm:105] - Start: 2026-01-06 08:45:28.385687 Table: sys_attachment_doc, Batch: 9, Job Batch Id: 1296
+2026-01-06 08:45:28,437 - INFO - [ThreadPoolExecutor-3_7] [itsm:105] - Start: 2026-01-06 08:45:28.437515 Table: sys_attachment_doc, Batch: 7, Job Batch Id: 1297

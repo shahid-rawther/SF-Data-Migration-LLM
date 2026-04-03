@@ -1,0 +1,126 @@
+{
+    "priority": 2,
+    "servicenow_tables": [
+        "sc_req_item",
+        "sc_cat_item"
+    ],
+    "joins": [
+        {
+            "left_table": "sc_req_item",
+            "left_key": "cat_item",
+            "right_table": "sc_cat_item",
+            "right_key": "sys_id",
+            "type": "left"
+        }
+    ],
+    "filters": [
+
+    ],
+    "operation": "update",
+    "salesforce_object": "SvcCatalogRequest",
+    "salesforce_objects": [
+        {
+            "object_name": "SvcCatalogRequest",
+            "fields": [
+                "Id",
+                "CatalogItemDescription",
+                "CatalogItemName",
+                "ProductId",
+                "ReferenceObjectId"
+            ]
+        }
+    ],
+    "transformation_name": "ServiceRequest",
+    "fields": [
+        {
+            "source_field": "sc_cat_item.short_description",
+            "destination_field": "CatalogItemDescription"
+        },
+        {
+            "source_field": "sc_cat_item.name",
+            "destination_field": "CatalogItemName"
+        },
+        {
+            "source_field": "sc_req_item.closed_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "ClosedDate"
+        },
+        {
+            "source_field": "sc_req_item.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "sc_req_item.opened_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "sc_req_item.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "sc_req_item.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "sc_req_item.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "sc_req_item.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        },
+        {
+            "source_field": "sc_req_item.cat_item",
+            "transformation_function": "look_up_product",
+            "destination_field": "ProductId"
+        },
+        {
+            "source_field": "sc_req_item.sys_id",
+            "transformation_function": "look_up_case_sys_id",
+            "destination_field": "ReferenceObjectId"
+        },
+         {
+            "source_field": "sc_req_item.state",
+            "transformation_function": "look_up_SR_status",
+            "destination_field": "Status"
+        },
+        {
+            "source_field": "sc_req_item.u_cf_user",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "SubmitterId"
+        },
+        {
+            "source_field": "sc_req_item.due_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Due_Date__c"
+        },
+        {
+            "source_field": "sc_req_item.quantity",
+            "destination_field": "Quantity__c"
+        },
+        {
+            "source_field": "sc_req_item.assignment_group",
+            "transformation_function": "look_up_assignement_group",
+            "destination_field": "Assignment_Group__c"
+        },
+        {
+            "source_field": "sc_req_item.impact",
+            "transformation_function": "look_up_SR_impact",
+            "destination_field": "Impact__c"
+        },
+        {
+            "source_field": "sc_req_item.price",
+            "destination_field": "Price__c"
+        },
+        {
+            "source_field": "sc_req_item.urgency",
+            "transformation_function": "look_up_SR_urgency",
+            "destination_field": "Urgency__c"
+        }
+    ]
+}

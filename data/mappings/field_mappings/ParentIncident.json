@@ -1,0 +1,222 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "transformation_name": "ParentIncident",
+    "servicenow_tables": [
+        "incident",
+        "contract_sla"
+    ],
+    "joins": [
+    ],
+    "filters": [
+        {
+            "table": "incident",
+            "field": "parent_incident",
+            "operator": "is_null"
+        }
+    ],
+    "salesforce_objects": [
+        {
+            "object_name": "Incident",
+            "fields": [
+                "Id",
+                "Subject"
+            ]
+        }
+    ],
+    "salesforce_object": "Incident",
+    "fields": [
+    
+        {
+            "use_constant": "BUSINESSHOURSID",
+            "destination_field": "BusinessHoursId"
+        },
+        {
+            "source_field": "incident.assignment_group",
+            "transformation_function": "look_up_assignement_group",
+            "destination_field": "AssignedGroupId"
+        },
+        {
+            "destination_field": "ReportedById",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "incident.caller_id"
+        },
+        {
+            "destination_field": "Category",
+            "transformation_function": "look_up_incident_category",
+            "source_field": "incident.category"
+        },
+        {
+            "destination_field": "ReportedMethod",
+            "transformation_function": "look_up_contact_type",
+            "source_field": "incident.contact_type"
+        },
+        {
+            "destination_field": "CreatedById",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "incident.opened_by"
+        },
+        {
+            "destination_field": "Updated_by__c",
+            "source_field": "incident.sys_updated_by"
+        },
+        {
+            "destination_field": "CreatedDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.sys_created_on"
+        },
+        
+        {
+            "destination_field": "Description",
+            "source_field": "incident.description"
+        },
+        {
+            "destination_field": "EndDateTime",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.closed_at"
+        },
+        {
+            "destination_field": "SlaStartDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.sys_created_on"
+        },
+        {
+            "destination_field": "Impact",
+            "transformation_function": "look_up_incident_impact",
+            "source_field": "incident.impact"
+        },
+        {
+            "destination_field": "OwnerId",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "incident.assigned_to"
+        },
+        {
+            "destination_field": "Type",
+            "transformation_function": "look_up_incident_type",
+            "source_field": "incident.u_incident_type"
+        },
+        {
+            "destination_field": "LastModifiedById",
+            "transformation_function": "look_up_user_user_name",
+            "source_field": "incident.sys_updated_by"
+        },
+        {
+            "destination_field": "LastModifiedDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.sys_updated_on"
+        },
+        {
+            "destination_field": "Location__c",
+            "transformation_function": "look_up_location_sys_id",
+            "source_field": "incident.location"
+        },
+        {
+            "destination_field": "ResolutionDateTime",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.resolved_at"
+        },
+        {
+            "destination_field": "ResolutionStatusCode",
+            "transformation_function": "look_up_close_code",
+            "source_field": "incident.close_code"
+        },
+        {
+            "destination_field": "ResolutionSummary",
+            "transformation_function": "convert_resolution_summary",
+            "source_field": "incident.close_notes"
+        },
+        {
+            "destination_field": "ResolvedById",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "incident.resolved_by"
+        },
+        {
+            "destination_field": "Service__c",
+            "transformation_function": "look_up_service_sys_id",
+            "source_field": "incident.business_service"
+        },
+        {
+            "destination_field": "Service_Offering__c",
+            "transformation_function": "look_up_service_offering_sys_id",
+            "ignore_on_update": true,
+            "source_field": "incident.service_offering"
+        },
+        {
+            "destination_field": "StartDateTime",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.sys_created_on"
+        },
+        {
+            "destination_field": "Status",
+            "transformation_function": "look_up_status",
+            "source_field": "incident.state"
+        },
+        {
+            "destination_field": "Subject",
+            "transformation_function": "populate_subject",
+            "source_field": ["incident.number","incident.short_description"]
+        },
+        {
+            "destination_field": "Urgency",
+            "transformation_function": "look_up_urgency",
+            "source_field": "incident.urgency"
+        },
+        {
+            "destination_field": "Sub_Category__c",
+            "transformation_function": "look_up_subcategory",
+            "source_field": "incident.subcategory"
+        },
+        {
+            "destination_field": "Actual_SLA_End_Date__c",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.closed_at"
+        },
+        {
+            "destination_field": "EntitlementId",
+            "use_constant": "ENTITLEMENTID"
+        },
+        {
+            "source_field": "incident.company",
+            "transformation_function": "look_up_company_sys_id",
+            "destination_field": "Company__c"
+        },
+        {
+            "source_field": "incident.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        },
+        {
+            "source_field": "incident.sys_created_by",
+            "destination_field": "Created_by__c"
+        },
+        {
+            "source_field": "incident.u_new_assigned_device_serial",
+            "destination_field": "Service_Tag_If_requested__c"
+        },
+        {
+            "source_field": "incident.u_investigation_id",
+            "destination_field": "Investigation_ID__c"
+        },
+        {
+            "source_field": "incident.u_mimecast_ticket",
+            "destination_field": "Mimecast_Ticket__c"
+        },
+        {
+            "source_field": "incident.u_cato_support_ticket",
+            "destination_field": "Cato_Support_Ticket__c"
+        },
+        {
+            "source_field": "incident.u_genesys_ticket",
+            "destination_field": "Genesys_Ticket__c"
+        },
+        {
+            "source_field": "incident.u_niceincontact_ticket",
+            "destination_field": "NiceInContact_Ticket__c"
+        },
+        {
+            "destination_field": "AssignedUserId",
+            "transformation_function": "look_up_user_sys_id",
+            "source_field": "incident.assigned_to"
+        }
+    ]
+}

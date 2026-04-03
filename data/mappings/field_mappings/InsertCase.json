@@ -1,0 +1,151 @@
+{
+    "priority": 2,
+    "servicenow_tables": [
+        "sc_req_item",
+        "sc_request",
+        "sc_task"
+    ],
+    "joins": [
+        {
+            "left_table": "sc_req_item",
+            "left_key": "request",
+            "right_table": "sc_request",
+            "right_key": "sys_id",
+            "type": "left"
+        },
+        {
+            "left_table": "sc_req_item",
+            "left_key": "sys_id",
+            "right_table": "sc_task",
+            "right_key": "request_item",
+            "type": "left"
+        }
+    ],
+    "salesforce_objects": [
+        {
+            "object_name": "Case",
+            "fields": [
+                "Id",
+                "Subject",
+                "ProductId"
+            ]
+        }
+    ],
+    "filters": [
+
+    ],
+    "operation": "update",
+    "salesforce_object": "Case",
+    "transformation_name": "InsertCase",
+    "fields": [
+       {
+            "source_field": "sc_request.approval",
+            "transformation_function": "look_up_requested_approver",
+            "destination_field": "Approval_Status__c"
+        },
+        {
+            "source_field": "sc_req_item.cat_item",
+            "transformation_function": "look_up_product",
+            "destination_field": "ProductId"
+        },
+        {
+            "source_field": "sc_request.closed_at",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "ClosedDate"
+        },
+        {
+            "source_field": "sc_request.description",
+            "destination_field": "Description"
+        },
+        {
+            "source_field": [
+                "sc_request.number",
+                "sc_request.short_description"
+            ],
+            "transformation_function": "populate_subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "sc_request.opened_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "destination_field": "Priority",
+            "transformation_function": "look_up_case_priority",
+            "source_field": "sc_request.priority"
+        },
+        {
+            "destination_field": "Status",
+            "transformation_function": "look_up_case_status",
+            "source_field": "sc_req_item.state"
+        },
+        {
+            "source_field": "sc_request.requested_for",
+            "transformation_function": "look_up_sys_id_for_contact",
+            "destination_field": "ContactId"
+        },        
+        {
+            "source_field": "sc_task.assigned_to",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "sc_request.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "sc_request.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "sc_request.work_notes",
+            "destination_field": "Comments"
+        },
+        {
+            "source_field": "sc_request.sys_class_name",
+            "destination_field": "Type"
+        },
+        {
+            "source_field": "sc_request.delivery_address",
+            "destination_field": "Delivery_Address1__c"
+        },        
+        {
+            "source_field": "sc_request.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "sc_request.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        },
+        {
+            "source_field": "sc_request.sys_created_by",
+            "destination_field": "Created_by__c"
+        },
+        {
+            "source_field": "sc_req_item.cat_item",
+            "transformation_function": "look_up_product",
+            "destination_field": "Item__c"
+        },
+        {
+            "source_field": "sc_request.requested_for",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "Requested_For__c"
+        },
+        {
+            "use_constant":"BUSINESSHOURSID_CASE",
+            "destination_field": "BusinessHoursId"
+        },
+        {
+            "use_constant":"ENTITLEMENTID_CASE",
+            "destination_field": "EntitlementId"
+        },
+        {
+            "use_constant": "ORDERGUIDECATALOG",
+            "destination_field": "Order_Guide_Catalog__c"
+        }
+    ]
+}

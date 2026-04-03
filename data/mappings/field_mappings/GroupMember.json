@@ -1,0 +1,24 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "use_queue": true,
+    "servicenow_tables": [
+        "sys_user_grmember"
+    ],
+    "joins": [],
+    "filters": [
+    ],
+    "salesforce_object": "GroupMember",
+    "fields": [
+        {
+            "source_field": "sys_user_grmember.group",
+            "transformation_function": "look_up_group_sys_id",
+            "destination_field": "GroupId"
+        },
+        {
+            "source_field": "sys_user_grmember.user",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "UserOrGroupId"
+        }
+    ]
+}

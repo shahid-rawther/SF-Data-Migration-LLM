@@ -1,0 +1,20 @@
+{
+    "priority": 1,
+    "operation": "update",
+    "use_queue": true,
+    "transformation_name": "UpdateUserForManager",
+    "look_up_table_names": ["sys_user_User_AdminUser", "sys_user_User_CommunityUser"],
+    "servicenow_tables": [
+        "sys_user"
+    ],
+    "joins": [],
+    "filters": [],
+    "salesforce_object": "User",
+    "fields": [
+        {
+            "source_field": "sys_user.manager",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "My_Manager__c"
+        }
+    ]
+}

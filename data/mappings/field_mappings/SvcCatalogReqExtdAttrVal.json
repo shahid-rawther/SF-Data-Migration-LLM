@@ -1,0 +1,79 @@
+{
+    "priority": 2,
+    "servicenow_tables": [
+        "sc_item_option_mtom",
+        "sc_item_option",
+        "item_option_new"
+    ],
+    "joins": [
+        {
+            "left_table": "sc_item_option_mtom",
+            "left_key": "sc_item_option",
+            "right_table": "sc_item_option",
+            "right_key": "sys_id",
+            "type": "left"
+        },
+        {
+            "left_table": "sc_item_option",
+            "left_key": "item_option_new",
+            "right_table": "item_option_new",
+            "right_key": "sys_id",
+            "type": "left"
+        }
+    ],
+    "filters": [
+        
+    ],
+    "operation": "insert",
+    "salesforce_object": "SvcCatalogReqExtdAttrVal",
+    "salesforce_objects": [
+        {
+            "object_name": "SvcCatalogReqExtdAttrVal",
+            "fields": [
+                "Id",
+                "SvcCatalogRequestId",
+                "TextValue",
+                "SvcCatalogItemAttributeId"
+            ]
+        }
+    ],
+    "fields": [        
+        {
+            "source_field": "sc_item_option.sys_created_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "sc_item_option.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "sc_item_option.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "sc_item_option.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "sc_item_option_mtom.request_item",
+            "transformation_function": "look_up_service_request_sys_id",
+            "ignore_on_update": true,
+            "destination_field": "SvcCatalogRequestId"
+        },
+        {
+            "destination_field": "TextValue",
+            "source_field": "sc_item_option.value",
+            "skip_if_not_found": true,
+            "transformation_function": "empty_if_lengthy"          
+        },
+        {
+            "destination_field": "SvcCatalogItemAttributeId",
+            "transformation_function": "look_up_variable",
+            "source_field": "sc_item_option.item_option_new"
+        }
+    ]
+}

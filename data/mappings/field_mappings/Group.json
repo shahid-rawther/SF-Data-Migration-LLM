@@ -1,0 +1,22 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_user_group"
+    ],
+    "joins": [],
+    "filters": [
+    ],
+    "salesforce_object": "Group",
+    "fields": [
+        {
+            "source_field": "name",
+            "transformation_function": "limit_length",
+            "destination_field": "Name"
+        },
+        {
+            "use_constant": "GROUPTYPE",
+            "destination_field": "Type"
+        }
+    ]
+}

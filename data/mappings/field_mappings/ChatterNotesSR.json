@@ -1,0 +1,55 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_journal_field"
+    ],
+    "joins": [],
+    "filters": [
+        {
+            "table": "sys_journal_field",
+            "field": "name",
+            "operator": "in",
+            "value": [
+                "sc_request",
+                "sc_req_item"
+            ]
+        }
+    ],
+    "salesforce_object": "FeedItem",
+    "transformation_name": "ChatterNotesSR",
+    "fields": [
+        {
+            "destination_field": "CreatedDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "sys_journal_field.sys_created_on"
+        },
+        {
+            "destination_field": "Visibility",
+            "transformation_function": "look_up_visibility",
+            "source_field": "sys_journal_field.element"
+        },
+        {
+            "destination_field": "ParentId",
+            "transformation_function": "look_up_case_sys_id",
+            "source_field": "sys_journal_field.element_id"
+        },
+        {
+            "destination_field": "Body",
+            "transformation_function": "check_text_body_length_limit",
+            "source_field": "sys_journal_field.value"
+        },
+        {
+            "use_constant": "CHATTERNOTESTYPE",
+            "destination_field": "Type"
+        },
+        {
+            "use_constant": "NETWORKSCOPE",
+            "destination_field": "NetworkScope"
+        },
+        {
+            "use_constant": "CHATTERNOTESSTATUS",
+            "destination_field": "Status"
+        }
+    ]
+}

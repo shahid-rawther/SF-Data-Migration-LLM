@@ -1,0 +1,116 @@
+{
+    "priority": 1,
+    "operation": "upsert",
+    "servicenow_tables": [
+        "cmdb_ci_service"
+    ],
+    "joins": [
+    ],
+    "filters": [
+    ],
+    "salesforce_object": "Service__c",
+    "fields": [
+        {
+            "source_field": "cmdb_ci_service.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "cmdb_ci_service.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.sys_created_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "cmdb_ci_service.sys_created_by",
+            "destination_field": "Created_by__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.attestation_status",
+            "destination_field": "Attestation_Status__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.attested",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Attested__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.busines_criticality",
+            "transformation_function": "look_up_business_criticality",
+            "destination_field": "Business_criticality__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.can_print",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Can_Print__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.category",
+            "destination_field": "Category__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.comments",
+            "destination_field": "Comments__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.consumer_type",
+            "transformation_function": "look_up_consumer_type",
+            "destination_field": "Consumer_type__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.cost_cc",
+            "transformation_function": "look_up_cost_currency",
+            "destination_field": "Cost_currency__c"
+        },
+        
+        {
+            "source_field": "cmdb_ci_service.fault_count",
+            "destination_field": "Fault_count__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.monitor",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Monitor__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.name",
+            "destination_field": "Name"
+        },
+        {
+            "source_field": "cmdb_ci_service.operational_status",
+            "transformation_function": "look_up_operational_status",
+            "destination_field": "Operational_Status__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.portfolio_status",
+            "transformation_function": "look_up_portfolio_status",
+            "destination_field": "Phase__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.service_classification",
+            "transformation_function": "look_up_service_classification",
+            "destination_field": "Service_classification__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.skip_sync",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Skip_sync__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.subcategory",
+            "destination_field": "Subcategory__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.sys_mod_count",
+            "destination_field": "Updates__c"
+        },
+        {
+            "source_field": "cmdb_ci_service.used_for",
+            "transformation_function": "look_up_used_for",
+            "destination_field": "Used_for__c"
+        }
+    ]
+}

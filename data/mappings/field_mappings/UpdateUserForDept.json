@@ -1,0 +1,38 @@
+{
+    "priority": 1,
+    "operation": "update",
+    "transformation_name": "UpdateUserForDept",
+    "look_up_table_names": ["sys_user_User_AdminUser", "sys_user_User_CommunityUser"],
+    "servicenow_tables": [
+        "sys_user",
+        "core_company",
+        "cmn_department",
+        "change_request"
+    ],
+    "joins": [
+        {
+            "left_table": "sys_user",
+            "left_key": "company",
+            "right_table": "core_company",
+            "right_key": "sys_id",
+            "type": "left"
+        },
+        {
+            "left_table": "sys_user",
+            "left_key": "department",
+            "right_table": "cmn_department",
+            "right_key": "sys_id",
+            "type": "left"
+        }
+    ],
+    "filters": [],
+    "salesforce_object": "User",
+    "fields": [
+      
+        {
+            "source_field": "cmn_department.name",
+            "destination_field": "Department"
+        }       
+       
+    ]
+}

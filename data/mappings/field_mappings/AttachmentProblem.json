@@ -1,0 +1,65 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_attachment",
+        "sys_attachment_doc"
+    ],
+    "is_attachment_table": true,
+    "joins": [],
+    "filters": [
+        {
+            "table": "sys_attachment",
+            "field": "table_name",
+            "operator": "in",
+            "value": ["problem"]
+        },
+        {
+            "table": "sys_attachment",
+            "field": "table_sys_id",
+            "operator": "is_not_null"
+        },
+        {
+            "table": "sys_attachment",
+            "field": "file_name",
+            "operator": "is_not_null"
+        }
+    ],
+    "salesforce_object": "ContentVersion",
+    "salesforce_objects": [
+        {
+            "object_name": "ContentVersion",
+            "fields": [
+                "Id"
+            ]
+        }
+    ],
+    "transformation_name": "AttachmentProblem",
+    "fields": [
+        {
+            "source_field": "sys_id",
+            "destination_field": "sys_id"
+        },
+        {
+            "source_field": "table_sys_id",
+            "transformation_function": "look_up_problem_sys_id",
+            "destination_field": "FirstPublishLocationId",
+            "skip_if_not_found": true
+        },
+        {
+            "source_field": ["sys_id","file_name"],
+            "transformation_function": "create_attachment_file_name",
+            "destination_field": "Title"
+        },
+        {
+            "source_field": ["sys_id","file_name"],
+            "transformation_function": "fetch_base_64_content_from_attachment",
+            "destination_field": "VersionData"
+        },
+        {
+            "source_field": ["file_name"],
+            "destination_field": "PathOnClient"
+        }
+
+    ]
+}

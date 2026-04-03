@@ -1,0 +1,22 @@
+{
+    "priority": 1,
+    "servicenow_tables": [
+        "cmn_location"
+    ],
+    "joins": [
+
+    ],
+    "transformation_name": "ParentLocationUpdateForVisitorAddressId",
+    "look_up_table_names": ["cmn_location_Location_ParentLocation"],
+    "filters": [
+    ],
+    "operation": "update",
+    "salesforce_object": "Location",
+    "fields": [
+        {
+            "source_field": "cmn_location.sys_id",
+            "transformation_function": "look_up_address_sys_id",
+            "destination_field": "VisitorAddressId"
+        }
+    ]
+}

@@ -1,0 +1,82 @@
+{
+    "priority": 2,
+    "servicenow_tables": [
+        "core_company"
+    ],
+    "joins": [],
+    "filters": [],
+    "operation": "insert",
+    "salesforce_object": "InternalOrganizationUnit",
+    "transformation_name": "Company",
+    "fields": [
+        {
+            "source_field": [
+                "core_company.street",
+                "core_company.city",
+                "core_company.state",
+                "core_company.zip"
+            ],
+            "transformation_function": "populate_company_address",
+            "destination_field": "Address__c"
+        },
+        {
+            "source_field": "core_company.sys_created_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "core_company.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },        
+        {
+            "source_field": "core_company.fax_phone",
+            "destination_field": "Fax_phone__c"
+        },
+        {
+            "source_field": "core_company.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "core_company.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "core_company.manufacturer",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Manufacturer__c"
+        },        
+        {
+            "source_field": "core_company.notes",
+            "destination_field": "Notes__c"
+        },     
+        {
+            "source_field": "core_company.name",
+            "destination_field": "OrganizationName"
+        }, 
+        {
+            "source_field": "core_company.sys_created_on",
+            "transformation_function": "generate_unique_org_code",
+            "destination_field": "OrganizationCode"
+        }, 
+        {
+            "source_field": "core_company.phone",
+            "destination_field": "Phone__c"
+        },
+        {
+            "source_field": "core_company.stock_price",
+            "destination_field": "Stock_price__c"
+        },        
+        {
+            "source_field": "core_company.stock_symbol",
+            "destination_field": "Stock_symbol__c"
+        },
+        {
+            "source_field": "core_company.vendor",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "Vendor__c"
+        }
+    ]
+}

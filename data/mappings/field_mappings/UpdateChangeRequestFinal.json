@@ -1,0 +1,204 @@
+{
+    "priority": 3,
+    "operation": "update",
+    "servicenow_tables": [
+        "change_request"
+    ],
+    "joins": [],
+    "filters": [],
+    "salesforce_object": "ChangeRequest",
+    "transformation_name": "UpdateChangeRequestFinal",
+    "look_up_table_names": ["change_request_ChangeRequest_"],
+    "fields": [
+        {
+            "use_constant": "BUSINESSHOURSID",
+            "destination_field": "BusinessHoursId"
+        },
+        {
+            "source_field": "change_request.work_end",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Actual_end_date__c"
+        },
+        {
+            "source_field":   "change_request.work_start",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "ActualStartDate"
+        },
+        {
+            "source_field": "change_request.assignment_group",
+            "transformation_function": "look_up_assignement_group",
+            "destination_field": "AssignedGroupId"
+        },
+        {
+            "source_field": "change_request.justification",
+            "destination_field": "BusinessJustification"
+        },      
+        {
+            "source_field": "change_request.reason",
+            "transformation_function": "look_up_reason",
+            "destination_field": "BusinessReason"
+        },   
+        {
+            "source_field": "change_request.risk_value",
+            "destination_field": "CalculatedRiskScore"
+        },
+        {
+            "source_field": "change_request.category",
+            "transformation_function": "look_up_CR_category",
+            "destination_field": "Category"
+        },
+        {
+            "source_field": "change_request.close_code",
+            "transformation_function": "look_up_close_status_code",
+            "destination_field": "ClosedStatusCode"
+        },
+        {
+            "source_field": "change_request.close_notes",
+            "destination_field": "ClosedStatusComments"
+        },
+        {
+            "source_field": "change_request.requested_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "change_request.on_hold",
+            "transformation_function": "convert_to_boolean",
+            "destination_field": "IsStopped"
+        },
+        {
+            "source_field": "change_request.end_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CompletionDate"
+        },
+        {
+            "source_field": "change_request.sys_created_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "change_request.u_date_of_request",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "change_request.description",
+            "destination_field": "Description"
+        },
+        {
+            "source_field": "change_request.start_date",
+            "transformation_function": "create_end_date_based_on_duration",
+            "destination_field": "EstimatedEndTime"
+        },
+        {
+            "source_field": "change_request.u_have_business_stakeholders_been_notified",
+            "transformation_function": "look_up_skateholders_notified",
+            "destination_field": "Have_business_stakeholders_been_notified__c"
+        },
+        {
+            "source_field": "change_request.impact",
+            "transformation_function": "look_up_CR_impact",
+            "destination_field": "Impact"
+        },
+        {
+            "source_field": "change_request.risk_impact_analysis",
+            "destination_field": "RiskImpactAnalysis"
+        },
+        {
+            "source_field": "change_request.implementation_plan",
+            "destination_field": "ImplementationPlan"
+        },
+        {
+            "source_field": "change_request.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "change_request.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "change_request.end_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Planned_end_date__c"
+        },
+        {
+            "source_field": "change_request.start_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Planned_start_date__c"
+        },
+        {
+            "source_field": "change_request.priority",
+            "transformation_function": "look_up_CR_priority",
+            "destination_field": "Priority"
+        },
+        {
+            "source_field": "change_request.backout_plan",
+            "destination_field": "RemediationPlan"
+        },
+        {
+            "source_field": "change_request.requested_by",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "RequestedById"
+        },
+        {
+            "source_field": "change_request.cab_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "FinalReviewDateTime"
+        },
+        {
+            "source_field": "change_request.cab_delegate",
+            "transformation_function": "look_up_user_sys_id",
+            "destination_field": "ReviewerId"
+        },
+        {
+            "source_field": "change_request.risk",
+            "transformation_function": "look_up_risk",
+            "destination_field": "RiskLevel"
+        },
+        {
+            "source_field": "change_request.start_date",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "EstimatedStartTime"
+        },
+        {
+            "source_field": "change_request.state",
+            "transformation_function": "look_up_state",
+            "destination_field": "Status"
+        },
+        {
+            "source_field": ["change_request.number","change_request.short_description"],
+            "transformation_function": "populate_subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "change_request.test_plan",
+            "destination_field": "TestPlan"
+        },
+        {
+            "source_field": "change_request.type",
+            "transformation_function": "look_up_change_type",
+            "destination_field": "Type"
+        },
+        {
+            "source_field": "change_request.urgency",
+            "transformation_function": "look_up_CR_urgency",
+            "destination_field": "Urgency"
+        },
+        {
+            "source_field": "change_request.u_it_groups_affected",
+            "transformation_function": "look_up_it_group_names",
+            "destination_field": "IT_Groups_Affected__c"
+        },
+        {
+            "source_field": "change_request.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "change_request.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        }
+    ]
+}

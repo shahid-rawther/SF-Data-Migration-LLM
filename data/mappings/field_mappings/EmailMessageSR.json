@@ -1,0 +1,89 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "sys_email"
+    ],
+    "joins": [],
+    "filters": [
+        {
+            "table": "sys_email",
+            "field": "target_table",
+            "operator": "in",
+            "value": [
+                "sc_request",
+                "sc_req_item"
+            ]
+        }
+    ],
+    "salesforce_object": "EmailMessage",
+    "transformation_name": "EmailMessageSR",
+    "salesforce_objects": [
+        {
+            "object_name": "EmailMessage",
+            "fields": [
+                "Id",
+                "Headers"
+            ]
+        }
+    ],
+    "fields": [
+        {
+            "source_field": "sys_email.sys_created_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "sys_email.headers",
+            "transformation_function": "check_header_length_limit",
+            "destination_field": "Headers"
+        },
+        {
+            "source_field": "sys_email.body",
+            "transformation_function": "check_body_length_limit",
+            "destination_field": "HtmlBody"
+        },
+        {
+            "source_field": "sys_email.type",
+            "transformation_function": "populate_email_type",
+            "destination_field": "Incoming"
+        },
+        {
+            "destination_field": "LastModifiedDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "sys_email.sys_updated_on"
+        },
+        {
+            "destination_field": "MessageDate",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "sys_email.sys_created_on"
+        },
+        {
+            "destination_field": "Status",
+            "transformation_function": "look_up_email_status",
+            "source_field": "sys_email.receive_type"
+        },
+        {
+            "source_field": "sys_email.subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "sys_email.direct",
+            "destination_field": "ToAddress"
+        },        
+        {
+            "source_field": "sys_email.instance",            
+            "transformation_function": "look_up_case_sys_id",
+            "destination_field": "RelatedToId"
+        },
+        {
+            "destination_field": "Updated_by__c",
+            "source_field": "sys_email.sys_updated_by"
+        },        
+        {
+            "source_field": "sys_email.sys_updated_on",
+            "transformation_function": "convert_to_sf_time_format",
+            "destination_field": "Updated_at__c"
+        }
+    ]
+}

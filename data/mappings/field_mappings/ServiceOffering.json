@@ -1,0 +1,58 @@
+{
+    "priority": 2,
+    "operation": "upsert",
+    "servicenow_tables": [
+        "service_offering"
+    ],
+    "joins": [],
+    "filters": [],
+    "salesforce_object": "Service_Offering__c",
+    "salesforce_objects": [
+        {
+            "object_name": "Service_Offering__c",
+            "fields": [
+                "Id"
+            ]
+        }
+    ],
+    "fields": [
+        {
+            "source_field": "service_offering.sys_updated_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "LastModifiedById"
+        },
+        {
+            "source_field": "service_offering.sys_updated_by",
+            "destination_field": "Updated_by__c"
+        },
+        {
+            "source_field": "service_offering.sys_created_by",
+            "transformation_function": "look_up_user_user_name",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "service_offering.sys_created_by",
+            "destination_field": "Created_by__c"
+        },
+        {
+            "source_field": "service_offering.busines_criticality",
+            "transformation_function": "look_up_business_criticality_for_offerings",
+            "destination_field": "Business_criticality__c"        
+        },
+        {
+            "source_field": "service_offering.operational_status",
+            "transformation_function": "look_up_operational_status",
+            "destination_field": "Operational_status__c"
+        },
+        {
+            "source_field": "service_offering.parent",
+            "transformation_function": "look_up_sys_id",
+            "ignore_on_update": true,
+            "destination_field": "Parent__c"
+        },
+        {
+            "source_field": "service_offering.name",
+            "destination_field": "Name"
+        }
+    ]
+}

@@ -1,0 +1,41 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "servicenow_tables": [
+        "incident"
+    ],
+    "joins": [],
+    "filters": [
+        {
+            "table": "incident",
+            "field": "rfc",
+            "operator": "is_not_null"
+        }
+    ],
+    "salesforce_object": "ChangeRequestRelatedIssue",
+    "salesforce_objects": [
+        {
+            "object_name": "ChangeRequestRelatedIssue",
+            "fields": [
+                "Id"
+            ]
+        }
+    ],
+    "transformation_name": "RelatedCRIncidentByRFC",
+    "fields": [
+        {
+            "source_field": "incident.rfc",
+            "transformation_function": "look_up_change_request_sys_id",
+            "destination_field": "ChangeRequestId"
+        },
+        {
+            "destination_field": "RelatedIssueId",
+            "transformation_function": "look_up_incident_sys_id",
+            "source_field": "incident.sys_id"
+        },
+        {
+            "use_constant": "RESOLVEDBY",
+            "destination_field": "RelationshipType"
+        }            
+    ]
+}
