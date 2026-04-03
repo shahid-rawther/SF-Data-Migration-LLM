@@ -77,13 +77,13 @@ MAPPING_PRIORITY = [
     ["UpdateChangeRequestForFix"],
     ["UpdateCaseForFix"],
     ["UpdateCaseFinal"],
-    ["UpdateProblemFinal"]
-    ["UpdateChangeRequestFinal"]
-    ["UpdateServiceRequestFinal"]
+    ["UpdateProblemFinal"],
+    ["UpdateChangeRequestFinal"],
+    ["UpdateServiceRequestFinal"],
     ["UpdateAdminUserFinal"],
-    ["UpdateUserForDept"]
-    ["UpdateUserForFedID"]
-    ["UpdateUserForFedIDEmailUN"]
+    ["UpdateUserForDept"],
+    ["UpdateUserForFedID"],
+    ["UpdateUserForFedIDEmailUN"],
     ["Service"],
     ["ServiceOffering"],
     ["Problem"],
