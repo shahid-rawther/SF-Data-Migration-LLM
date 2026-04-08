@@ -96,6 +96,15 @@ export interface CreateMigrationRequest {
   options: Partial<MigrationOptions>;
 }
 
+export interface SalesforceDiagnosticsResponse {
+  valid: boolean;
+  message: string;
+  run_as_user_id?: string;
+  required_objects?: string[];
+  visibility?: Record<string, boolean>;
+  missing_objects?: string[];
+}
+
 // ── Sources ───────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -121,6 +130,24 @@ export const api = {
       request(`/sources/${sourceId}/row-count`, {
         method: 'POST',
         body: JSON.stringify({ object_name: objectName, credentials }),
+      }),
+  },
+
+  destinations: {
+    validateSalesforceCredentials: (
+      credentials: Record<string, string>,
+    ): Promise<{ valid: boolean; message?: string }> =>
+      request('/destinations/salesforce/validate-credentials', {
+        method: 'POST',
+        body: JSON.stringify({ credentials }),
+      }),
+    checkSalesforceDiagnostics: (
+      credentials: Record<string, string>,
+      selected_objects: string[],
+    ): Promise<SalesforceDiagnosticsResponse> =>
+      request('/destinations/salesforce/diagnostics', {
+        method: 'POST',
+        body: JSON.stringify({ credentials, selected_objects }),
       }),
   },
 

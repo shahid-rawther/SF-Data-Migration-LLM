@@ -217,6 +217,7 @@ class MigrationManager:
 
     def _do_run(self, session_id: str, config: dict, state: SessionState) -> None:
         from controllers import extraction_controller, transformation_controller, loading_controller
+        from services.http_clients.salesforce_http_client import salesforce_client
         from config.settings import (
             EXTRACTION_JOB_NUMBER,
             TRANSFORMATION_JOB_NUMBER,
@@ -226,7 +227,16 @@ class MigrationManager:
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
+        destination_credentials: dict = config.get("destination_credentials", {})
         token = state.token
+
+        # Ensure runtime uses the same destination credentials validated in the wizard.
+        salesforce_client.configure(
+            base_url=destination_credentials.get("base_url"),
+            client_id=destination_credentials.get("client_id"),
+            client_secret=destination_credentials.get("client_secret"),
+            api_version=destination_credentials.get("api_version"),
+        )
 
         # Build an ordered priority list containing only selected objects
         from config.settings import MAPPING_PRIORITY

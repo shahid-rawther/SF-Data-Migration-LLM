@@ -12,6 +12,16 @@ import services.internal.jobs_service as jobs_service
 from services.internal.transformation_service import transform_table
 
 
+def _build_transformation_error_message(exc: Exception) -> str:
+    raw = str(exc)
+    if "/services/oauth2/token" in raw or "refresh Salesforce access token" in raw:
+        return (
+            "Transformation failed while authenticating to Salesforce. "
+            "Please verify Salesforce base URL, client ID, client secret, and connected app settings."
+        )
+    return f"Transformation failed: {raw}"
+
+
 
 def start_trasformation(job_id: int, mappings_file_names: list[str] = []):
     job_id = jobs_service.get_or_create_job(job_id, "transformation")
@@ -26,7 +36,7 @@ def start_trasformation(job_id: int, mappings_file_names: list[str] = []):
     except Exception as e:
         logger.exception("Exception occured during transformation:", exc_info=e)
         jobs_service.update_job_status(job_id, "failed")
-        return
+        raise RuntimeError(_build_transformation_error_message(e)) from e
     jobs_service.update_job_status(job_id, "success")
 
 def start_attachment_trasformation(job_id: int, mappings_file_names: list[str] = []):

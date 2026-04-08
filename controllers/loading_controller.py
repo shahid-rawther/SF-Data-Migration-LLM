@@ -267,6 +267,7 @@ def load_insert_batch(
             f"Loading: Insert: Batch: {batch_number}, Insert Batch Size: {batch_insert_size}, Status: Failed"
         )
         logger.exception(str(e))
+        raise
 
 
 def load_update_batch(

@@ -12,10 +12,10 @@ from common.logger import logger
 from config.settings import HASH_KEY_NAME, SERVICE_NOW_ID_COLUMN
 
 
-SALESFORCE_API_VERSION = os.getenv("SALESFORCE_API_VERSION")
-SALESFORCE_CLIENT_ID = os.getenv("SALESFORCE_CLIENT_ID")
-SALESFORCE_CLIENT_SECRET = os.getenv("SALESFORCE_CLIENT_SECRET")
-SALESFORCE_BASE_URL = os.getenv("SALESFORCE_BASE_URL")
+DEFAULT_SALESFORCE_API_VERSION = os.getenv("SALESFORCE_API_VERSION")
+DEFAULT_SALESFORCE_CLIENT_ID = os.getenv("SALESFORCE_CLIENT_ID")
+DEFAULT_SALESFORCE_CLIENT_SECRET = os.getenv("SALESFORCE_CLIENT_SECRET")
+DEFAULT_SALESFORCE_BASE_URL = os.getenv("SALESFORCE_BASE_URL")
 csv.field_size_limit(2**31 - 1)
 
 
@@ -39,21 +39,42 @@ def ensure_token(func: Callable) -> Callable:
 class SalesforceClient:
     def __init__(self) -> None:
         logger.info("Initializing SalesforceClient.")
-        logger.info(f"Salesforce base URL: {SALESFORCE_BASE_URL}")
+        logger.info(f"Salesforce base URL: {DEFAULT_SALESFORCE_BASE_URL}")
 
         self.access_token: Optional[str] = None
-        self.instance_url: str = SALESFORCE_BASE_URL
+        self.instance_url: str = DEFAULT_SALESFORCE_BASE_URL
+        self.client_id: str = DEFAULT_SALESFORCE_CLIENT_ID
+        self.client_secret: str = DEFAULT_SALESFORCE_CLIENT_SECRET
+        self.api_version: str = DEFAULT_SALESFORCE_API_VERSION
         self.token_expiry: float = 0.0
+
+    def configure(
+        self,
+        base_url: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        api_version: Optional[str] = None,
+    ) -> None:
+        """Configure credentials/endpoint per migration run and reset token."""
+        self.instance_url = (base_url or self.instance_url or "").rstrip("/")
+        self.client_id = client_id or self.client_id
+        self.client_secret = client_secret or self.client_secret
+        self.api_version = api_version or self.api_version
+        self.access_token = None
+        logger.info(f"Salesforce client configured for base URL: {self.instance_url}")
 
     def refresh_access_token(self) -> None:
         logger.info("Refreshing Salesforce access token...")
 
         token_url = self.instance_url + "/services/oauth2/token"
 
+        if not (self.instance_url and self.client_id and self.client_secret):
+            raise ValueError("Salesforce credentials are incomplete for token refresh")
+
         payload: Dict[str, str] = {
             "grant_type": "client_credentials",
-            "client_id": SALESFORCE_CLIENT_ID,
-            "client_secret": SALESFORCE_CLIENT_SECRET,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
         }
 
         try:
@@ -81,11 +102,31 @@ class SalesforceClient:
         session.headers.update(self._headers())
         return session
 
+    @staticmethod
+    def _extract_salesforce_error(response: requests.Response) -> str:
+        try:
+            data = response.json()
+            if isinstance(data, list) and data:
+                first = data[0] or {}
+                message = first.get("message")
+                code = first.get("errorCode")
+                if message and code:
+                    return f"{code}: {message.strip()}"
+                if message:
+                    return str(message).strip()
+            if isinstance(data, dict):
+                message = data.get("error_description") or data.get("error")
+                if message:
+                    return str(message)
+        except ValueError:
+            pass
+        return response.text[:500]
+
     @ensure_token
     def create_job(
         self, object_api_name: str, operation: str = "insert", line_ending: str = "CRLF"
     ):
-        url = f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/jobs/ingest"
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest"
         session = self._session()
         body = {
             "object": object_api_name,
@@ -99,7 +140,7 @@ class SalesforceClient:
 
     @ensure_token
     def upload_csv(self, job_id: str, csv_path: Path):
-        url = f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/jobs/ingest/{job_id}/batches"
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/batches"
         session = self._session()
         session.headers.update({"Content-Type": "text/csv"})
 
@@ -130,7 +171,7 @@ class SalesforceClient:
 
     @ensure_token
     def mark_upload_complete(self, job_id):
-        url = f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/jobs/ingest/{job_id}"
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}"
         body = {"state": "UploadComplete"}
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
@@ -140,7 +181,7 @@ class SalesforceClient:
 
     @ensure_token
     def get_job(self, job_id: str):
-        url = f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/jobs/ingest/{job_id}"
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}"
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
         r = session.get(url)
@@ -152,7 +193,7 @@ class SalesforceClient:
         """
         kind: successfulResults | failedResults | unprocessedRecords
         """
-        url = f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/jobs/ingest/{job_id}/{kind}"
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/{kind}"
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
         response = session.get(url)
@@ -177,7 +218,7 @@ class SalesforceClient:
 
         url = (
             f"{self.instance_url}/services/data/"
-            f"{SALESFORCE_API_VERSION}/composite/sobjects"
+            f"{self.api_version}/composite/sobjects"
         )
 
         records = []
@@ -210,7 +251,7 @@ class SalesforceClient:
             fields = ",".join(fields)
             query = f"SELECT {fields} FROM {object_name}"
             url = (
-                f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/query?q="
+                f"{self.instance_url}/services/data/{self.api_version}/query?q="
                 + query
             )
         else:
@@ -218,7 +259,9 @@ class SalesforceClient:
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
         response = session.get(url)
-        response.raise_for_status()
+        if not response.ok:
+            detail = self._extract_salesforce_error(response)
+            raise RuntimeError(f"Salesforce query failed for '{object_name}': {detail}")
         return response.json()
 
     @ensure_token
@@ -227,13 +270,15 @@ class SalesforceClient:
     ) -> int:
         query = f"SELECT COUNT() FROM {object_name}"
         url = (
-            f"{self.instance_url}/services/data/{SALESFORCE_API_VERSION}/query?q="
+            f"{self.instance_url}/services/data/{self.api_version}/query?q="
             + query
         )
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
         response = session.get(url)
-        response.raise_for_status()
+        if not response.ok:
+            detail = self._extract_salesforce_error(response)
+            raise RuntimeError(f"Salesforce row count failed for '{object_name}': {detail}")
         res = response.json()
         return int(res["totalSize"])
 

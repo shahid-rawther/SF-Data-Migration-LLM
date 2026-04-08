@@ -1,0 +1,52 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Node / frontend build artifacts (rebuilt inside Docker multi-stage)
+web/node_modules/
+web/dist/
+
+# Logs
+logs/
+*.log
+
+# Local data (synced from S3 at runtime)
+data/database/db/
+data/downloads/
+data/transformations/
+data/results/
+
+# Development / local config
+.env
+.env.*
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deploy artifacts (not needed inside image)
+deploy/
+!deploy/entrypoint.sh

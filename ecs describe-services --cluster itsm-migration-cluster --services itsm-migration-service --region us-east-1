@@ -1,0 +1,303 @@
+{
+    "service": {
+        "serviceArn": "arn:aws:ecs:us-east-1:295790629637:service/itsm-migration-cluster/itsm-migration-service",
+        "serviceName": "itsm-migration-service",
+        "clusterArn": "arn:aws:ecs:us-east-1:295790629637:cluster/itsm-migration-cluster",
+        "loadBalancers": [
+            {
+                "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:295790629637:targetgroup/itsm-migration-tg/057ba53fcec2cf70",
+                "containerName": "itsm-migration",
+                "containerPort": 8000
+            }
+        ],
+        "serviceRegistries": [],
+        "status": "ACTIVE",
+        "desiredCount": 1,
+        "runningCount": 0,
+        "pendingCount": 0,
+        "launchType": "FARGATE",
+        "platformVersion": "LATEST",
+        "platformFamily": "Linux",
+        "taskDefinition": "arn:aws:ecs:us-east-1:295790629637:task-definition/itsm-migration-task:1",
+        "deploymentConfiguration": {
+            "deploymentCircuitBreaker": {
+                "enable": false,
+                "rollback": false
+            },
+            "maximumPercent": 200,
+            "minimumHealthyPercent": 50,
+            "strategy": "ROLLING",
+            "bakeTimeInMinutes": 0
+        },
+        "deployments": [
+            {
+                "id": "ecs-svc/1061169735526258708",
+                "status": "PRIMARY",
+                "taskDefinition": "arn:aws:ecs:us-east-1:295790629637:task-definition/itsm-migration-task:1",
+                "desiredCount": 0,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 0,
+                "createdAt": "2026-04-04T15:14:58.278000+00:00",
+                "updatedAt": "2026-04-04T15:14:58.278000+00:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-0ba328e3642a96ed4",
+                            "subnet-0c283cd3c0ab066b1"
+                        ],
+                        "securityGroups": [
+                            "sg-02df8917714885a53"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/1061169735526258708 in progress."
+            },
+            {
+                "id": "ecs-svc/3006531041568210878",
+                "status": "ACTIVE",
+                "taskDefinition": "arn:aws:ecs:us-east-1:295790629637:task-definition/itsm-migration-task:1",
+                "desiredCount": 0,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 0,
+                "createdAt": "2026-04-04T15:14:54.072000+00:00",
+                "updatedAt": "2026-04-04T15:14:57.300000+00:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-0ba328e3642a96ed4",
+                            "subnet-0c283cd3c0ab066b1"
+                        ],
+                        "securityGroups": [
+                            "sg-02df8917714885a53"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/3006531041568210878 in progress."
+            },
+            {
+                "id": "ecs-svc/9344077492357677973",
+                "status": "ACTIVE",
+                "taskDefinition": "arn:aws:ecs:us-east-1:295790629637:task-definition/itsm-migration-task:1",
+                "desiredCount": 1,
+                "pendingCount": 0,
+                "runningCount": 0,
+                "failedTasks": 13,
+                "createdAt": "2026-04-04T14:18:12.383000+00:00",
+                "updatedAt": "2026-04-04T15:14:54.073000+00:00",
+                "launchType": "FARGATE",
+                "platformVersion": "1.4.0",
+                "platformFamily": "Linux",
+                "networkConfiguration": {
+                    "awsvpcConfiguration": {
+                        "subnets": [
+                            "subnet-0ba328e3642a96ed4",
+                            "subnet-0c283cd3c0ab066b1"
+                        ],
+                        "securityGroups": [
+                            "sg-02df8917714885a53"
+                        ],
+                        "assignPublicIp": "ENABLED"
+                    }
+                },
+                "rolloutState": "IN_PROGRESS",
+                "rolloutStateReason": "ECS deployment ecs-svc/9344077492357677973 in progress."
+            }
+        ],
+        "roleArn": "arn:aws:iam::295790629637:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS",
+        "events": [
+            {
+                "id": "5bef9b9d-fcac-4b68-b11b-cf3a46d7f6ce",
+                "createdAt": "2026-04-04T15:11:45.316000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 72a83dc6bfad40a4ba86a0012d1ad584)."
+            },
+            {
+                "id": "3fb77b3c-bc3b-410d-b7e9-d94c81e21365",
+                "createdAt": "2026-04-04T15:06:34.788000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "0bb52a22-48d4-47ee-add0-c0cc4e29daa0",
+                "createdAt": "2026-04-04T15:05:08.116000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 97a405fdb53b4c2a8773e57f65996f5e)."
+            },
+            {
+                "id": "25906e28-59ce-4933-8d13-0d5d37b0e88d",
+                "createdAt": "2026-04-04T14:59:59.745000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "82d154c6-36e3-4568-a971-a565132aa999",
+                "createdAt": "2026-04-04T14:58:31.553000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 365ca21440e24667aaa60eda5801a07b)."
+            },
+            {
+                "id": "84af1e72-8c94-4063-a43f-5e331e7a947e",
+                "createdAt": "2026-04-04T14:53:28.133000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "7c72cb75-5081-4a43-8b18-84876ed7e12e",
+                "createdAt": "2026-04-04T14:51:50.719000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 7e47a5fa95ee4b0fa4cb165ca841b06f)."
+            },
+            {
+                "id": "b9e7bc23-6bdf-4df0-8f54-1aa16f146cd3",
+                "createdAt": "2026-04-04T14:46:53.976000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "7cc07734-5c88-476e-854a-24ca25242dd4",
+                "createdAt": "2026-04-04T14:45:27.019000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task c5099ec4fc71476a8b907fc71fcd3e06)."
+            },
+            {
+                "id": "983da934-dbb1-4d6a-a18a-9869e67fc444",
+                "createdAt": "2026-04-04T14:40:37.534000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "ba1e86c9-083c-4fb2-960d-29715ba6a22d",
+                "createdAt": "2026-04-04T14:39:07.863000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 684a59ff6aec44e88aad3218e77d1dd8)."
+            },
+            {
+                "id": "6b11800c-91cc-4a08-a2bf-ad01ce77adf6",
+                "createdAt": "2026-04-04T14:34:00.985000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "cedb578e-6fbf-479b-9b5f-83b02f9a69a2",
+                "createdAt": "2026-04-04T14:32:32.266000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 2969c3a2f9ee4d45826e61a184c43397)."
+            },
+            {
+                "id": "0b8f8c71-afc7-485c-8f2a-21d3dcffb1ff",
+                "createdAt": "2026-04-04T14:32:01.271000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "3f5715fa-c48d-45a5-acc2-490f231de09c",
+                "createdAt": "2026-04-04T14:30:34.559000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task c9875019215144ed92a7fb40d70953a2)."
+            },
+            {
+                "id": "81c0cacb-a4c4-45a4-94dc-34a432c48951",
+                "createdAt": "2026-04-04T14:30:03.619000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "25123024-e026-4dda-9a3a-09accab5efe8",
+                "createdAt": "2026-04-04T14:28:34.521000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task fbfc7b10d0a5426581b732703fbe70e6)."
+            },
+            {
+                "id": "6d4942a6-624a-473a-a22e-d4422a0148c2",
+                "createdAt": "2026-04-04T14:28:24.682000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "721be209-7a61-434d-8b85-08e92b0f2a6e",
+                "createdAt": "2026-04-04T14:26:56.535000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 017ea3eee85042ca9c82713537895d64)."
+            },
+            {
+                "id": "1e0f40e3-61a3-4467-89b7-8cc1934ff6ba",
+                "createdAt": "2026-04-04T14:26:23.512000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "dc71a451-34a1-4d8c-ad9d-99a34456dc6d",
+                "createdAt": "2026-04-04T14:24:46.087000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task fefdf241c7a44101b771fb97a77de4ed)."
+            },
+            {
+                "id": "ab52292b-194a-4ad3-95fc-50817686df1f",
+                "createdAt": "2026-04-04T14:24:13.665000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "14bef815-073e-4edc-9330-bd4c12fa595d",
+                "createdAt": "2026-04-04T14:22:38.684000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 0120b634e4844b9080a40fe0ee15b89c)."
+            },
+            {
+                "id": "23b5597e-032d-4a1a-be94-cb0c133fdbf4",
+                "createdAt": "2026-04-04T14:22:06.299000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "46cfd700-869b-4778-994a-7598da2afe57",
+                "createdAt": "2026-04-04T14:20:38.114000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 1ad3f0f806174c6a8b1d8bd1a5c83600)."
+            },
+            {
+                "id": "d4216bca-e52f-439b-9e86-f119c5264eac",
+                "createdAt": "2026-04-04T14:20:05.216000+00:00",
+                "message": "(service itsm-migration-service) was unable to place a task. Reason: CannotPullContainerError: pull image manifest has been retried 7 time(s): failed to resolve ref 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: 295790629637.dkr.ecr.us-east-1.amazonaws.com/itsm-migration:d15fc1f: not found."
+            },
+            {
+                "id": "eeb273f2-4064-4ef5-b2c5-56e3b4dff093",
+                "createdAt": "2026-04-04T14:18:35.067000+00:00",
+                "message": "(service itsm-migration-service) has started 1 tasks: (task 784264b7c8ba40eca72330f255dd1cc2)."
+            }
+        ],
+        "createdAt": "2026-04-04T14:18:12.383000+00:00",
+        "currentServiceRevisions": [
+            {
+                "arn": "arn:aws:ecs:us-east-1:295790629637:service-revision/itsm-migration-cluster/itsm-migration-service/1061169735526258708",
+                "requestedTaskCount": 0,
+                "runningTaskCount": 0,
+                "pendingTaskCount": 0
+            },
+            {
+                "arn": "arn:aws:ecs:us-east-1:295790629637:service-revision/itsm-migration-cluster/itsm-migration-service/3006531041568210878",
+                "requestedTaskCount": 0,
+                "runningTaskCount": 0,
+                "pendingTaskCount": 0
+            },
+            {
+                "arn": "arn:aws:ecs:us-east-1:295790629637:service-revision/itsm-migration-cluster/itsm-migration-service/9344077492357677973",
+                "requestedTaskCount": 1,
+                "runningTaskCount": 0,
+                "pendingTaskCount": 0
+            }
+        ],
+        "placementConstraints": [],
+        "placementStrategy": [],
+        "networkConfiguration": {
+            "awsvpcConfiguration": {
+                "subnets": [
+                    "subnet-0ba328e3642a96ed4",
+                    "subnet-0c283cd3c0ab066b1"
+                ],
+                "securityGroups": [
+                    "sg-02df8917714885a53"
+                ],
+                "assignPublicIp": "ENABLED"
+            }
+        },
+        "healthCheckGracePeriodSeconds": 0,
+        "schedulingStrategy": "REPLICA",
+        "deploymentController": {
+            "type": "ECS"
+        },
+        "createdBy": "arn:aws:iam::295790629637:user/control-tower-deploy",
+        "enableECSManagedTags": false,
+        "propagateTags": "NONE",
+        "enableExecuteCommand": false,
+        "availabilityZoneRebalancing": "ENABLED",
+        "resourceManagementType": "CUSTOMER"
+    }
+}

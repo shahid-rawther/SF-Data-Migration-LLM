@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, MigratableObject } from '../api/client';
+import type { Source, MigratableObject, SalesforceDiagnosticsResponse } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
 import { ObjectSelector } from '../components/ObjectSelector';
 
@@ -36,6 +36,12 @@ export function NewMigrationWizard() {
   });
   const [validating, setValidating] = useState(false);
   const [validationMsg, setValidationMsg] = useState<string | null>(null);
+  const [validatingDest, setValidatingDest] = useState(false);
+  const [destValidationMsg, setDestValidationMsg] = useState<string | null>(null);
+  const [destValidated, setDestValidated] = useState(false);
+  const [checkingDiagnostics, setCheckingDiagnostics] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<SalesforceDiagnosticsResponse | null>(null);
+  const [expandDetails, setExpandDetails] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,8 +70,48 @@ export function NewMigrationWizard() {
     setSelectedObjects(objs.map((o) => o.name)); // default: all selected
   };
 
+  const validateDestination = async () => {
+    setValidatingDest(true);
+    setDestValidationMsg(null);
+    try {
+      const res = await api.destinations.validateSalesforceCredentials(destCreds);
+      if (res.valid) {
+        setDestValidationMsg('Connection successful');
+        setDestValidated(true);
+      } else {
+        setDestValidationMsg(res.message ? `Connection failed: ${res.message}` : 'Connection failed');
+        setDestValidated(false);
+      }
+    } catch {
+      setDestValidationMsg('Could not reach server');
+      setDestValidated(false);
+    } finally {
+      setValidatingDest(false);
+    }
+  };
+
+  const checkObjectVisibility = async () => {
+    setCheckingDiagnostics(true);
+    setDiagnostics(null);
+    setExpandDetails(false);
+    try {
+      const res = await api.destinations.checkSalesforceDiagnostics(destCreds, selectedObjects);
+      setDiagnostics(res);
+    } catch (e: unknown) {
+      setDiagnostics({
+        valid: false,
+        message: e instanceof Error ? e.message : 'Failed to check object visibility',
+      });
+    } finally {
+      setCheckingDiagnostics(false);
+    }
+  };
+
   const goStep = (s: Step) => {
     setValidationMsg(null);
+    setDestValidationMsg(null);
+    setDiagnostics(null);
+    setExpandDetails(false);
     if (s === 3 && objects.length === 0) loadObjects();
     setStep(s);
   };
@@ -174,11 +220,131 @@ export function NewMigrationWizard() {
             <CredentialForm
               schema={SALESFORCE_SCHEMA as any}
               values={destCreds}
-              onChange={setDestCreds}
+              onChange={(nextCreds) => {
+                setDestCreds(nextCreds);
+                setDestValidated(false);
+                setDestValidationMsg(null);
+                setDiagnostics(null);
+                setExpandDetails(false);
+              }}
             />
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={validateDestination} disabled={validatingDest} style={secondaryBtn}>
+                {validatingDest ? 'Testing…' : 'Test Connection'}
+              </button>
+              {destValidationMsg && <span style={{ fontSize: 13 }}>{destValidationMsg}</span>}
+            </div>
+
+            {/* Object Visibility Check */}
+            <div style={{ marginTop: 16, marginBottom: 16 }}>
+              <button
+                onClick={checkObjectVisibility}
+                disabled={checkingDiagnostics || !destValidated}
+                style={{
+                  ...secondaryBtn,
+                  opacity: destValidated ? 1 : 0.6,
+                  cursor: destValidated ? 'pointer' : 'not-allowed',
+                }}
+                title={destValidated ? 'Check which selected objects are accessible' : 'Test connection first to check object visibility'}
+              >
+                {checkingDiagnostics ? 'Checking…' : '🔍 Check Object Visibility'}
+              </button>
+            </div>
+
+            {/* Diagnostics Results */}
+            {diagnostics && (
+              <div
+                style={{
+                  border: diagnostics.missing_objects && diagnostics.missing_objects.length > 0
+                    ? '1px solid #f87171'
+                    : '1px solid #86efac',
+                  background: diagnostics.missing_objects && diagnostics.missing_objects.length > 0
+                    ? '#fef2f2'
+                    : '#f0fdf4',
+                  borderRadius: 8,
+                  padding: 14,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
+                  {diagnostics.missing_objects && diagnostics.missing_objects.length > 0
+                    ? '⚠️ Some objects may not be accessible'
+                    : '✅ All objects are accessible'}
+                </div>
+                <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
+                  <strong>Run-as User:</strong> {diagnostics.run_as_user_id || 'N/A'}
+                </div>
+                {diagnostics.missing_objects && diagnostics.missing_objects.length > 0 && (
+                  <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}>
+                    <strong>Missing Objects:</strong> {diagnostics.missing_objects.join(', ')}
+                  </div>
+                )}
+                {diagnostics.required_objects && diagnostics.required_objects.length > 0 && (
+                  <button
+                    onClick={() => setExpandDetails(!expandDetails)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      padding: '4px 0',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {expandDetails ? '▼' : '▶'} Required Objects & Visibility ({diagnostics.required_objects.length})
+                  </button>
+                )}
+                {expandDetails && diagnostics.required_objects && (
+                  <div style={{ fontSize: 12, marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                    {diagnostics.required_objects.map((obj) => (
+                      <div
+                        key={obj}
+                        style={{
+                          padding: '4px 0',
+                          color: diagnostics.visibility?.[obj] === false ? '#ef4444' : '#059669',
+                        }}
+                      >
+                        {diagnostics.visibility?.[obj] === false ? '✗' : '✓'} {obj}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={navRow}>
               <button onClick={() => goStep(1)} style={secondaryBtn}>← Back</button>
-              <button onClick={() => goStep(3)} style={primaryBtn}>Next →</button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <button
+                  onClick={() => goStep(3)}
+                  disabled={!destValidated || (diagnostics?.missing_objects && diagnostics.missing_objects.length > 0)}
+                  style={{
+                    ...primaryBtn,
+                    opacity: !destValidated || (diagnostics?.missing_objects && diagnostics.missing_objects.length > 0) ? 0.6 : 1,
+                    cursor: !destValidated || (diagnostics?.missing_objects && diagnostics.missing_objects.length > 0) ? 'not-allowed' : 'pointer',
+                  }}
+                  title={
+                    !destValidated
+                      ? 'Test Salesforce connection successfully before continuing'
+                      : diagnostics?.missing_objects && diagnostics.missing_objects.length > 0
+                        ? 'Some required objects are not accessible to the Salesforce user'
+                        : undefined
+                  }
+                >
+                  Next →
+                </button>
+                {!destValidated && (
+                  <span style={{ fontSize: 12, color: '#b45309' }}>
+                    Please test Salesforce connection successfully before continuing.
+                  </span>
+                )}
+                {diagnostics?.missing_objects && diagnostics.missing_objects.length > 0 && (
+                  <span style={{ fontSize: 12, color: '#dc2626' }}>
+                    Required objects not accessible. Grant permissions and re-check.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

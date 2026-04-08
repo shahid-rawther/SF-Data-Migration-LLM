@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from api.routers import sources, migrations
+from api.routers import sources, migrations, destinations
 
 app = FastAPI(
     title="ITSM Data Migration API",
@@ -28,6 +28,7 @@ app.add_middleware(
 
 app.include_router(sources.router, prefix="/api")
 app.include_router(migrations.router, prefix="/api")
+app.include_router(destinations.router, prefix="/api")
 
 
 @app.get("/api/health")
