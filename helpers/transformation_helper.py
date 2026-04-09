@@ -358,7 +358,7 @@ def set_location_type(destination_field: str, value):
 
 def look_up_impact(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1-Business", 2: "2-Site", 3: "3-Department", 4: "4-User"}
+    lookup = {1: "High", 2: "Medium", 3: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -388,7 +388,7 @@ def look_up_resolved_by_for_problem(
 
 def look_up_impact(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1-Business", 2: "2-Site", 3: "3-Department", 4: "4-User"}
+    lookup = {1: "High", 2: "Medium", 3: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -399,7 +399,7 @@ def look_up_impact(destination_field: str, value: str):
 
 def look_up_incident_impact(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1 - Business", 2: "2 - Site", 3: "3 - Department", 4: "4 - User"}
+    lookup = {1: "High", 2: "Medium", 3: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -410,7 +410,7 @@ def look_up_incident_impact(destination_field: str, value: str):
 
 def look_up_CR_impact(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1 - Business", 2: "2 - Site", 3: "3 - Department", 4: "4 - User"}
+    lookup = {1: "High", 2: "Medium", 3: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -421,7 +421,7 @@ def look_up_CR_impact(destination_field: str, value: str):
 
 def look_up_priority(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1 - Critical", 2: "2 - High", 3: "3 - Moderate", 4: "4 - Standard"}
+    lookup = {1: "Critical", 2: "High", 3: "Moderate", 4: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -432,7 +432,7 @@ def look_up_priority(destination_field: str, value: str):
 
 def look_up_urgency(destination_field: str, value: str):
     result = {}
-    lookup = {1: "1 - High", 2: "2 - Medium", 3: "3 - Standard"}
+    lookup = {1: "High", 2: "Medium", 3: "Low"}
     try:
         key = int(value)
         result[destination_field] = lookup[key] if key in lookup else ""
@@ -453,15 +453,15 @@ def look_up_status(destination_field: str, value: str):
         1: "New",
         2: "In Progress",
         3: "On Hold",
-        11: "Awaiting Input",
-        13: "Waiting for parts",
-        14: "Waiting for service",
-        15: "Return equipment",
-        421: "Scheduled",
-        12: "Pending Approval",
-        23: "Pending Shipment",
+        11: "On Hold",
+        13: "On Hold",
+        14: "On Hold",
+        15: "On Hold",
+        421: "On Hold",
+        12: "On Hold",
+        23: "On Hold",
         6: "Resolved",
-        18: "Resolved & Monitoring",
+        18: "Resolved",
         7: "Closed",
     }
     try:

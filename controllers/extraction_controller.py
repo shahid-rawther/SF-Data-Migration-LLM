@@ -22,6 +22,7 @@ def extract_full_tables():
 def start_extraction(job_id: int, mappings_file_names: list[str] = []):
     job_id = jobs_service.get_or_create_job(job_id, "extraction")
     jobs_service.update_job_status(job_id, "in-progress")
+    total_extracted = 0
     try:
         tables_mappings = get_mappings(mappings_file_names)
         validate_mappings(tables_mappings)
@@ -32,11 +33,12 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = []):
             all_tables.extend(table_mapping["servicenow_tables"])
 
         all_tables = list(dict.fromkeys(all_tables))
-        extract_servicenow_tables(job_id, all_tables)
+        total_extracted = extract_servicenow_tables(job_id, all_tables)
     except Exception:
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
+    return total_extracted
 
 def start_attachment_table_extraction(job_id: int, mappings_file_names: list[str] = []):
     job_id = jobs_service.get_or_create_job(job_id, "extraction-attachment-table")

@@ -81,6 +81,7 @@ export interface ProgressEvent {
   object: string;
   batch_current: number;
   batch_total: number;
+  records_fetched: number;
   records_processed: number;
   records_failed: number;
   overall_percent: number;
@@ -103,6 +104,15 @@ export interface SalesforceDiagnosticsResponse {
   required_objects?: string[];
   visibility?: Record<string, boolean>;
   missing_objects?: string[];
+}
+
+export interface SavedConnection {
+  id: string;
+  name: string;
+  type: 'servicenow' | 'salesforce';
+  credentials: Record<string, string>;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Sources ───────────────────────────────────────────────────────────────────
@@ -164,6 +174,21 @@ export const api = {
       request(`/migrations/${id}/resume`, { method: 'POST' }),
     stop: (id: string): Promise<{ session_id: string; status: string }> =>
       request(`/migrations/${id}/stop`, { method: 'POST' }),
+  },
+
+  connections: {
+    list: (type?: string): Promise<SavedConnection[]> =>
+      request(type ? `/connections/?type=${type}` : '/connections/'),
+    get: (id: string): Promise<SavedConnection> => request(`/connections/${id}`),
+    create: (name: string, type: string, credentials: Record<string, string>): Promise<SavedConnection> =>
+      request('/connections/', {
+        method: 'POST',
+        body: JSON.stringify({ name, type, credentials }),
+      }),
+    update: (id: string, body: { name?: string; credentials?: Record<string, string> }): Promise<SavedConnection> =>
+      request(`/connections/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string): Promise<{ ok: boolean }> =>
+      request(`/connections/${id}`, { method: 'DELETE' }),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),

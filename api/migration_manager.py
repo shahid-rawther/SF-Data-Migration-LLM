@@ -26,6 +26,7 @@ class ProgressEvent:
     object_name: str
     batch_current: int
     batch_total: int
+    records_fetched: int
     records_processed: int
     records_failed: int
     overall_percent: float
@@ -39,6 +40,7 @@ class ProgressEvent:
             "object": self.object_name,
             "batch_current": self.batch_current,
             "batch_total": self.batch_total,
+            "records_fetched": self.records_fetched,
             "records_processed": self.records_processed,
             "records_failed": self.records_failed,
             "overall_percent": self.overall_percent,
@@ -126,6 +128,7 @@ class MigrationManager:
             "object": "",
             "batch_current": 0,
             "batch_total": 0,
+            "records_fetched": 0,
             "records_processed": 0,
             "records_failed": 0,
             "overall_percent": 0.0,
@@ -207,6 +210,7 @@ class MigrationManager:
                 object_name="",
                 batch_current=0,
                 batch_total=0,
+                records_fetched=0,
                 records_processed=0,
                 records_failed=0,
                 overall_percent=0.0,
@@ -248,6 +252,11 @@ class MigrationManager:
 
         total_groups = len(ordered)
 
+        # Cumulative record counts
+        total_fetched = 0
+        total_processed = 0
+        total_failed = 0
+
         # ── Phase 1: Extraction ──────────────────────────────────────
         session_db.update_session_status(session_id, "running", "extraction")
         flat = [name for group in ordered for name in group]
@@ -263,8 +272,9 @@ class MigrationManager:
                     object_name=name,
                     batch_current=idx,
                     batch_total=len(flat),
-                    records_processed=0,
-                    records_failed=0,
+                    records_fetched=total_fetched,
+                    records_processed=total_processed,
+                    records_failed=total_failed,
                     overall_percent=round(idx / max(len(flat) * 3, 1) * 100, 1),
                     status="running",
                     message=f"Extracting {name}",
@@ -272,7 +282,24 @@ class MigrationManager:
             )
 
         # Perform actual extraction (all selected tables at once)
-        extraction_controller.start_extraction(EXTRACTION_JOB_NUMBER, flat)
+        total_fetched = extraction_controller.start_extraction(EXTRACTION_JOB_NUMBER, flat)
+
+        self._emit(
+            session_id,
+            ProgressEvent(
+                session_id=session_id,
+                phase="extraction",
+                object_name=", ".join(flat),
+                batch_current=len(flat),
+                batch_total=len(flat),
+                records_fetched=total_fetched,
+                records_processed=total_processed,
+                records_failed=total_failed,
+                overall_percent=round(100 / 3, 1),
+                status="running",
+                message=f"Extraction complete — {total_fetched:,} records fetched",
+            ),
+        )
 
         if token.is_cancelled():
             return
@@ -293,8 +320,9 @@ class MigrationManager:
                     object_name=", ".join(group),
                     batch_current=group_idx,
                     batch_total=total_groups,
-                    records_processed=0,
-                    records_failed=0,
+                    records_fetched=total_fetched,
+                    records_processed=total_processed,
+                    records_failed=total_failed,
                     overall_percent=overall,
                     status="running",
                     message=f"Transforming {', '.join(group)}",
@@ -317,15 +345,35 @@ class MigrationManager:
                     object_name=", ".join(group),
                     batch_current=group_idx,
                     batch_total=total_groups,
-                    records_processed=0,
-                    records_failed=0,
+                    records_fetched=total_fetched,
+                    records_processed=total_processed,
+                    records_failed=total_failed,
                     overall_percent=overall,
                     status="running",
                     message=f"Loading {', '.join(group)}",
                 ),
             )
 
-            loading_controller.start_loading(LOADING_JOB_NUMBER, group)
+            load_result = loading_controller.start_loading(LOADING_JOB_NUMBER, group)
+            total_processed += load_result.get("records_processed", 0)
+            total_failed += load_result.get("records_failed", 0)
+
+            self._emit(
+                session_id,
+                ProgressEvent(
+                    session_id=session_id,
+                    phase="loading",
+                    object_name=", ".join(group),
+                    batch_current=group_idx + 1,
+                    batch_total=total_groups,
+                    records_fetched=total_fetched,
+                    records_processed=total_processed,
+                    records_failed=total_failed,
+                    overall_percent=overall,
+                    status="running",
+                    message=f"Loaded {', '.join(group)} — {total_processed:,} processed, {total_failed:,} failed",
+                ),
+            )
 
             if token.is_cancelled():
                 return
@@ -339,11 +387,12 @@ class MigrationManager:
                 object_name="",
                 batch_current=total_groups,
                 batch_total=total_groups,
-                records_processed=0,
-                records_failed=0,
+                records_fetched=total_fetched,
+                records_processed=total_processed,
+                records_failed=total_failed,
                 overall_percent=100.0,
                 status="completed",
-                message="Migration completed successfully",
+                message=f"Migration completed — {total_fetched:,} fetched, {total_processed:,} processed, {total_failed:,} failed",
             ),
         )
 

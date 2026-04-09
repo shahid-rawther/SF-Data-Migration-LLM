@@ -29,15 +29,20 @@ from services.internal import loading_service
 def start_loading(job_id: int, mappings_file_names: list[str] = []):
     job_id = jobs_service.get_or_create_job(job_id, "loading")
     jobs_service.update_job_status(job_id, "in-progress")
+    total_processed = 0
+    total_failed = 0
     
     try:
         tables_mappings = get_mappings(mappings_file_names)
         for table_mapping in tables_mappings:
-            load_table(job_id, table_mapping)
+            processed, failed = load_table(job_id, table_mapping)
+            total_processed += processed
+            total_failed += failed
     except Exception as e:
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
+    return {"records_processed": total_processed, "records_failed": total_failed}
 
 
 def load_csv_batch(
@@ -172,6 +177,8 @@ def load_table(job_id: int, table_mapping: dict):
     batch_numbers = table_mapping.get("load_batches")
     is_attachment_table = table_mapping.get("is_attachment_table")
     futures = []
+    total_processed = 0
+    total_failed = 0
     transformation_path = (
         PATH_TO_TRANSFORMATION
         / "csv"
@@ -223,7 +230,10 @@ def load_table(job_id: int, table_mapping: dict):
         ncols=120,
     ):
         try:
-            future.result()  
+            result = future.result()
+            if isinstance(result, dict):
+                total_processed += result.get("processed", 0)
+                total_failed += result.get("failed", 0)
         except Exception as e:
             logger.exception("Loading batch failed", exc_info=e)
             jobs_service.update_job_table_status(job_table_id, "failed")
@@ -231,6 +241,7 @@ def load_table(job_id: int, table_mapping: dict):
     jobs_service.update_job_table_status(job_table_id, "success")
     executer_parallel.shutdown(wait=False)
     executer_queue.shutdown(wait=False)
+    return total_processed, total_failed
 
 
 def load_insert_batch(
@@ -251,15 +262,16 @@ def load_insert_batch(
         logger.info(
             f"Loading: Insert: Batch Number: {batch_number} Insert Batch Size: {batch_insert_size}, Status: Skipped"
         )
-        return
+        return {"processed": 0, "failed": 0}
 
     try:
         jobs_service.update_job_table_batch_status(table_batch_id, "in-progress")
-        load_batch(job_table_id, table_batch_id, batch_path, "insert", table_mapping)
+        result = load_batch(job_table_id, table_batch_id, batch_path, "insert", table_mapping)
         jobs_service.update_job_table_batch_status(table_batch_id, "success")
         logger.info(
             f"Loading: Insert: Batch Number: {batch_number}, Insert Batch Size: {batch_insert_size}, Status: Success"
         )
+        return result or {"processed": 0, "failed": 0}
 
     except Exception as e:
         jobs_service.update_job_table_batch_status(table_batch_id, "failed")
@@ -287,11 +299,12 @@ def load_update_batch(
         logger.info(
             f"Loading: Update: Batch: {batch_number}, Update Batch Size: {batch_update_size},  Status: Skipped"
         )
-        return
+        return {"processed": 0, "failed": 0}
 
     try:
         jobs_service.update_job_table_batch_status(table_batch_id, "in-progress")
-        full_migrated = load_batch(job_table_id, table_batch_id, batch_path, "update", table_mapping)
+        result = load_batch(job_table_id, table_batch_id, batch_path, "update", table_mapping)
+        full_migrated = isinstance(result, dict) and result.get("failed", 0) == 0 and result.get("processed", 0) > 0
         if full_migrated:
             jobs_service.update_job_table_batch_status(table_batch_id, "success")
             logger.info(
@@ -303,6 +316,7 @@ def load_update_batch(
             logger.info(
                 f"Loading: Update: Batch Number: {batch_number}, Insert Batch Size: {batch_update_size}, Status: Partial Success"
             )
+        return result or {"processed": 0, "failed": 0}
         
     except Exception as e:
         jobs_service.update_job_table_batch_status(table_batch_id, "failed")
@@ -311,8 +325,7 @@ def load_update_batch(
 
 def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operation: str, table_mappings: dict):
     if DISABLE_LOAD:
-        return
-    full_migrated = False;
+        return {"processed": 0, "failed": 0}
     salesforce_object = table_mappings["salesforce_object"]
     transformation_name = table_mappings.get("transformation_name")
     service_now_driving_table = table_mappings["servicenow_tables"][0]
@@ -326,7 +339,16 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
     job_id = job["id"]
     jobs_service.update_job_table_batch_salesforce_job_id(table_batch_id, job_id)
 
-    salesforce_client.upload_csv(job_id, batch_path)
+    # Fetch valid Salesforce fields to filter out non-existent columns
+    try:
+        valid_fields = salesforce_client.describe_object(salesforce_object)
+        picklist_values = salesforce_client.get_picklist_values(salesforce_object)
+    except Exception as e:
+        logger.warning(f"Could not describe '{salesforce_object}', skipping field validation: {e}")
+        valid_fields = None
+        picklist_values = None
+
+    salesforce_client.upload_csv(job_id, batch_path, valid_fields=valid_fields, picklist_values=picklist_values)
     salesforce_client.mark_upload_complete(job_id)
 
     terminal_states = {"JobComplete", "Failed", "Aborted"}
@@ -343,6 +365,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             break
         time.sleep(POLL_TIME)  # backoff as needed
 
+    batch_result = {"processed": 0, "failed": 0}
     if job_satus:
         processed_records = job_satus.get("numberRecordsProcessed")
         failed_records = job_satus.get("numberRecordsFailed")
@@ -353,7 +376,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             "unprocessed_records": unprocessed_records
         }
         jobs_service.update_job_table_batch_results(table_batch_id, results)
-        full_migrated = failed_records == 0 and processed_records > 0 and unprocessed_records == 0
+        batch_result = {"processed": processed_records, "failed": failed_records}
 
         
     success_path = (
@@ -411,7 +434,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
     unprocessed = salesforce_client.get_results(job_id, "unprocessedRecords")
     save_text_to_file(unprocessed, unprocessed_path)
 
-    return full_migrated
+    return batch_result
 
 
 def save_id_mappings():

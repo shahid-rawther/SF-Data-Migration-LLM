@@ -1,6 +1,8 @@
 from pandas import DataFrame
 from pathlib import Path
+import csv
 import duckdb
+from common.logger import logger
 
 
 def _csv_source(path: Path) -> tuple[str, str]:
@@ -22,6 +24,22 @@ def quote_identifier(field: str) -> str:
         return f'"{parts[0]}"'
     return f'{parts[0]}."{parts[1]}"'
 
+
+def _get_csv_columns(path: Path) -> set[str]:
+    """Read the header row of a CSV (or the first CSV in a directory) and return column names."""
+    if path.is_dir():
+        csv_files = sorted(path.glob("*.csv"))
+        if not csv_files:
+            return set()
+        csv_path = csv_files[0]
+    else:
+        csv_path = path
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        header = next(reader, None)
+    return set(header) if header else set()
+
 def fetch_all(
     fields: list[str],
     base_table: Path,
@@ -36,8 +54,30 @@ def fetch_all(
     # Driving table alias (folder name or filename)
     base_source, base_alias = _csv_source(base_table)
 
+    # Validate requested fields against actual CSV columns
+    available_columns = _get_csv_columns(base_table)
+    valid_fields = []
+    missing_fields = []
+    for f in fields:
+        # Extract the column name (after the dot for "table.column" format)
+        col_name = f.split(".")[-1]
+        table_prefix = f.split(".")[0] if "." in f else None
+        # Only validate fields that belong to the base/driving table
+        if table_prefix is None or table_prefix == base_alias:
+            if col_name in available_columns:
+                valid_fields.append(f)
+            else:
+                missing_fields.append(f)
+        else:
+            valid_fields.append(f)
+
+    if missing_fields:
+        logger.warning(
+            f"Skipping fields not found in '{base_alias}' CSV: {missing_fields}"
+        )
+
     # SELECT clause
-    select_clause = ", ".join(quote_identifier(f) for f in fields)
+    select_clause = ", ".join(quote_identifier(f) for f in valid_fields)
 
     sql = f"""
     SELECT DISTINCT {select_clause}
@@ -165,6 +205,12 @@ def fetch_all(
             .apply(lambda s: s.dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
             .fillna("")
         )   
+
+        # Add empty-string columns for any fields that were skipped
+        for mf in missing_fields:
+            col_name = mf.split(".")[-1]
+            if col_name not in result.columns:
+                result[col_name] = ""
 
         return result.astype(str)
     except Exception as e:

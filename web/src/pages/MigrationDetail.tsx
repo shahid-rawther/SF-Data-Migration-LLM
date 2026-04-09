@@ -85,6 +85,24 @@ export function MigrationDetail() {
         </div>
       </div>
 
+      {/* Record counts */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #7c3aed' }}>
+          <div style={statLabel}>Records Fetched</div>
+          <div style={statValue}>{(liveProgress?.records_fetched ?? 0).toLocaleString()}</div>
+        </div>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #16a34a' }}>
+          <div style={statLabel}>Records Processed</div>
+          <div style={{ ...statValue, color: '#16a34a' }}>{(liveProgress?.records_processed ?? 0).toLocaleString()}</div>
+        </div>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #dc2626' }}>
+          <div style={statLabel}>Records Failed</div>
+          <div style={{ ...statValue, color: (liveProgress?.records_failed ?? 0) > 0 ? '#dc2626' : '#374151' }}>
+            {(liveProgress?.records_failed ?? 0).toLocaleString()}
+          </div>
+        </div>
+      </div>
+
       {/* Current object */}
       {liveProgress && liveProgress.object && (
         <div style={{ ...cardStyle, background: '#f0f9ff', border: '1px solid #bae6fd' }}>
@@ -166,3 +184,9 @@ const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12,
   padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
+const statCardStyle: React.CSSProperties = {
+  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
+  padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+};
+const statLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', fontWeight: 500, marginBottom: 4 };
+const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#374151' };

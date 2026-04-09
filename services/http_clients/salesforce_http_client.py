@@ -47,6 +47,8 @@ class SalesforceClient:
         self.client_secret: str = DEFAULT_SALESFORCE_CLIENT_SECRET
         self.api_version: str = DEFAULT_SALESFORCE_API_VERSION
         self.token_expiry: float = 0.0
+        self._describe_cache: Dict[str, set] = {}
+        self._picklist_cache: Dict[str, Dict[str, set]] = {}  # object -> field -> valid values
 
     def configure(
         self,
@@ -61,6 +63,8 @@ class SalesforceClient:
         self.client_secret = client_secret or self.client_secret
         self.api_version = api_version or self.api_version
         self.access_token = None
+        self._describe_cache = {}
+        self._picklist_cache = {}
         logger.info(f"Salesforce client configured for base URL: {self.instance_url}")
 
     def refresh_access_token(self) -> None:
@@ -123,6 +127,43 @@ class SalesforceClient:
         return response.text[:500]
 
     @ensure_token
+    def describe_object(self, object_api_name: str) -> set:
+        """Return the set of field API names for a Salesforce object (cached).
+        Also populates the picklist cache for restricted picklist validation."""
+        if object_api_name in self._describe_cache:
+            return self._describe_cache[object_api_name]
+
+        url = (
+            f"{self.instance_url}/services/data/{self.api_version}"
+            f"/sobjects/{object_api_name}/describe"
+        )
+        session = self._session()
+        session.headers.update({"Content-Type": "application/json"})
+        response = session.get(url)
+        response.raise_for_status()
+
+        data = response.json()
+        fields = set()
+        picklists: Dict[str, set] = {}
+        for f in data.get("fields", []):
+            fields.add(f["name"])
+            if f.get("restrictedPicklist"):
+                valid_vals = {pv["value"] for pv in f.get("picklistValues", []) if pv.get("active")}
+                if valid_vals:
+                    picklists[f["name"]] = valid_vals
+
+        self._describe_cache[object_api_name] = fields
+        self._picklist_cache[object_api_name] = picklists
+        logger.info(f"Described '{object_api_name}': {len(fields)} fields found, {len(picklists)} restricted picklists")
+        return fields
+
+    def get_picklist_values(self, object_api_name: str) -> Dict[str, set]:
+        """Return restricted picklist fields and their valid values (requires describe_object first)."""
+        if object_api_name not in self._picklist_cache:
+            self.describe_object(object_api_name)
+        return self._picklist_cache.get(object_api_name, {})
+
+    @ensure_token
     def create_job(
         self, object_api_name: str, operation: str = "insert", line_ending: str = "CRLF"
     ):
@@ -139,7 +180,7 @@ class SalesforceClient:
         return response.json()
 
     @ensure_token
-    def upload_csv(self, job_id: str, csv_path: Path):
+    def upload_csv(self, job_id: str, csv_path: Path, valid_fields: set = None, picklist_values: dict = None):
         url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/batches"
         session = self._session()
         session.headers.update({"Content-Type": "text/csv"})
@@ -154,12 +195,25 @@ class SalesforceClient:
             # Keep all columns except the ones to remove
             fieldnames = [col for col in reader.fieldnames if col not in remove_columns]
 
+            # Filter out fields that don't exist on the Salesforce object
+            if valid_fields:
+                invalid = [col for col in fieldnames if col not in valid_fields]
+                if invalid:
+                    logger.warning(f"Removing fields not found on Salesforce object: {invalid}")
+                    remove_columns.update(invalid)
+                    fieldnames = [col for col in fieldnames if col not in remove_columns]
+
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
 
             for row in reader:
                 for col in remove_columns:
                     row.pop(col, None)
+                # Blank out invalid restricted picklist values
+                if picklist_values:
+                    for field_name, allowed in picklist_values.items():
+                        if field_name in row and row[field_name] and row[field_name] not in allowed:
+                            row[field_name] = ""
                 writer.writerow(row)
 
         csv_bytes = output.getvalue().encode("utf-8")

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, MigratableObject, SalesforceDiagnosticsResponse } from '../api/client';
+import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
 import { ObjectSelector } from '../components/ObjectSelector';
 
@@ -45,8 +45,23 @@ export function NewMigrationWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Saved connections state
+  const [savedSourceConns, setSavedSourceConns] = useState<SavedConnection[]>([]);
+  const [savedDestConns, setSavedDestConns] = useState<SavedConnection[]>([]);
+  const [selectedSourceConn, setSelectedSourceConn] = useState<string>(''); // connection id or 'new'
+  const [selectedDestConn, setSelectedDestConn] = useState<string>('');     // connection id or 'new'
+  const [sourceConnName, setSourceConnName] = useState('');
+  const [destConnName, setDestConnName] = useState('');
+  const [savingSourceConn, setSavingSourceConn] = useState(false);
+  const [savingDestConn, setSavingDestConn] = useState(false);
+  const [sourceConnSaved, setSourceConnSaved] = useState(false);
+  const [destConnSaved, setDestConnSaved] = useState(false);
+  const [sourceValidated, setSourceValidated] = useState(false);
+
   useEffect(() => {
     api.sources.list().then(setSources);
+    api.connections.list('servicenow').then(setSavedSourceConns);
+    api.connections.list('salesforce').then(setSavedDestConns);
   }, []);
 
   const validateSource = async () => {
@@ -55,11 +70,78 @@ export function NewMigrationWizard() {
     setValidationMsg(null);
     try {
       const res = await api.sources.validateCredentials(selectedSource.id, sourceCreds);
-      setValidationMsg(res.valid ? '✅ Connection successful' : '❌ Connection failed');
+      if (res.valid) {
+        setValidationMsg('✅ Connection successful');
+        setSourceValidated(true);
+      } else {
+        setValidationMsg('❌ Connection failed');
+        setSourceValidated(false);
+      }
     } catch {
       setValidationMsg('❌ Could not reach server');
+      setSourceValidated(false);
     } finally {
       setValidating(false);
+    }
+  };
+
+  const saveSourceConnection = async () => {
+    if (!sourceConnName.trim()) return;
+    setSavingSourceConn(true);
+    try {
+      await api.connections.create(sourceConnName.trim(), 'servicenow', sourceCreds);
+      setSourceConnSaved(true);
+      const updated = await api.connections.list('servicenow');
+      setSavedSourceConns(updated);
+    } catch (e: unknown) {
+      setValidationMsg(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSavingSourceConn(false);
+    }
+  };
+
+  const saveDestConnection = async () => {
+    if (!destConnName.trim()) return;
+    setSavingDestConn(true);
+    try {
+      await api.connections.create(destConnName.trim(), 'salesforce', destCreds);
+      setDestConnSaved(true);
+      const updated = await api.connections.list('salesforce');
+      setSavedDestConns(updated);
+    } catch (e: unknown) {
+      setDestValidationMsg(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSavingDestConn(false);
+    }
+  };
+
+  const onSelectSourceConn = (connId: string) => {
+    setSelectedSourceConn(connId);
+    setSourceValidated(false);
+    setValidationMsg(null);
+    setSourceConnSaved(false);
+    setSourceConnName('');
+    if (connId && connId !== 'new') {
+      const conn = savedSourceConns.find((c) => c.id === connId);
+      if (conn) setSourceCreds(conn.credentials);
+    } else {
+      setSourceCreds({});
+    }
+  };
+
+  const onSelectDestConn = (connId: string) => {
+    setSelectedDestConn(connId);
+    setDestValidated(false);
+    setDestValidationMsg(null);
+    setDestConnSaved(false);
+    setDestConnName('');
+    setDiagnostics(null);
+    setExpandDetails(false);
+    if (connId && connId !== 'new') {
+      const conn = savedDestConns.find((c) => c.id === connId);
+      if (conn) setDestCreds({ api_version: 'v60.0', ...conn.credentials });
+    } else {
+      setDestCreds({ api_version: 'v60.0' });
     }
   };
 
@@ -173,7 +255,7 @@ export function NewMigrationWizard() {
                     name="source"
                     value={s.id}
                     checked={selectedSource?.id === s.id}
-                    onChange={() => { setSelectedSource(s); setSourceCreds({}); }}
+                    onChange={() => { setSelectedSource(s); setSourceCreds({}); setSelectedSourceConn(''); setSourceValidated(false); setValidationMsg(null); setSourceConnSaved(false); }}
                   />
                   <div>
                     <div style={{ fontWeight: 600 }}>{s.name}</div>
@@ -186,17 +268,77 @@ export function NewMigrationWizard() {
             {selectedSource && (
               <div style={{ marginBottom: 20 }}>
                 <h3 style={h3}>{selectedSource.name} Credentials</h3>
-                <CredentialForm
-                  schema={selectedSource.credentials_schema}
-                  values={sourceCreds}
-                  onChange={setSourceCreds}
-                />
+
+                {/* Saved connections selector */}
+                {savedSourceConns.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Use Saved Connection</label>
+                    <select
+                      value={selectedSourceConn}
+                      onChange={(e) => onSelectSourceConn(e.target.value)}
+                      style={{ ...inputStyle, marginBottom: 8 }}
+                    >
+                      <option value="">— Select a saved connection —</option>
+                      {savedSourceConns.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                      <option value="new">+ Enter new credentials</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Show credential form for new or no-selection */}
+                {(selectedSourceConn === 'new' || selectedSourceConn === '' || savedSourceConns.length === 0) && (
+                  <CredentialForm
+                    schema={selectedSource.credentials_schema}
+                    values={sourceCreds}
+                    onChange={(v) => { setSourceCreds(v); setSourceValidated(false); setValidationMsg(null); setSourceConnSaved(false); }}
+                  />
+                )}
+
+                {/* Show badge for selected saved connection */}
+                {selectedSourceConn && selectedSourceConn !== 'new' && (
+                  <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, color: '#166534' }}>
+                    Using saved connection: <strong>{savedSourceConns.find((c) => c.id === selectedSourceConn)?.name}</strong>
+                  </div>
+                )}
+
                 <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={validateSource} disabled={validating} style={secondaryBtn}>
                     {validating ? 'Testing…' : 'Test Connection'}
                   </button>
                   {validationMsg && <span style={{ fontSize: 13 }}>{validationMsg}</span>}
                 </div>
+
+                {/* Save connection prompt */}
+                {sourceValidated && !sourceConnSaved && (!selectedSourceConn || selectedSourceConn === 'new') && (
+                  <div style={{ marginTop: 16, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1e40af' }}>
+                      💾 Save this connection for future use?
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="Connection name (e.g. Dev ServiceNow)"
+                        value={sourceConnName}
+                        onChange={(e) => setSourceConnName(e.target.value)}
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                      <button
+                        onClick={saveSourceConnection}
+                        disabled={savingSourceConn || !sourceConnName.trim()}
+                        style={primaryBtn}
+                      >
+                        {savingSourceConn ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {sourceConnSaved && (
+                  <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>
+                    ✅ Connection saved as "{sourceConnName}"
+                  </div>
+                )}
               </div>
             )}
 
@@ -217,23 +359,84 @@ export function NewMigrationWizard() {
         {step === 2 && (
           <div>
             <h2 style={h2}>Configure Destination (Salesforce)</h2>
-            <CredentialForm
-              schema={SALESFORCE_SCHEMA as any}
-              values={destCreds}
-              onChange={(nextCreds) => {
-                setDestCreds(nextCreds);
-                setDestValidated(false);
-                setDestValidationMsg(null);
-                setDiagnostics(null);
-                setExpandDetails(false);
-              }}
-            />
+
+            {/* Saved connections selector */}
+            {savedDestConns.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Use Saved Connection</label>
+                <select
+                  value={selectedDestConn}
+                  onChange={(e) => onSelectDestConn(e.target.value)}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                >
+                  <option value="">— Select a saved connection —</option>
+                  {savedDestConns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                  <option value="new">+ Enter new credentials</option>
+                </select>
+              </div>
+            )}
+
+            {/* Show credential form for new or no-selection */}
+            {(selectedDestConn === 'new' || selectedDestConn === '' || savedDestConns.length === 0) && (
+              <CredentialForm
+                schema={SALESFORCE_SCHEMA as any}
+                values={destCreds}
+                onChange={(nextCreds) => {
+                  setDestCreds(nextCreds);
+                  setDestValidated(false);
+                  setDestValidationMsg(null);
+                  setDiagnostics(null);
+                  setExpandDetails(false);
+                  setDestConnSaved(false);
+                }}
+              />
+            )}
+
+            {/* Show badge for selected saved connection */}
+            {selectedDestConn && selectedDestConn !== 'new' && (
+              <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, color: '#166534', marginBottom: 12 }}>
+                Using saved connection: <strong>{savedDestConns.find((c) => c.id === selectedDestConn)?.name}</strong>
+              </div>
+            )}
+
             <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
               <button onClick={validateDestination} disabled={validatingDest} style={secondaryBtn}>
                 {validatingDest ? 'Testing…' : 'Test Connection'}
               </button>
               {destValidationMsg && <span style={{ fontSize: 13 }}>{destValidationMsg}</span>}
             </div>
+
+            {/* Save connection prompt */}
+            {destValidated && !destConnSaved && (!selectedDestConn || selectedDestConn === 'new') && (
+              <div style={{ marginTop: 16, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1e40af' }}>
+                  💾 Save this connection for future use?
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Connection name (e.g. Prod Salesforce)"
+                    value={destConnName}
+                    onChange={(e) => setDestConnName(e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    onClick={saveDestConnection}
+                    disabled={savingDestConn || !destConnName.trim()}
+                    style={primaryBtn}
+                  >
+                    {savingDestConn ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {destConnSaved && (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>
+                ✅ Connection saved as "{destConnName}"
+              </div>
+            )}
 
             {/* Object Visibility Check */}
             <div style={{ marginTop: 16, marginBottom: 16 }}>

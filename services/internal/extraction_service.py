@@ -30,11 +30,13 @@ def extract_servicenow_tables(job_id: int, service_now_tables: list):
             executer_queue.submit(extract_servicenow_table, job_id, servicenow_table)
         )
 
+    total_rows = 0
     for future in as_completed(futures):
-            future.result()
+            total_rows += future.result() or 0
     
 
     executer_queue.shutdown(wait=True)
+    return total_rows
 
 def extract_servicenow_table(job_id: int, servicenow_table: str):
     executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
@@ -43,6 +45,7 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
     logger.info(
         f"Servicenow table '{servicenow_table}' extraction start at {datetime.now()}"
     )
+    row_count = 0
     try:
 
         start_date = SERVICE_NOW_START_DATE
@@ -89,6 +92,7 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
         )
         jobs_service.update_job_table_status(job_table_id, "failed")
     jobs_service.update_job_table_status(job_table_id, "success")
+    return row_count
 
 def extract_single_batch(
         job_table_id: int, 
