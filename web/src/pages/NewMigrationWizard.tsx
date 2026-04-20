@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection } from '../api/client';
+import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
 import { ObjectSelector } from '../components/ObjectSelector';
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const SALESFORCE_SCHEMA = {
   type: 'object',
@@ -45,6 +45,12 @@ export function NewMigrationWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Compatibility check state
+  const [checkingCompat, setCheckingCompat] = useState(false);
+  const [compatReport, setCompatReport] = useState<CompatibilityReport | null>(null);
+  const [compatError, setCompatError] = useState<string | null>(null);
+  const [expandedCompatObj, setExpandedCompatObj] = useState<string | null>(null);
+
   // Saved connections state
   const [savedSourceConns, setSavedSourceConns] = useState<SavedConnection[]>([]);
   const [savedDestConns, setSavedDestConns] = useState<SavedConnection[]>([]);
@@ -60,9 +66,17 @@ export function NewMigrationWizard() {
 
   useEffect(() => {
     api.sources.list().then(setSources);
-    api.connections.list('servicenow').then(setSavedSourceConns);
     api.connections.list('salesforce').then(setSavedDestConns);
   }, []);
+
+  // Reload source connections whenever the selected source changes
+  useEffect(() => {
+    if (selectedSource) {
+      api.connections.list(selectedSource.id).then(setSavedSourceConns);
+    } else {
+      setSavedSourceConns([]);
+    }
+  }, [selectedSource]);
 
   const validateSource = async () => {
     if (!selectedSource) return;
@@ -86,12 +100,12 @@ export function NewMigrationWizard() {
   };
 
   const saveSourceConnection = async () => {
-    if (!sourceConnName.trim()) return;
+    if (!sourceConnName.trim() || !selectedSource) return;
     setSavingSourceConn(true);
     try {
-      await api.connections.create(sourceConnName.trim(), 'servicenow', sourceCreds);
+      await api.connections.create(sourceConnName.trim(), selectedSource.id, sourceCreds);
       setSourceConnSaved(true);
-      const updated = await api.connections.list('servicenow');
+      const updated = await api.connections.list(selectedSource.id);
       setSavedSourceConns(updated);
     } catch (e: unknown) {
       setValidationMsg(e instanceof Error ? e.message : 'Failed to save');
@@ -189,12 +203,37 @@ export function NewMigrationWizard() {
     }
   };
 
+  const runCompatibilityCheck = async () => {
+    if (!selectedSource) return;
+    setCheckingCompat(true);
+    setCompatError(null);
+    setCompatReport(null);
+    setExpandedCompatObj(null);
+    try {
+      const report = await api.compat.check(
+        selectedSource.id,
+        sourceCreds,
+        destCreds,
+        selectedObjects,
+      );
+      setCompatReport(report);
+    } catch (e: unknown) {
+      setCompatError(e instanceof Error ? e.message : 'Compatibility check failed');
+    } finally {
+      setCheckingCompat(false);
+    }
+  };
+
   const goStep = (s: Step) => {
     setValidationMsg(null);
     setDestValidationMsg(null);
     setDiagnostics(null);
     setExpandDetails(false);
     if (s === 3 && objects.length === 0) loadObjects();
+    if (s === 4) {
+      setCompatReport(null);
+      setCompatError(null);
+    }
     setStep(s);
   };
 
@@ -222,7 +261,7 @@ export function NewMigrationWizard() {
     <div style={pageStyle}>
       {/* Stepper */}
       <div style={stepperStyle}>
-        {(['Select Source', 'Destination', 'Select Objects', 'Options & Review'] as const).map(
+        {(['Select Source', 'Destination', 'Select Objects', 'Compatibility', 'Options & Review'] as const).map(
           (label, i) => {
             const stepNum = (i + 1) as Step;
             return (
@@ -573,8 +612,128 @@ export function NewMigrationWizard() {
           </div>
         )}
 
-        {/* Step 4 — Options & Review */}
+        {/* Step 4 — Compatibility Check */}
         {step === 4 && (
+          <div>
+            <h2 style={h2}>Compatibility Check</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+              Analyse how well your selected {selectedSource?.name} objects map onto Salesforce.
+              This is a dry-run analysis — no data is moved.
+            </p>
+
+            <div style={{ marginBottom: 16 }}>
+              <button
+                onClick={runCompatibilityCheck}
+                disabled={checkingCompat}
+                style={primaryBtn}
+              >
+                {checkingCompat ? '⏳ Checking…' : '🔍 Run Compatibility Check'}
+              </button>
+            </div>
+
+            {compatError && (
+              <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>
+                ⚠️ {compatError}
+              </div>
+            )}
+
+            {compatReport && (
+              <div style={{ marginBottom: 20 }}>
+                {/* Overall score banner */}
+                <div style={{
+                  padding: 14, borderRadius: 8, marginBottom: 16,
+                  background: compatReport.overall_pct >= 80 ? '#f0fdf4' : compatReport.overall_pct >= 50 ? '#fffbeb' : '#fef2f2',
+                  border: `1px solid ${compatReport.overall_pct >= 80 ? '#86efac' : compatReport.overall_pct >= 50 ? '#fcd34d' : '#f87171'}`,
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>
+                    {compatReport.overall_pct >= 80 ? '✅' : compatReport.overall_pct >= 50 ? '⚠️' : '❌'}{' '}
+                    Overall Compatibility: {compatReport.overall_pct}%
+                  </div>
+                  <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{compatReport.summary}</div>
+                </div>
+
+                {/* Per-object breakdown */}
+                {compatReport.objects.map((obj) => (
+                  <div key={obj.object_name} style={{
+                    border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 10, overflow: 'hidden',
+                  }}>
+                    <div
+                      onClick={() => setExpandedCompatObj(expandedCompatObj === obj.object_name ? null : obj.object_name)}
+                      style={{
+                        padding: '10px 14px', background: '#f9fafb', cursor: 'pointer',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <strong>{obj.source_label}</strong>
+                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>→ {obj.salesforce_object}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          color: obj.compatibility_pct >= 80 ? '#16a34a' : obj.compatibility_pct >= 50 ? '#b45309' : '#dc2626',
+                        }}>
+                          {obj.compatibility_pct}%
+                        </span>
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>
+                          {obj.mapped_fields}/{obj.total_fields} fields mapped
+                        </span>
+                        <span>{expandedCompatObj === obj.object_name ? '▼' : '▶'}</span>
+                      </div>
+                    </div>
+                    {expandedCompatObj === obj.object_name && (
+                      <div style={{ padding: 14 }}>
+                        {obj.blockers.length > 0 && (
+                          <div style={{ marginBottom: 10, padding: 10, background: '#fef2f2', borderRadius: 6, border: '1px solid #fca5a5' }}>
+                            {obj.blockers.map((b, i) => (
+                              <div key={i} style={{ fontSize: 12, color: '#dc2626' }}>🚫 {b}</div>
+                            ))}
+                          </div>
+                        )}
+                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ background: '#f3f4f6' }}>
+                              <th style={thStyle}>Source Field</th>
+                              <th style={thStyle}>Salesforce Field</th>
+                              <th style={thStyle}>Status</th>
+                              <th style={thStyle}>Suggestion</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {obj.fields.map((f, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={tdStyle}>{f.source_field || '—'}</td>
+                                <td style={tdStyle}>{f.destination_field}</td>
+                                <td style={tdStyle}>
+                                  <span style={{
+                                    padding: '2px 6px', borderRadius: 4, fontSize: 11,
+                                    background: f.status === 'mapped' ? '#dcfce7' : f.status === 'type_mismatch' ? '#fef9c3' : '#fee2e2',
+                                    color: f.status === 'mapped' ? '#166534' : f.status === 'type_mismatch' ? '#854d0e' : '#991b1b',
+                                  }}>
+                                    {f.status}
+                                  </span>
+                                </td>
+                                <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={navRow}>
+              <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
+              <button onClick={() => goStep(5)} style={primaryBtn}>Next →</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5 — Options & Review */}
+        {step === 5 && (
           <div>
             <h2 style={h2}>Options & Review</h2>
 
@@ -598,7 +757,7 @@ export function NewMigrationWizard() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>ServiceNow Batch Size</label>
+                <label style={labelStyle}>Source Batch Size</label>
                 <input
                   type="number"
                   value={options.service_now_batch_size}
@@ -633,14 +792,22 @@ export function NewMigrationWizard() {
                 <div><strong>Source:</strong> {selectedSource?.name}</div>
                 <div><strong>Destination:</strong> Salesforce ({destCreds.base_url || 'not set'})</div>
                 <div><strong>Objects:</strong> {selectedObjects.length} selected</div>
-                <div><strong>Dry run:</strong> {options.disable_load ? 'Yes' : 'No'}</div>
+                {compatReport && (
+                  <div>
+                    <strong>Compatibility:</strong>{' '}
+                    <span style={{ color: compatReport.overall_pct >= 80 ? '#16a34a' : compatReport.overall_pct >= 50 ? '#b45309' : '#dc2626' }}>
+                      {compatReport.overall_pct}%
+                    </span>
+                  </div>
+                )}
+                <div><strong>Dry run:</strong> {options.disable_load ? 'Yes (extract & transform only)' : 'No'}</div>
               </div>
             </div>
 
             {error && <p style={{ color: '#dc2626', fontSize: 13 }}>Error: {error}</p>}
 
             <div style={navRow}>
-              <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
+              <button onClick={() => goStep(4)} style={secondaryBtn}>← Back</button>
               <button onClick={submit} disabled={submitting} style={primaryBtn}>
                 {submitting ? 'Creating…' : '🚀 Create Migration'}
               </button>
@@ -666,6 +833,11 @@ const secondaryBtn: React.CSSProperties = {
   padding: '10px 22px', background: '#fff', color: '#374151', border: '1px solid #d1d5db',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
+const thStyle: React.CSSProperties = {
+  padding: '6px 10px', textAlign: 'left', fontWeight: 600,
+  borderBottom: '1px solid #d1d5db',
+};
+const tdStyle: React.CSSProperties = { padding: '5px 10px', verticalAlign: 'top' };
 const sourceCard: React.CSSProperties = {
   display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px',
   borderRadius: 10, cursor: 'pointer',

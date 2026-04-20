@@ -16,17 +16,6 @@ router = APIRouter(prefix="/migrations", tags=["migrations"])
 
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
-class SourceCredentials(BaseModel):
-    base_url: str = ""
-    username: str = ""
-    password: str = ""
-
-class DestinationCredentials(BaseModel):
-    base_url: str = ""
-    client_id: str = ""
-    client_secret: str = ""
-    api_version: str = "v60.0"
-
 class MigrationOptions(BaseModel):
     start_date: str = ""
     end_date: str = ""
@@ -36,8 +25,8 @@ class MigrationOptions(BaseModel):
 
 class CreateMigrationRequest(BaseModel):
     source_type: str = "servicenow"
-    source_credentials: SourceCredentials = SourceCredentials()
-    destination_credentials: DestinationCredentials = DestinationCredentials()
+    source_credentials: dict = {}
+    destination_credentials: dict = {}
     selected_objects: list[str] = []
     options: MigrationOptions = MigrationOptions()
 
@@ -49,8 +38,8 @@ def create_migration(body: CreateMigrationRequest):
     session_id = str(uuid.uuid4())
     config = {
         "source_type": body.source_type,
-        "source_credentials": body.source_credentials.model_dump(),
-        "destination_credentials": body.destination_credentials.model_dump(),
+        "source_credentials": body.source_credentials,
+        "destination_credentials": body.destination_credentials,
         "selected_objects": body.selected_objects,
         "options": body.options.model_dump(),
     }

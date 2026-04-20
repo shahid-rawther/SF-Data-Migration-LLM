@@ -222,6 +222,7 @@ class MigrationManager:
     def _do_run(self, session_id: str, config: dict, state: SessionState) -> None:
         from controllers import extraction_controller, transformation_controller, loading_controller
         from services.http_clients.salesforce_http_client import salesforce_client
+        from services.http_clients.servicenow_http_client import servicenow_client
         from config.settings import (
             EXTRACTION_JOB_NUMBER,
             TRANSFORMATION_JOB_NUMBER,
@@ -231,16 +232,27 @@ class MigrationManager:
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
+        source_type: str = config.get("source_type", "servicenow")
+        source_credentials: dict = config.get("source_credentials", {})
         destination_credentials: dict = config.get("destination_credentials", {})
+        dry_run: bool = bool(options.get("disable_load", False))
         token = state.token
 
-        # Ensure runtime uses the same destination credentials validated in the wizard.
+        # Configure destination client with credentials from this session.
         salesforce_client.configure(
             base_url=destination_credentials.get("base_url"),
             client_id=destination_credentials.get("client_id"),
             client_secret=destination_credentials.get("client_secret"),
             api_version=destination_credentials.get("api_version"),
         )
+
+        # Configure the source client with credentials from this session.
+        if source_type == "servicenow":
+            servicenow_client.configure(
+                base_url=source_credentials.get("base_url"),
+                username=source_credentials.get("username"),
+                password=source_credentials.get("password"),
+            )
 
         # Build an ordered priority list containing only selected objects
         from config.settings import MAPPING_PRIORITY
@@ -336,6 +348,26 @@ class MigrationManager:
             if not token.wait_if_paused():
                 return
 
+            if dry_run:
+                # Dry-run: skip Salesforce upload, count transformed records only
+                self._emit(
+                    session_id,
+                    ProgressEvent(
+                        session_id=session_id,
+                        phase="dry_run",
+                        object_name=", ".join(group),
+                        batch_current=group_idx + 1,
+                        batch_total=total_groups,
+                        records_fetched=total_fetched,
+                        records_processed=total_processed,
+                        records_failed=total_failed,
+                        overall_percent=overall,
+                        status="running",
+                        message=f"[Dry Run] Skipping load for {', '.join(group)}",
+                    ),
+                )
+                continue
+
             session_db.update_session_status(session_id, "running", "loading")
             self._emit(
                 session_id,
@@ -378,12 +410,19 @@ class MigrationManager:
             if token.is_cancelled():
                 return
 
+        final_msg = (
+            f"Dry run completed — {total_fetched:,} fetched, {total_processed:,} transformed"
+            if dry_run
+            else f"Migration completed — {total_fetched:,} fetched, {total_processed:,} processed, {total_failed:,} failed"
+        )
+        final_phase = "dry_run" if dry_run else "loading"
+
         session_db.mark_session_completed(session_id)
         self._emit(
             session_id,
             ProgressEvent(
                 session_id=session_id,
-                phase="loading",
+                phase=final_phase,
                 object_name="",
                 batch_current=total_groups,
                 batch_total=total_groups,
@@ -392,7 +431,7 @@ class MigrationManager:
                 records_failed=total_failed,
                 overall_percent=100.0,
                 status="completed",
-                message=f"Migration completed — {total_fetched:,} fetched, {total_processed:,} processed, {total_failed:,} failed",
+                message=final_msg,
             ),
         )
 

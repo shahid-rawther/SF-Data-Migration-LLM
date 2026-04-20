@@ -106,10 +106,39 @@ export interface SalesforceDiagnosticsResponse {
   missing_objects?: string[];
 }
 
+export interface FieldResult {
+  source_field: string;
+  destination_field: string;
+  status: 'mapped' | 'type_mismatch' | 'missing_in_source' | 'no_mapping';
+  source_type: string;
+  destination_type: string;
+  suggestion: string;
+}
+
+export interface ObjectCompatibility {
+  object_name: string;
+  source_label: string;
+  salesforce_object: string;
+  total_fields: number;
+  mapped_fields: number;
+  missing_fields: number;
+  type_mismatches: number;
+  compatibility_pct: number;
+  fields: FieldResult[];
+  blockers: string[];
+}
+
+export interface CompatibilityReport {
+  source_type: string;
+  overall_pct: number;
+  objects: ObjectCompatibility[];
+  summary: string;
+}
+
 export interface SavedConnection {
   id: string;
   name: string;
-  type: 'servicenow' | 'salesforce';
+  type: string;
   credentials: Record<string, string>;
   created_at: string;
   updated_at: string;
@@ -189,6 +218,19 @@ export const api = {
       request(`/connections/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string): Promise<{ ok: boolean }> =>
       request(`/connections/${id}`, { method: 'DELETE' }),
+  },
+
+  compat: {
+    check: (
+      source_type: string,
+      source_credentials: Record<string, string>,
+      destination_credentials: Record<string, string>,
+      selected_objects: string[],
+    ): Promise<CompatibilityReport> =>
+      request('/compat/check', {
+        method: 'POST',
+        body: JSON.stringify({ source_type, source_credentials, destination_credentials, selected_objects }),
+      }),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),

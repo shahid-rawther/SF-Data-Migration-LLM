@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from api.routers import sources, migrations, destinations, connections
+from api.routers import sources, migrations, destinations, connections, compat
 
 app = FastAPI(
     title="ITSM Data Migration API",
@@ -30,6 +30,7 @@ app.include_router(sources.router, prefix="/api")
 app.include_router(migrations.router, prefix="/api")
 app.include_router(destinations.router, prefix="/api")
 app.include_router(connections.router, prefix="/api")
+app.include_router(compat.router, prefix="/api")
 
 
 @app.get("/api/health")

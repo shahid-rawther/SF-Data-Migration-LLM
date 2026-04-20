@@ -1,15 +1,21 @@
-"""Saved connections router — CRUD for reusable ServiceNow / Salesforce connections."""
+"""Saved connections router — CRUD for reusable source / Salesforce connections."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api import connections_db
+from api import sources as source_registry
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
 
+def _valid_connection_types() -> set[str]:
+    """All registered source IDs plus 'salesforce' (the fixed destination)."""
+    return {p.source_id for p in source_registry.get_all()} | {"salesforce"}
+
+
 class CreateConnectionRequest(BaseModel):
     name: str
-    type: str  # 'servicenow' or 'salesforce'
+    type: str
     credentials: dict
 
 
@@ -33,8 +39,12 @@ def get_connection(conn_id: str):
 
 @router.post("/", status_code=201)
 def create_connection(body: CreateConnectionRequest):
-    if body.type not in ("servicenow", "salesforce"):
-        raise HTTPException(status_code=400, detail="Type must be 'servicenow' or 'salesforce'")
+    valid_types = _valid_connection_types()
+    if body.type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type must be one of: {', '.join(sorted(valid_types))}",
+        )
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Name is required")
     try:
