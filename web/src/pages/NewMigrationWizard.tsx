@@ -642,11 +642,11 @@ export function NewMigrationWizard() {
                 {/* Overall score banner */}
                 <div style={{
                   padding: 14, borderRadius: 8, marginBottom: 16,
-                  background: compatReport.overall_pct >= 80 ? '#f0fdf4' : compatReport.overall_pct >= 50 ? '#fffbeb' : '#fef2f2',
-                  border: `1px solid ${compatReport.overall_pct >= 80 ? '#86efac' : compatReport.overall_pct >= 50 ? '#fcd34d' : '#f87171'}`,
+                  background: compatBg(compatReport.overall_pct),
+                  border: `1px solid ${compatBorder(compatReport.overall_pct)}`,
                 }}>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>
-                    {compatReport.overall_pct >= 80 ? '✅' : compatReport.overall_pct >= 50 ? '⚠️' : '❌'}{' '}
+                    {compatIcon(compatReport.overall_pct)}{' '}
                     Overall Compatibility: {compatReport.overall_pct}%
                   </div>
                   <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{compatReport.summary}</div>
@@ -671,7 +671,7 @@ export function NewMigrationWizard() {
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span style={{
                           fontSize: 13, fontWeight: 600,
-                          color: obj.compatibility_pct >= 80 ? '#16a34a' : obj.compatibility_pct >= 50 ? '#b45309' : '#dc2626',
+                          color: compatColor(obj.compatibility_pct),
                         }}>
                           {obj.compatibility_pct}%
                         </span>
@@ -792,14 +792,14 @@ export function NewMigrationWizard() {
                 <div><strong>Source:</strong> {selectedSource?.name}</div>
                 <div><strong>Destination:</strong> Salesforce ({destCreds.base_url || 'not set'})</div>
                 <div><strong>Objects:</strong> {selectedObjects.length} selected</div>
-                {compatReport && (
-                  <div>
-                    <strong>Compatibility:</strong>{' '}
-                    <span style={{ color: compatReport.overall_pct >= 80 ? '#16a34a' : compatReport.overall_pct >= 50 ? '#b45309' : '#dc2626' }}>
-                      {compatReport.overall_pct}%
-                    </span>
-                  </div>
-                )}
+                  {compatReport && (
+                    <div>
+                      <strong>Compatibility:</strong>{' '}
+                      <span style={{ color: compatColor(compatReport.overall_pct) }}>
+                        {compatReport.overall_pct}%
+                      </span>
+                    </div>
+                  )}
                 <div><strong>Dry run:</strong> {options.disable_load ? 'Yes (extract & transform only)' : 'No'}</div>
               </div>
             </div>
@@ -833,6 +833,23 @@ const secondaryBtn: React.CSSProperties = {
   padding: '10px 22px', background: '#fff', color: '#374151', border: '1px solid #d1d5db',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
+// ── Compatibility colour helpers ───────────────────────────────────────────────
+const COMPAT_HIGH = 80;  // pct threshold for "good" (green)
+const COMPAT_MID  = 50;  // pct threshold for "warning" (amber)
+
+function compatColor(pct: number): string {
+  return pct >= COMPAT_HIGH ? '#16a34a' : pct >= COMPAT_MID ? '#b45309' : '#dc2626';
+}
+function compatBg(pct: number): string {
+  return pct >= COMPAT_HIGH ? '#f0fdf4' : pct >= COMPAT_MID ? '#fffbeb' : '#fef2f2';
+}
+function compatBorder(pct: number): string {
+  return pct >= COMPAT_HIGH ? '#86efac' : pct >= COMPAT_MID ? '#fcd34d' : '#f87171';
+}
+function compatIcon(pct: number): string {
+  return pct >= COMPAT_HIGH ? '✅' : pct >= COMPAT_MID ? '⚠️' : '❌';
+}
+
 const thStyle: React.CSSProperties = {
   padding: '6px 10px', textAlign: 'left', fontWeight: 600,
   borderBottom: '1px solid #d1d5db',

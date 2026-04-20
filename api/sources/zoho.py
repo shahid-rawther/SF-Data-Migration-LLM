@@ -204,7 +204,7 @@ class ZohoProvider(SourceProvider):
                 timeout=15,
             )
             resp2.raise_for_status()
-            return int(resp2.headers.get("X-ZDESK-Count", -1))
+            return int(resp2.headers.get("X-Zoho-Count", resp2.headers.get("x-zoho-count", -1)))
         except Exception:
             return -1
 

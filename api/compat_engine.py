@@ -7,7 +7,9 @@ overall compatibility scores.
 """
 from __future__ import annotations
 
+import difflib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,6 +39,10 @@ _SF_TYPE_MAP: dict[str, str] = {
     "datetime": "datetime",
     "time": "datetime",
 }
+
+# Types that are treated as compatible with any source type
+# (empty string means the SF schema did not return a type for the field)
+FLEXIBLE_TYPES = ("", "string")
 
 
 def _norm_sf_type(sf_type: str) -> str:
@@ -127,7 +133,21 @@ def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
 
 
 def _load_mapping_file(object_name: str) -> dict:
-    path: Path = PATH_TO_MAPPING / f"{object_name}.json"
+    """Load the field-mapping JSON for object_name.
+
+    The name is validated against a safe-character allowlist and the
+    resolved path is verified to remain inside PATH_TO_MAPPING before
+    the file is opened, preventing path-traversal attacks.
+    """
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9_\-]+", object_name):
+        return {}
+    path: Path = (PATH_TO_MAPPING / f"{object_name}.json").resolve()
+    # Ensure the resolved path stays inside the allowed mapping directory
+    try:
+        path.relative_to(PATH_TO_MAPPING.resolve())
+    except ValueError:
+        return {}
     if not path.exists():
         return {}
     try:
@@ -230,7 +250,7 @@ def check_compatibility(
                     )
                     src_field = source_fields.get(src_name)
                     src_type = src_field.field_type if src_field else "string"
-                    if src_type != sf_field_type and sf_field_type not in ("", "string"):
+                    if src_type != sf_field_type and sf_field_type not in FLEXIBLE_TYPES:
                         status = "type_mismatch"
                         suggestion = (
                             f"Source type '{src_type}' may need coercion to Salesforce "
@@ -313,15 +333,19 @@ def check_compatibility(
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _find_similar(target: str, candidates: list[str]) -> str | None:
-    """Find the most similar candidate to the target using a simple heuristic."""
-    target_lower = target.replace("__c", "").replace("_", "").lower()
-    best: str | None = None
-    best_score = 0
-    for c in candidates:
-        c_base = c.split(".")[-1].replace("_", "").lower()
-        # Longest common prefix length as a quick similarity measure
-        score = sum(a == b for a, b in zip(target_lower, c_base))
-        if score > best_score and score >= 3:
-            best_score = score
-            best = c
-    return best
+    """Find the most similar candidate to the target using difflib."""
+    target_key = target.replace("__c", "").replace("_", "").lower()
+    candidate_keys = {c: c.split(".")[-1].replace("_", "").lower() for c in candidates}
+    matches = difflib.get_close_matches(
+        target_key,
+        list(candidate_keys.values()),
+        n=1,
+        cutoff=0.5,
+    )
+    if not matches:
+        return None
+    # Map the matched key back to the original candidate name
+    for orig, key in candidate_keys.items():
+        if key == matches[0]:
+            return orig
+    return None

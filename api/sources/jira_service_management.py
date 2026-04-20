@@ -5,6 +5,7 @@ requests, incidents, problems and changes as migratable objects.
 """
 from __future__ import annotations
 
+import re
 from typing import Iterator
 
 import requests
@@ -203,10 +204,12 @@ class JSMProvider(SourceProvider):
             jql = f"project = {project_key}" + (f" AND {jql}" if jql else "")
         start_date = options.get("start_date", "")
         end_date = options.get("end_date", "")
-        if start_date:
-            jql += f" AND created >= {start_date}"
-        if end_date:
-            jql += f" AND created <= {end_date}"
+        # Only append date filters if the value matches YYYY-MM-DD
+        _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if start_date and _DATE_RE.match(start_date):
+            jql += f" AND created >= '{start_date}'"
+        if end_date and _DATE_RE.match(end_date):
+            jql += f" AND created <= '{end_date}'"
         batch_size = 100
         start_at = 0
         while True:
