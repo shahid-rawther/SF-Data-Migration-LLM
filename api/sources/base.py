@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Iterator
 
 
 @dataclass
@@ -11,6 +12,17 @@ class MigratableObject:
     servicenow_tables: list[str]
     dependencies: list[str] = field(default_factory=list)
     priority: int = 9999
+
+
+@dataclass
+class SourceField:
+    """Describes a single field exposed by a source ITSM system."""
+
+    name: str
+    label: str
+    field_type: str  # e.g. "string", "datetime", "integer", "boolean", "reference"
+    required: bool = False
+    example: str = ""
 
 
 class SourceProvider(ABC):
@@ -50,3 +62,29 @@ class SourceProvider(ABC):
     @abstractmethod
     def get_row_count(self, object_name: str, credentials: dict, filters: dict) -> int:
         """Return the number of records for the given object in the source system."""
+
+    def get_source_fields(self, object_name: str, credentials: dict) -> list[SourceField]:
+        """Return the list of fields available for the given object.
+
+        Override in providers that support introspection.  The default
+        implementation returns an empty list so that existing providers
+        are not broken.
+        """
+        return []
+
+    def extract_records(
+        self,
+        object_name: str,
+        credentials: dict,
+        options: dict,
+    ) -> Iterator[list[dict]]:
+        """Yield pages of records for the given object.
+
+        Each yielded value is a list of record dicts.  The default
+        implementation raises NotImplementedError so that providers that
+        do not yet support direct extraction surface a clear error rather
+        than silently returning nothing.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement extract_records()"
+        )

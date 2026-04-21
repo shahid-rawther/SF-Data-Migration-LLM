@@ -1,9 +1,10 @@
 import os
 import json
+from typing import Iterator
 
 import requests
 
-from api.sources.base import MigratableObject, SourceProvider
+from api.sources.base import MigratableObject, SourceField, SourceProvider
 from config.settings import MAPPING_PRIORITY, ATTACHMENT_MAPPING_PRIORITY, PATH_TO_MAPPING
 
 # Category labels for UI grouping
@@ -174,3 +175,112 @@ class ServiceNowProvider(SourceProvider):
             return int(count)
         except Exception:
             return -1
+
+    def get_source_fields(self, object_name: str, credentials: dict) -> list[SourceField]:
+        """Return the list of fields for the driving ServiceNow table via the Schema API."""
+        mapping = _load_mapping(object_name)
+        if not mapping:
+            return []
+        tables = mapping.get("servicenow_tables", [])
+        if not tables:
+            return []
+        driving_table = tables[0]
+        base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
+        username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
+        password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        try:
+            resp = requests.get(
+                f"{base_url}/api/now/table/sys_dictionary",
+                auth=(username, password),
+                params={
+                    "sysparm_query": f"name={driving_table}^active=true",
+                    "sysparm_fields": "element,column_label,internal_type,mandatory",
+                    "sysparm_limit": 500,
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            rows = resp.json().get("result", [])
+            fields: list[SourceField] = []
+            for row in rows:
+                element = row.get("element", "")
+                if not element:
+                    continue
+                field_type = (row.get("internal_type") or {}).get("value", "string")
+                required = str((row.get("mandatory") or {}).get("value", "false")).lower() == "true"
+                label = (row.get("column_label") or {}).get("display_value", element)
+                fields.append(SourceField(
+                    name=f"{driving_table}.{element}",
+                    label=label,
+                    field_type=field_type,
+                    required=required,
+                ))
+            return fields
+        except Exception:
+            # Fall back to fields declared in the mapping file
+            fields_from_mapping: list[SourceField] = []
+            for field_def in mapping.get("fields", []):
+                source = field_def.get("source_field")
+                if isinstance(source, list):
+                    for s in source:
+                        fields_from_mapping.append(SourceField(name=s, label=s, field_type="string"))
+                elif isinstance(source, str):
+                    fields_from_mapping.append(SourceField(name=source, label=source, field_type="string"))
+            return fields_from_mapping
+
+    def extract_records(
+        self,
+        object_name: str,
+        credentials: dict,
+        options: dict,
+    ) -> Iterator[list[dict]]:
+        """Yield pages of records for the given object from the ServiceNow API."""
+        mapping = _load_mapping(object_name)
+        if not mapping:
+            return
+        tables = mapping.get("servicenow_tables", [])
+        if not tables:
+            return
+        driving_table = tables[0]
+        base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
+        username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
+        password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        batch_size = int(options.get("service_now_batch_size", 5000))
+        start_date = options.get("start_date", "")
+        end_date = options.get("end_date", "")
+
+        query_parts = []
+        if start_date:
+            query_parts.append(f"sys_created_on>={start_date}")
+        if end_date:
+            query_parts.append(f"sys_created_on<={end_date}")
+        query = "^".join(query_parts)
+
+        offset = 0
+        while True:
+            params: dict = {
+                "sysparm_limit": batch_size,
+                "sysparm_offset": offset,
+                "sysparm_no_count": "true",
+                "sysparm_display_value": "false",
+                "sysparm_exclude_reference_link": "true",
+            }
+            if query:
+                params["sysparm_query"] = query
+            try:
+                resp = requests.get(
+                    f"{base_url}/api/now/table/{driving_table}",
+                    auth=(username, password),
+                    params=params,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                records = resp.json().get("result", [])
+            except Exception:
+                break
+            if not records:
+                break
+            yield records
+            if len(records) < batch_size:
+                break
+            offset += batch_size

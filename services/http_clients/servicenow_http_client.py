@@ -8,9 +8,9 @@ import gzip
 
 from common.logger import logger
 
-SERVICE_NOW_BASE_URL = os.getenv("SERVICE_NOW_BASE_URL")
-SERVICE_NOW_USERNAME = os.getenv("SERVICE_NOW_USERNAME")
-SERVICE_NOW_PASSWORD = os.getenv("SERVICE_NOW_PASSWORD")
+_ENV_BASE_URL = os.getenv("SERVICE_NOW_BASE_URL", "")
+_ENV_USERNAME = os.getenv("SERVICE_NOW_USERNAME", "")
+_ENV_PASSWORD = os.getenv("SERVICE_NOW_PASSWORD", "")
 
 
 def _create_query(start_date: str, end_date: str):
@@ -25,10 +25,25 @@ def _create_query(start_date: str, end_date: str):
 class ServiceNowClient:
     def __init__(self) -> None:
         logger.info("Initializing Service now client.")
-        logger.info(f"Servicenow base URL: {SERVICE_NOW_BASE_URL}")
+        self.instance_url: str = _ENV_BASE_URL
+        self._username: str = _ENV_USERNAME
+        self._password: str = _ENV_PASSWORD
+        logger.info(f"Servicenow base URL: {self.instance_url}")
 
-        self.access_token: Optional[str] = None
-        self.instance_url: str = SERVICE_NOW_BASE_URL
+    def configure(
+        self,
+        base_url: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ) -> None:
+        """Override credentials per migration run (e.g. from saved connections)."""
+        if base_url:
+            self.instance_url = base_url.rstrip("/")
+        if username:
+            self._username = username
+        if password:
+            self._password = password
+        logger.info(f"ServiceNow client configured for: {self.instance_url}")
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -38,7 +53,7 @@ class ServiceNowClient:
 
     def _session(self) -> requests.Session:
         session = requests.Session()
-        session.auth = (SERVICE_NOW_USERNAME, SERVICE_NOW_PASSWORD)
+        session.auth = (self._username, self._password)
         session.headers.update(self._headers())
         return session
     
