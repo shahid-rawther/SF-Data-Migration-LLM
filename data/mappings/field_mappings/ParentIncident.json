@@ -78,7 +78,12 @@
         {
             "destination_field": "SlaStartDate",
             "transformation_function": "convert_to_sf_time_format",
-            "source_field": "incident.sys_created_on"
+            "source_field": "incident.opened_at"
+        },
+        {
+            "destination_field": "DetectedDateTime",
+            "transformation_function": "convert_to_sf_time_format",
+            "source_field": "incident.opened_at"
         },
         {
             "destination_field": "Impact",
@@ -144,7 +149,7 @@
         {
             "destination_field": "StartDateTime",
             "transformation_function": "convert_to_sf_time_format",
-            "source_field": "incident.sys_created_on"
+            "source_field": "incident.opened_at"
         },
         {
             "destination_field": "Status",

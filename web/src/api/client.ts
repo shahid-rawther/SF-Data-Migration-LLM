@@ -113,6 +113,30 @@ export interface FieldResult {
   source_type: string;
   destination_type: string;
   suggestion: string;
+  suggested_custom_field: string;
+}
+
+export interface CreateCustomFieldRequest {
+  destination_credentials: Record<string, string>;
+  salesforce_object: string;
+  field_label: string;
+  field_api_name: string;
+  field_type?: string;
+  length?: number;
+  description?: string;
+}
+
+export interface CreateCustomFieldResponse {
+  success: boolean;
+  message: string;
+  field_api_name: string;
+}
+
+export interface SuggestFieldNameResponse {
+  suggested_label: string;
+  suggested_api_name: string;
+  suggested_type: string;
+  suggested_length: number;
 }
 
 export interface ObjectCompatibility {
@@ -230,6 +254,24 @@ export const api = {
       request('/compat/check', {
         method: 'POST',
         body: JSON.stringify({ source_type, source_credentials, destination_credentials, selected_objects }),
+      }),
+  },
+
+  customFields: {
+    suggest: (
+      source_field: string,
+      salesforce_object: string,
+    ): Promise<SuggestFieldNameResponse> =>
+      request('/custom-fields/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ source_field, salesforce_object }),
+      }),
+    create: (
+      body: CreateCustomFieldRequest,
+    ): Promise<CreateCustomFieldResponse> =>
+      request('/custom-fields/create', {
+        method: 'POST',
+        body: JSON.stringify(body),
       }),
   },
 

@@ -1,3 +1,5 @@
+import csv
+import io
 import random
 import time
 from pathlib import Path
@@ -15,6 +17,7 @@ import services.internal.jobs_service as jobs_service
 from services.http_clients.salesforce_http_client import salesforce_client
 from config.settings import (
     DISABLE_LOAD,
+    HASH_KEY_NAME,
     MAX_WORKERS,
     PATH_TO_TRANSFORMATION,
     PATH_TO_RESULTS,
@@ -117,7 +120,7 @@ def load_csv_batch(
                         table_mapping,
                     )
                 )
-        if update_path.exists():
+        if update_path is not None and update_path.exists():
             table_batch_update_id = jobs_service.get_or_create_job_table_batch(
                 job_table_id, batch_size, batch_number, "update"
             )
@@ -334,6 +337,11 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
     )
     batch_size = int(batch_path.stem.split("_")[0])
 
+    # Determine if we need to force field values on insert (e.g. Status="New" for Incident)
+    insert_force_values = None
+    if operation == "insert":
+        insert_force_values = _get_insert_force_values(salesforce_object)
+
     # Create a Job
     job = salesforce_client.create_job(salesforce_object, operation)
     job_id = job["id"]
@@ -348,7 +356,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
         valid_fields = None
         picklist_values = None
 
-    salesforce_client.upload_csv(job_id, batch_path, valid_fields=valid_fields, picklist_values=picklist_values)
+    salesforce_client.upload_csv(job_id, batch_path, valid_fields=valid_fields, picklist_values=picklist_values, force_values=insert_force_values)
     salesforce_client.mark_upload_complete(job_id)
 
     terminal_states = {"JobComplete", "Failed", "Aborted"}
@@ -428,6 +436,12 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
 
         insert_id_mappings(id_mapping_table_name, id_mappings)
 
+        # Post-insert update: restore real values for fields that were forced during insert
+        if insert_force_values and success_data:
+            _post_insert_update(
+                salesforce_object, batch_path, success_data, insert_force_values, valid_fields
+            )
+
     failed = salesforce_client.get_results(job_id, "failedResults")
     save_text_to_file(failed, failed_path)
 
@@ -435,6 +449,98 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
     save_text_to_file(unprocessed, unprocessed_path)
 
     return batch_result
+
+
+# ---------------------------------------------------------------------------
+# Two-pass insert: force safe values on insert, then update with real values
+# ---------------------------------------------------------------------------
+
+# Map of Salesforce object → fields to force during insert and their forced values
+_INSERT_FORCE_CONFIG = {
+    "Incident": {"Status": "New"},
+}
+
+
+def _get_insert_force_values(salesforce_object: str) -> dict | None:
+    """Return the force_values dict for a given SF object, or None if not configured."""
+    return _INSERT_FORCE_CONFIG.get(salesforce_object)
+
+
+def _post_insert_update(
+    salesforce_object: str,
+    original_csv_path: Path,
+    success_data: list[dict],
+    force_values: dict,
+    valid_fields: set | None,
+):
+    """
+    After inserting records with forced field values, update them with the real values.
+    Reads the original CSV to get real values, matches by row order to success_data (which has sf__Id).
+    """
+    if not success_data:
+        return
+
+    forced_fields = list(force_values.keys())
+    logger.info(
+        f"[{salesforce_object}] Post-insert update: restoring {forced_fields} for {len(success_data)} records"
+    )
+
+    # Read original values from the source CSV (same order as uploaded)
+    original_values = []
+    remove_columns = {HASH_KEY_NAME}
+    with open(original_csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            vals = {field: row.get(field, "") for field in forced_fields}
+            original_values.append(vals)
+
+    # Build update CSV: Id + forced fields with real values
+    output = io.StringIO()
+    update_fields = ["Id"] + forced_fields
+    writer = csv.DictWriter(output, fieldnames=update_fields)
+    writer.writeheader()
+
+    for idx, record in enumerate(success_data):
+        sf_id = record.get("sf__Id")
+        if not sf_id:
+            continue
+        if idx < len(original_values):
+            row = {"Id": sf_id}
+            row.update(original_values[idx])
+            # Skip if the real value equals the forced value (no update needed)
+            if all(row.get(f) == force_values[f] for f in forced_fields):
+                continue
+            writer.writerow(row)
+
+    csv_content = output.getvalue()
+    # Check if there are any rows to update (beyond the header)
+    if csv_content.count("\n") <= 1:
+        logger.info(f"[{salesforce_object}] No status updates needed — all records already have forced value")
+        return
+
+    # Create and run update job
+    try:
+        update_job = salesforce_client.create_job(salesforce_object, "update")
+        update_job_id = update_job["id"]
+        salesforce_client.upload_csv_data(update_job_id, csv_content)
+        salesforce_client.mark_upload_complete(update_job_id)
+
+        # Poll for completion
+        terminal_states = {"JobComplete", "Failed", "Aborted"}
+        while True:
+            job_status = salesforce_client.get_job(update_job_id)
+            state = job_status.get("state")
+            if state in terminal_states:
+                break
+            time.sleep(POLL_TIME)
+
+        processed = job_status.get("numberRecordsProcessed", 0)
+        failed = job_status.get("numberRecordsFailed", 0)
+        logger.info(
+            f"[{salesforce_object}] Post-insert status update complete: {processed} processed, {failed} failed"
+        )
+    except Exception as e:
+        logger.error(f"[{salesforce_object}] Post-insert status update failed: {e}")
 
 
 def save_id_mappings():

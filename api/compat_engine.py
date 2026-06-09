@@ -59,6 +59,7 @@ class FieldResult:
     source_type: str
     destination_type: str
     suggestion: str      # Human-readable guidance
+    suggested_custom_field: str = ""  # Suggested custom field API name (only for no_mapping)
 
 
 @dataclass
@@ -215,15 +216,17 @@ def check_compatibility(
                     mapped += 1
                 elif not has_dest:
                     status = "no_mapping"
+                    suggested_name = _suggest_custom_field_api_name(dest)
                     suggestion = (
                         f"Destination field '{dest}' not found in Salesforce {sf_object}. "
-                        "Verify the field exists and is accessible by the integration user."
+                        "You can create this as a custom field in Salesforce."
                     )
                     missing_in_source += 1
                 else:
                     status = "mapped"
                     suggestion = ""
                     mapped += 1
+                    suggested_name = ""
 
                 field_results.append(FieldResult(
                     source_field=src,
@@ -232,6 +235,7 @@ def check_compatibility(
                     source_type="",
                     destination_type=dest_type,
                     suggestion=suggestion,
+                    suggested_custom_field=suggested_name if status == "no_mapping" else "",
                 ))
         else:
             # Generic analysis: compare source fields to SF fields by name similarity
@@ -331,6 +335,24 @@ def check_compatibility(
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _suggest_custom_field_api_name(field_name: str) -> str:
+    """Suggest a Salesforce custom field API name from a destination field name.
+
+    If the field already ends with __c, it's already a custom field name.
+    Otherwise, convert it to a valid custom field API name.
+    """
+    if field_name.endswith("__c"):
+        return field_name
+    # Convert to custom field format
+    name = re.sub(r"[^A-Za-z0-9_]", "_", field_name)
+    name = re.sub(r"_+", "_", name).strip("_")
+    parts = name.split("_")
+    name = "_".join(p.capitalize() for p in parts if p)
+    if not name.endswith("__c"):
+        name = name + "__c"
+    return name
+
 
 def _find_similar(target: str, candidates: list[str]) -> str | None:
     """Find the most similar candidate to the target using difflib."""

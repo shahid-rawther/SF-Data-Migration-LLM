@@ -128,7 +128,7 @@ class SalesforceClient:
 
     @ensure_token
     def describe_object(self, object_api_name: str) -> set:
-        """Return the set of field API names for a Salesforce object (cached).
+        """Return the set of field API names that are createable on a Salesforce object (cached).
         Also populates the picklist cache for restricted picklist validation."""
         if object_api_name in self._describe_cache:
             return self._describe_cache[object_api_name]
@@ -146,7 +146,9 @@ class SalesforceClient:
         fields = set()
         picklists: Dict[str, set] = {}
         for f in data.get("fields", []):
-            fields.add(f["name"])
+            # Only include fields that are createable (writable on insert)
+            if f.get("createable", False):
+                fields.add(f["name"])
             if f.get("restrictedPicklist"):
                 valid_vals = {pv["value"] for pv in f.get("picklistValues", []) if pv.get("active")}
                 if valid_vals:
@@ -154,7 +156,7 @@ class SalesforceClient:
 
         self._describe_cache[object_api_name] = fields
         self._picklist_cache[object_api_name] = picklists
-        logger.info(f"Described '{object_api_name}': {len(fields)} fields found, {len(picklists)} restricted picklists")
+        logger.info(f"Described '{object_api_name}': {len(fields)} createable fields found, {len(picklists)} restricted picklists")
         return fields
 
     def get_picklist_values(self, object_api_name: str) -> Dict[str, set]:
@@ -180,7 +182,7 @@ class SalesforceClient:
         return response.json()
 
     @ensure_token
-    def upload_csv(self, job_id: str, csv_path: Path, valid_fields: set = None, picklist_values: dict = None):
+    def upload_csv(self, job_id: str, csv_path: Path, valid_fields: set = None, picklist_values: dict = None, force_values: dict = None):
         url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/batches"
         session = self._session()
         session.headers.update({"Content-Type": "text/csv"})
@@ -214,6 +216,11 @@ class SalesforceClient:
                     for field_name, allowed in picklist_values.items():
                         if field_name in row and row[field_name] and row[field_name] not in allowed:
                             row[field_name] = ""
+                # Override forced values (e.g. Status="New" for insert)
+                if force_values:
+                    for field_name, forced_val in force_values.items():
+                        if field_name in row:
+                            row[field_name] = forced_val
                 writer.writerow(row)
 
         csv_bytes = output.getvalue().encode("utf-8")
@@ -222,6 +229,17 @@ class SalesforceClient:
         r.raise_for_status()
 
         return r.status_code == 201  # created
+
+    @ensure_token
+    def upload_csv_data(self, job_id: str, csv_content: str):
+        """Upload raw CSV string content to a bulk job."""
+        url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/batches"
+        session = self._session()
+        session.headers.update({"Content-Type": "text/csv"})
+        csv_bytes = csv_content.encode("utf-8")
+        r = session.put(url=url, data=csv_bytes)
+        r.raise_for_status()
+        return r.status_code == 201
 
     @ensure_token
     def mark_upload_complete(self, job_id):

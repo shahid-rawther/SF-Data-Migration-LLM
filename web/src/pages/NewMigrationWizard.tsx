@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport } from '../api/client';
+import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
 import { ObjectSelector } from '../components/ObjectSelector';
 
@@ -50,6 +50,15 @@ export function NewMigrationWizard() {
   const [compatReport, setCompatReport] = useState<CompatibilityReport | null>(null);
   const [compatError, setCompatError] = useState<string | null>(null);
   const [expandedCompatObj, setExpandedCompatObj] = useState<string | null>(null);
+
+  // Custom field creation state
+  const [creatingField, setCreatingField] = useState<string | null>(null); // "objectName::fieldName" key
+  const [customFieldName, setCustomFieldName] = useState<string>('');
+  const [customFieldLabel, setCustomFieldLabel] = useState<string>('');
+  const [customFieldType, setCustomFieldType] = useState<string>('Text');
+  const [customFieldMsg, setCustomFieldMsg] = useState<{ key: string; success: boolean; message: string } | null>(null);
+  const [bulkCreating, setBulkCreating] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{ field: string; success: boolean; message: string }[]>([]);
 
   // Saved connections state
   const [savedSourceConns, setSavedSourceConns] = useState<SavedConnection[]>([]);
@@ -222,6 +231,108 @@ export function NewMigrationWizard() {
     } finally {
       setCheckingCompat(false);
     }
+  };
+
+  const openCreateFieldDialog = (sfObject: string, field: { destination_field: string; suggested_custom_field: string; source_field: string }) => {
+    const key = `${sfObject}::${field.destination_field}`;
+    const suggestedName = field.suggested_custom_field || field.destination_field;
+    const label = suggestedName.replace(/__c$/, '').replace(/_/g, ' ');
+    setCreatingField(key);
+    setCustomFieldName(suggestedName);
+    setCustomFieldLabel(label);
+    setCustomFieldType('Text');
+    setCustomFieldMsg(null);
+  };
+
+  const handleCreateCustomField = async (sfObject: string) => {
+    if (!customFieldName || !customFieldLabel) return;
+    const key = creatingField || '';
+    setCustomFieldMsg(null);
+    try {
+      const body: CreateCustomFieldRequest = {
+        destination_credentials: destCreds,
+        salesforce_object: sfObject,
+        field_label: customFieldLabel,
+        field_api_name: customFieldName.endsWith('__c') ? customFieldName : customFieldName + '__c',
+        field_type: customFieldType,
+        length: 255,
+      };
+      const res = await api.customFields.create(body);
+      setCustomFieldMsg({ key, success: res.success, message: res.message });
+      if (res.success) {
+        // Update the compatibility report to reflect the newly created field
+        setCompatReport((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            objects: prev.objects.map((obj) => {
+              if (obj.salesforce_object !== sfObject) return obj;
+              return {
+                ...obj,
+                fields: obj.fields.map((f) => {
+                  if (`${sfObject}::${f.destination_field}` !== key) return f;
+                  return { ...f, status: 'mapped' as const, suggestion: `Custom field '${res.field_api_name}' created successfully.`, suggested_custom_field: '' };
+                }),
+                mapped_fields: obj.mapped_fields + 1,
+                missing_fields: obj.missing_fields - 1,
+                compatibility_pct: Math.round(((obj.mapped_fields + 1) / obj.total_fields) * 1000) / 10,
+              };
+            }),
+          };
+        });
+        setCreatingField(null);
+      }
+    } catch (e: unknown) {
+      setCustomFieldMsg({ key, success: false, message: e instanceof Error ? e.message : 'Failed to create custom field' });
+    }
+  };
+
+  const handleBulkCreateFields = async (sfObject: string, fields: { destination_field: string; suggested_custom_field: string; source_field: string }[]) => {
+    setBulkCreating(true);
+    setBulkResults([]);
+    const results: { field: string; success: boolean; message: string }[] = [];
+
+    for (const f of fields) {
+      const apiName = f.suggested_custom_field || f.destination_field;
+      const label = apiName.replace(/__c$/, '').replace(/_/g, ' ');
+      try {
+        const res = await api.customFields.create({
+          destination_credentials: destCreds,
+          salesforce_object: sfObject,
+          field_label: label,
+          field_api_name: apiName.endsWith('__c') ? apiName : apiName + '__c',
+          field_type: 'Text',
+          length: 255,
+        });
+        results.push({ field: apiName, success: res.success, message: res.message });
+        if (res.success) {
+          // Update the compatibility report inline
+          setCompatReport((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              objects: prev.objects.map((obj) => {
+                if (obj.salesforce_object !== sfObject) return obj;
+                return {
+                  ...obj,
+                  fields: obj.fields.map((of) => {
+                    if (of.destination_field !== f.destination_field || of.status !== 'no_mapping') return of;
+                    return { ...of, status: 'mapped' as const, suggestion: `Custom field '${res.field_api_name}' created.`, suggested_custom_field: '' };
+                  }),
+                  mapped_fields: obj.mapped_fields + 1,
+                  missing_fields: obj.missing_fields - 1,
+                  compatibility_pct: Math.round(((obj.mapped_fields + 1) / obj.total_fields) * 1000) / 10,
+                };
+              }),
+            };
+          });
+        }
+      } catch (e: unknown) {
+        results.push({ field: apiName, success: false, message: e instanceof Error ? e.message : 'Failed' });
+      }
+    }
+    setBulkResults(results);
+    setBulkCreating(false);
   };
 
   const goStep = (s: Step) => {
@@ -690,6 +801,49 @@ export function NewMigrationWizard() {
                             ))}
                           </div>
                         )}
+
+                        {/* Bulk create all missing fields button */}
+                        {obj.fields.some((f) => f.status === 'no_mapping') && (
+                          <div style={{ marginBottom: 12, padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>
+                                {obj.fields.filter((f) => f.status === 'no_mapping').length} missing field(s) detected
+                              </div>
+                              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                                Create all missing fields as custom Text fields in Salesforce with suggested names
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleBulkCreateFields(
+                                obj.salesforce_object,
+                                obj.fields.filter((f) => f.status === 'no_mapping').map((f) => ({
+                                  destination_field: f.destination_field,
+                                  suggested_custom_field: f.suggested_custom_field,
+                                  source_field: f.source_field,
+                                }))
+                              )}
+                              disabled={bulkCreating}
+                              style={{
+                                padding: '8px 16px', fontSize: 12, background: '#2563eb', color: '#fff',
+                                border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {bulkCreating ? '⏳ Creating...' : '⚡ Create All Missing Fields'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Bulk creation results */}
+                        {bulkResults.length > 0 && (
+                          <div style={{ marginBottom: 12, padding: 10, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, maxHeight: 150, overflowY: 'auto' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Creation Results:</div>
+                            {bulkResults.map((r, i) => (
+                              <div key={i} style={{ fontSize: 11, color: r.success ? '#16a34a' : '#dc2626', marginBottom: 2 }}>
+                                {r.success ? '✅' : '❌'} {r.field}: {r.message}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: '#f3f4f6' }}>
@@ -697,10 +851,13 @@ export function NewMigrationWizard() {
                               <th style={thStyle}>Salesforce Field</th>
                               <th style={thStyle}>Status</th>
                               <th style={thStyle}>Suggestion</th>
+                              <th style={thStyle}>Action</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {obj.fields.map((f, i) => (
+                            {obj.fields.map((f, i) => {
+                              const fieldKey = `${obj.salesforce_object}::${f.destination_field}`;
+                              return (
                               <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
                                 <td style={tdStyle}>{f.source_field || '—'}</td>
                                 <td style={tdStyle}>{f.destination_field}</td>
@@ -714,10 +871,105 @@ export function NewMigrationWizard() {
                                   </span>
                                 </td>
                                 <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '—'}</td>
+                                <td style={tdStyle}>
+                                  {f.status === 'no_mapping' && (
+                                    <button
+                                      onClick={() => openCreateFieldDialog(obj.salesforce_object, f)}
+                                      style={{
+                                        padding: '3px 8px', fontSize: 11, background: '#2563eb', color: '#fff',
+                                        border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      + Create Field
+                                    </button>
+                                  )}
+                                  {customFieldMsg && customFieldMsg.key === fieldKey && (
+                                    <div style={{ fontSize: 11, marginTop: 4, color: customFieldMsg.success ? '#16a34a' : '#dc2626' }}>
+                                      {customFieldMsg.message}
+                                    </div>
+                                  )}
+                                </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
+
+                        {/* Create Custom Field Dialog */}
+                        {creatingField && creatingField.startsWith(`${obj.salesforce_object}::`) && (
+                          <div style={{
+                            marginTop: 12, padding: 16, background: '#f0f9ff', border: '1px solid #bae6fd',
+                            borderRadius: 8,
+                          }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                              Create Custom Field on {obj.salesforce_object}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                              <div>
+                                <label style={{ fontSize: 11, fontWeight: 500, display: 'block', marginBottom: 2 }}>Field Label</label>
+                                <input
+                                  type="text"
+                                  value={customFieldLabel}
+                                  onChange={(e) => setCustomFieldLabel(e.target.value)}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, fontWeight: 500, display: 'block', marginBottom: 2 }}>API Name</label>
+                                <input
+                                  type="text"
+                                  value={customFieldName}
+                                  onChange={(e) => setCustomFieldName(e.target.value)}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, fontWeight: 500, display: 'block', marginBottom: 2 }}>Field Type</label>
+                                <select
+                                  value={customFieldType}
+                                  onChange={(e) => setCustomFieldType(e.target.value)}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                >
+                                  <option value="Text">Text</option>
+                                  <option value="Number">Number</option>
+                                  <option value="TextArea">TextArea</option>
+                                  <option value="LongTextArea">Long Text Area</option>
+                                  <option value="Checkbox">Checkbox</option>
+                                  <option value="Date">Date</option>
+                                  <option value="DateTime">DateTime</option>
+                                  <option value="Url">URL</option>
+                                  <option value="Email">Email</option>
+                                  <option value="Phone">Phone</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                onClick={() => handleCreateCustomField(obj.salesforce_object)}
+                                style={{
+                                  padding: '6px 14px', fontSize: 12, background: '#16a34a', color: '#fff',
+                                  border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
+                                }}
+                              >
+                                Create Field in Salesforce
+                              </button>
+                              <button
+                                onClick={() => { setCreatingField(null); setCustomFieldMsg(null); }}
+                                style={{
+                                  padding: '6px 14px', fontSize: 12, background: '#fff', color: '#374151',
+                                  border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer',
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            {customFieldMsg && customFieldMsg.key === creatingField && (
+                              <div style={{ marginTop: 8, fontSize: 12, color: customFieldMsg.success ? '#16a34a' : '#dc2626' }}>
+                                {customFieldMsg.success ? '✅' : '❌'} {customFieldMsg.message}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

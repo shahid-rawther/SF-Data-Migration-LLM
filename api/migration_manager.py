@@ -256,6 +256,11 @@ class MigrationManager:
 
         # Build an ordered priority list containing only selected objects
         from config.settings import MAPPING_PRIORITY
+
+        # Auto-include dependency objects required by the selected objects
+        selected_objects = _resolve_dependencies(selected_objects, MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY)
+        logger.info("Resolved dependencies — final object list: %s", selected_objects)
+
         ordered: list[list[str]] = []
         for group in MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY:
             filtered = [name for name in group if name in selected_objects]
@@ -434,6 +439,76 @@ class MigrationManager:
                 message=final_msg,
             ),
         )
+
+
+# ── Dependency resolution ──────────────────────────────────────────────────────
+
+# Map of ServiceNow tables to the object that must be extracted first to
+# provide lookup data for transformations.  The key is the downloaded folder
+# name expected by transformation helpers; the value is the migration object
+# whose extraction produces that folder.
+_TABLE_DEPENDENCY_MAP: dict[str, str] = {
+    "sys_user": "Account",
+    "sys_user_group": "Group",
+    "cmn_location": "ParentLocation",
+    "cmn_department": "Department",
+    "core_company": "Company",
+}
+
+# Which transformation_function names imply a dependency on which table
+_FUNCTION_DEPENDENCY_MAP: dict[str, str] = {
+    "look_up_user_sys_id": "sys_user",
+    "look_up_user_user_name": "sys_user",
+    "look_up_assignement_group": "sys_user_group",
+    "look_up_location_sys_id": "cmn_location",
+    "look_up_company_sys_id": "core_company",
+}
+
+
+def _resolve_dependencies(
+    selected_objects: list[str],
+    all_priority_groups: list[list[str]],
+) -> list[str]:
+    """Ensure all dependency objects are included and ordered correctly.
+
+    Scans each selected object's mapping file for transformation functions
+    that require lookup tables from other objects.  If those prerequisite
+    objects are not already selected, they are automatically added.
+    """
+    import json
+    from pathlib import Path
+    from config.settings import PATH_TO_MAPPING
+
+    needed: set[str] = set(selected_objects)
+
+    for obj_name in list(selected_objects):
+        mapping_path = PATH_TO_MAPPING / f"{obj_name}.json"
+        if not mapping_path.exists():
+            continue
+        try:
+            mapping = json.load(open(mapping_path, "r", encoding="utf-8"))
+        except Exception:
+            continue
+        for field_def in mapping.get("fields", []):
+            func = field_def.get("transformation_function", "")
+            if func in _FUNCTION_DEPENDENCY_MAP:
+                table = _FUNCTION_DEPENDENCY_MAP[func]
+                dep_object = _TABLE_DEPENDENCY_MAP.get(table)
+                if dep_object and dep_object not in needed:
+                    needed.add(dep_object)
+                    logger.info(
+                        "Auto-including '%s' as dependency for '%s' (requires %s)",
+                        dep_object, obj_name, table,
+                    )
+
+    # Return in priority order
+    all_flat = [name for group in all_priority_groups for name in group]
+    ordered = [name for name in all_flat if name in needed]
+    # Append any objects that weren't in priority lists (shouldn't happen, but safety)
+    for name in needed:
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
 
 
 # Module-level singleton

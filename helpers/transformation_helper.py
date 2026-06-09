@@ -27,7 +27,7 @@ def mask_email(destination_field: str, value: str | None):
     if value:
         email = f"{value.strip()}"
 
-    if env != "PROD":
+    if env != "PROD" and email:
         email += postfix
 
     result[destination_field] = f"{email}"
