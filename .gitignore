@@ -11,7 +11,7 @@ build/
 .venv
 venv/
 *.log
-
+logs/
 # Data (large runtime files - keep schema and sample)
 data/downloads/
 data/transformations/
