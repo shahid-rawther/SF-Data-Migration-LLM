@@ -124,6 +124,60 @@ export function MigrationDetail() {
         </div>
       )}
 
+      {/* Per-object breakdown */}
+      {liveProgress?.records_by_object && Object.keys(liveProgress.records_by_object).length > 0 && (
+        <div style={cardStyle}>
+          <h2 style={h2}>Per-Object Breakdown</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                <th style={thStyle}>Object</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Processed</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(liveProgress.records_by_object)
+                .sort(([, a], [, b]) => (b.processed + b.failed) - (a.processed + a.failed))
+                .map(([name, counts]) => (
+                  <tr key={name} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={tdStyle}>{name}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
+                      {counts.processed.toLocaleString()}
+                    </td>
+                    <td style={{
+                      ...tdStyle,
+                      textAlign: 'right',
+                      color: counts.failed > 0 ? '#dc2626' : '#374151',
+                      fontWeight: counts.failed > 0 ? 600 : 400,
+                    }}>
+                      {counts.failed.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              <tr style={{ borderTop: '2px solid #e5e7eb', fontWeight: 700 }}>
+                <td style={tdStyle}>Total</td>
+                <td style={{ ...tdStyle, textAlign: 'right', color: '#16a34a' }}>
+                  {Object.values(liveProgress.records_by_object)
+                    .reduce((sum, c) => sum + c.processed, 0)
+                    .toLocaleString()}
+                </td>
+                <td style={{
+                  ...tdStyle,
+                  textAlign: 'right',
+                  color: Object.values(liveProgress.records_by_object).reduce((sum, c) => sum + c.failed, 0) > 0
+                    ? '#dc2626' : '#374151',
+                }}>
+                  {Object.values(liveProgress.records_by_object)
+                    .reduce((sum, c) => sum + c.failed, 0)
+                    .toLocaleString()}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Selected objects */}
       <div style={cardStyle}>
         <h2 style={h2}>Selected Objects ({session.selected_objects.length})</h2>
@@ -190,3 +244,5 @@ const statCardStyle: React.CSSProperties = {
 };
 const statLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', fontWeight: 500, marginBottom: 4 };
 const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#374151' };
+const thStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' };
+const tdStyle: React.CSSProperties = { padding: '10px 12px' };

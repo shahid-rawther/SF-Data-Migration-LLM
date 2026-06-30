@@ -58,7 +58,64 @@ class DBClient:
             self._add_batch_operation_column(conn)
             self._add_results_column(conn)
             self._add_batch_salesforce_job_id_column(conn)
+            self._seed_mapping_configs(conn)
             conn.commit()
+
+    def _seed_mapping_configs(self, conn: sqlite3.Connection):
+        """Seed mapping_configs from the JSON files shipped in PATH_TO_MAPPING.
+
+        Runs only once: when the mapping_configs table is empty. Each JSON
+        file becomes a system mapping (is_system=1). The priority is derived
+        from the position of the object in MAPPING_PRIORITY +
+        ATTACHMENT_MAPPING_PRIORITY so the original migration ordering is
+        preserved. Seeding is self-contained (reads files directly) to avoid
+        importing higher-level services from this low-level DB layer.
+        """
+        import json
+        from datetime import datetime, timezone
+        from config.settings import (
+            PATH_TO_MAPPING,
+            MAPPING_PRIORITY,
+            ATTACHMENT_MAPPING_PRIORITY,
+        )
+
+        row = conn.execute("SELECT COUNT(*) FROM mapping_configs").fetchone()
+        if row and row[0] > 0:
+            return
+
+        # Build a flat name -> priority index from the priority groups.
+        priority_map: dict[str, int] = {}
+        for idx, group in enumerate(MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY):
+            for name in group:
+                priority_map.setdefault(name, idx)
+
+        mapping_dir = PATH_TO_MAPPING
+        if not mapping_dir.exists():
+            return
+
+        now = datetime.now(timezone.utc).isoformat()
+        rows: list[tuple] = []
+        for json_file in sorted(mapping_dir.glob("*.json")):
+            name = json_file.stem
+            try:
+                config_text = json_file.read_text(encoding="utf-8")
+                config = json.loads(config_text) if config_text.strip() else {}
+            except Exception:
+                continue
+            # Priority precedence: explicit position in priority groups, then
+            # the file's own "priority" key, then a large default.
+            priority = priority_map.get(name, config.get("priority", 9999))
+            rows.append((name, "servicenow", json.dumps(config), priority, 1, now, now))
+
+        if rows:
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO mapping_configs
+                    (name, source_type, config, priority, is_system, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
 
     def _add_batch_operation_column(self, conn: sqlite3.Connection):
         """

@@ -68,6 +68,7 @@
         
         {
             "destination_field": "Description",
+            "transformation_function": "sanitize_description",
             "source_field": "incident.description"
         },
         {
@@ -117,8 +118,8 @@
         },
         {
             "destination_field": "ResolutionDateTime",
-            "transformation_function": "convert_to_sf_time_format",
-            "source_field": "incident.resolved_at"
+            "transformation_function": "safe_resolution_datetime",
+            "source_field": ["incident.resolved_at", "incident.closed_at"]
         },
         {
             "destination_field": "ResolutionStatusCode",
@@ -159,7 +160,7 @@
         {
             "destination_field": "Subject",
             "transformation_function": "populate_subject",
-            "source_field": ["incident.number","incident.short_description"]
+            "source_field": ["incident.number","incident.short_description","incident.description"]
         },
         {
             "destination_field": "Urgency",
@@ -168,8 +169,8 @@
         },
         {
             "destination_field": "Sub_Category__c",
-            "transformation_function": "look_up_subcategory",
-            "source_field": "incident.subcategory"
+            "transformation_function": "look_up_incident_subcategory",
+            "source_field": ["incident.subcategory", "incident.category"]
         },
         {
             "destination_field": "Actual_SLA_End_Date__c",

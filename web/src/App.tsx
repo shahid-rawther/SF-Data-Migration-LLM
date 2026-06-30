@@ -3,6 +3,7 @@ import { Dashboard } from './pages/Dashboard';
 import { NewMigrationWizard } from './pages/NewMigrationWizard';
 import { MigrationDetail } from './pages/MigrationDetail';
 import { History } from './pages/History';
+import { MappingsList, MappingEditor } from './pages/MappingEditor';
 
 function NavBar() {
   return (
@@ -25,6 +26,7 @@ function NavBar() {
       </Link>
       <Link to="/" style={navLink}>Dashboard</Link>
       <Link to="/new" style={navLink}>New Migration</Link>
+      <Link to="/mappings" style={navLink}>Mappings</Link>
       <Link to="/history" style={navLink}>History</Link>
     </nav>
   );
@@ -44,6 +46,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/new" element={<NewMigrationWizard />} />
+          <Route path="/mappings" element={<MappingsList />} />
+          <Route path="/mappings/new" element={<MappingEditor />} />
+          <Route path="/mappings/edit/:name" element={<MappingEditor />} />
           <Route path="/migrations/:id" element={<MigrationDetail />} />
           <Route path="/history" element={<History />} />
         </Routes>

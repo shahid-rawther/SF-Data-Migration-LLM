@@ -1,6 +1,6 @@
 {
     "priority": 1,
-    "operation": "update",
+    "operation": "upsert",
     "servicenow_tables": [
         "problem"
     ],
@@ -84,7 +84,7 @@
             "destination_field": "ResolutionSummary"
         },
         {
-            "source_field": ["problem.resolved_by", "problem.closed_by"],
+            "source_field": ["problem.resolved_by", "problem.closed_by", "problem.assigned_to", "problem.opened_by"],
             "transformation_function": "look_up_resolved_by_for_problem",
             "destination_field": "ResolvedById"
         },

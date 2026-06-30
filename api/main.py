@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from api.routers import sources, migrations, destinations, connections, compat, custom_fields
+from api.routers import sources, migrations, connections, compat, schema, mappings, transforms
+from api import sources as source_registry
 
 app = FastAPI(
     title="ITSM Data Migration API",
@@ -28,10 +29,20 @@ app.add_middleware(
 
 app.include_router(sources.router, prefix="/api")
 app.include_router(migrations.router, prefix="/api")
-app.include_router(destinations.router, prefix="/api")
 app.include_router(connections.router, prefix="/api")
 app.include_router(compat.router, prefix="/api")
-app.include_router(custom_fields.router, prefix="/api")
+app.include_router(schema.router, prefix="/api")
+app.include_router(mappings.router, prefix="/api")
+app.include_router(transforms.router, prefix="/api")
+
+# Plugin-contributed routers (e.g. Salesforce destination + custom-field endpoints).
+# Each registered source/destination plugin may expose its own FastAPI routers.
+for _provider in source_registry.get_all():
+    for _router in _provider.get_routers():
+        app.include_router(_router, prefix="/api")
+for _destination in source_registry.get_all_destinations():
+    for _router in _destination.get_routers():
+        app.include_router(_router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, MigratableObject, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
+import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
-import { ObjectSelector } from '../components/ObjectSelector';
+import { SourceTableSelector } from '../components/SourceTableSelector';
+import { TableMappingCard } from '../components/TableMappingCard';
+import type { TableMappingState } from '../components/TableMappingCard';
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const SALESFORCE_SCHEMA = {
   type: 'object',
@@ -25,11 +27,18 @@ export function NewMigrationWizard() {
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
   const [sourceCreds, setSourceCreds] = useState<Record<string, string>>({});
   const [destCreds, setDestCreds] = useState<Record<string, string>>({ api_version: 'v60.0' });
-  const [objects, setObjects] = useState<MigratableObject[]>([]);
-  const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
+  // Live schema state
+  const [sourceTables, setSourceTables] = useState<string[]>([]);
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
+  const [sfObjects, setSfObjects] = useState<{ name: string; label: string }[]>([]);
+  const [loadingSfObjects, setLoadingSfObjects] = useState(false);
+  const [tableMappings, setTableMappings] = useState<TableMappingState[]>([]);
+  const [savingMappings, setSavingMappings] = useState(false);
   const [options, setOptions] = useState({
     start_date: '',
     end_date: '',
+    source_batch_size: 5000,
     service_now_batch_size: 5000,
     salesforce_batch_size: 1000,
     disable_load: false,
@@ -168,11 +177,86 @@ export function NewMigrationWizard() {
     }
   };
 
-  const loadObjects = async () => {
+  const [tableLoadError, setTableLoadError] = useState<string | null>(null);
+
+  const loadSourceTables = useCallback(async () => {
     if (!selectedSource) return;
-    const objs = await api.sources.listObjects(selectedSource.id);
-    setObjects(objs);
-    setSelectedObjects(objs.map((o) => o.name)); // default: all selected
+    setLoadingTables(true);
+    setTableLoadError(null);
+    try {
+      const res = await api.schema.sourceTables(selectedSource.id, sourceCreds);
+      setSourceTables(res.tables);
+      if (res.tables.length === 0) {
+        setTableLoadError(
+          'The source returned 0 tables. The instance may be hibernating or the user lacks read access to sys_db_object.',
+        );
+      }
+    } catch (err) {
+      console.error('Failed to load source tables', err);
+      setSourceTables([]);
+      setTableLoadError(err instanceof Error ? err.message : 'Failed to fetch source tables');
+    } finally {
+      setLoadingTables(false);
+    }
+  }, [selectedSource, sourceCreds]);
+
+  const loadSfObjects = useCallback(async () => {
+    setLoadingSfObjects(true);
+    try {
+      const res = await api.schema.destinationObjects(destCreds);
+      setSfObjects(res.objects.map((o) => ({ name: o.name, label: o.label })));
+    } catch (err) {
+      console.error('Failed to load SF objects', err);
+      setSfObjects([]);
+    } finally {
+      setLoadingSfObjects(false);
+    }
+  }, [destCreds]);
+
+  const defaultMappingName = (table: string) =>
+    table.replace(/^(sc_|sys_)/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\s/g, '');
+
+  const syncTableMappings = useCallback((tables: string[]) => {
+    setTableMappings((prev) => {
+      const existing = new Map(prev.map((m) => [m.sourceTable, m]));
+      return tables.map(
+        (t) =>
+          existing.get(t) ?? {
+            sourceTable: t,
+            sfObject: '',
+            mappingName: defaultMappingName(t),
+            operation: 'insert' as const,
+            fields: [],
+            sourceFields: [],
+            destFields: [],
+            fieldsLoaded: false,
+          },
+      );
+    });
+  }, []);
+
+  const saveMappingsToDb = async () => {
+    setSavingMappings(true);
+    try {
+      for (const m of tableMappings) {
+        if (!m.sfObject || !m.mappingName) continue;
+        await api.mappings.create(
+          m.mappingName,
+          {
+            destination_object: m.sfObject,
+            source_tables: [m.sourceTable],
+            operation: m.operation,
+            priority: 100,
+            fields: m.fields,
+          },
+          selectedSource?.id ?? 'servicenow',
+        );
+      }
+    } catch (err) {
+      console.error('Failed to save mappings', err);
+    } finally {
+      setSavingMappings(false);
+    }
   };
 
   const validateDestination = async () => {
@@ -195,12 +279,15 @@ export function NewMigrationWizard() {
     }
   };
 
+  const mappingNames = tableMappings.filter((m) => m.sfObject && m.mappingName).map((m) => m.mappingName);
+
   const checkObjectVisibility = async () => {
     setCheckingDiagnostics(true);
     setDiagnostics(null);
     setExpandDetails(false);
     try {
-      const res = await api.destinations.checkSalesforceDiagnostics(destCreds, selectedObjects);
+      const sfObjNames = tableMappings.filter((m) => m.sfObject).map((m) => m.sfObject);
+      const res = await api.destinations.checkSalesforceDiagnostics(destCreds, sfObjNames);
       setDiagnostics(res);
     } catch (e: unknown) {
       setDiagnostics({
@@ -223,7 +310,7 @@ export function NewMigrationWizard() {
         selectedSource.id,
         sourceCreds,
         destCreds,
-        selectedObjects,
+        mappingNames,
       );
       setCompatReport(report);
     } catch (e: unknown) {
@@ -233,14 +320,14 @@ export function NewMigrationWizard() {
     }
   };
 
-  const openCreateFieldDialog = (sfObject: string, field: { destination_field: string; suggested_custom_field: string; source_field: string }) => {
+  const openCreateFieldDialog = (sfObject: string, field: { destination_field: string; suggested_custom_field: string; source_field: string; suggested_field_type?: string }) => {
     const key = `${sfObject}::${field.destination_field}`;
     const suggestedName = field.suggested_custom_field || field.destination_field;
     const label = suggestedName.replace(/__c$/, '').replace(/_/g, ' ');
     setCreatingField(key);
     setCustomFieldName(suggestedName);
     setCustomFieldLabel(label);
-    setCustomFieldType('Text');
+    setCustomFieldType(field.suggested_field_type || 'Text');
     setCustomFieldMsg(null);
   };
 
@@ -287,7 +374,7 @@ export function NewMigrationWizard() {
     }
   };
 
-  const handleBulkCreateFields = async (sfObject: string, fields: { destination_field: string; suggested_custom_field: string; source_field: string }[]) => {
+  const handleBulkCreateFields = async (sfObject: string, fields: { destination_field: string; suggested_custom_field: string; source_field: string; suggested_field_type?: string }[]) => {
     setBulkCreating(true);
     setBulkResults([]);
     const results: { field: string; success: boolean; message: string }[] = [];
@@ -295,14 +382,16 @@ export function NewMigrationWizard() {
     for (const f of fields) {
       const apiName = f.suggested_custom_field || f.destination_field;
       const label = apiName.replace(/__c$/, '').replace(/_/g, ' ');
+      const fieldType = f.suggested_field_type || 'Text';
+      const fieldLength = fieldType === 'LongTextArea' ? 32768 : 255;
       try {
         const res = await api.customFields.create({
           destination_credentials: destCreds,
           salesforce_object: sfObject,
           field_label: label,
           field_api_name: apiName.endsWith('__c') ? apiName : apiName + '__c',
-          field_type: 'Text',
-          length: 255,
+          field_type: fieldType,
+          length: fieldLength,
         });
         results.push({ field: apiName, success: res.success, message: res.message });
         if (res.success) {
@@ -335,13 +424,18 @@ export function NewMigrationWizard() {
     setBulkCreating(false);
   };
 
-  const goStep = (s: Step) => {
+  const goStep = async (s: Step) => {
     setValidationMsg(null);
     setDestValidationMsg(null);
     setDiagnostics(null);
     setExpandDetails(false);
-    if (s === 3 && objects.length === 0) loadObjects();
+    if (s === 3 && sourceTables.length === 0) loadSourceTables();
     if (s === 4) {
+      syncTableMappings(selectedTables);
+      if (sfObjects.length === 0) loadSfObjects();
+    }
+    if (s === 5) {
+      await saveMappingsToDb();
       setCompatReport(null);
       setCompatError(null);
     }
@@ -355,10 +449,14 @@ export function NewMigrationWizard() {
     try {
       const res = await api.migrations.create({
         source_type: selectedSource.id,
+        destination_type: 'salesforce',
         source_credentials: sourceCreds,
         destination_credentials: destCreds,
-        selected_objects: selectedObjects,
-        options,
+        selected_objects: mappingNames,
+        options: {
+          ...options,
+          service_now_batch_size: options.source_batch_size,
+        },
       });
       navigate(`/migrations/${res.session_id}`);
     } catch (e: unknown) {
@@ -372,7 +470,7 @@ export function NewMigrationWizard() {
     <div style={pageStyle}>
       {/* Stepper */}
       <div style={stepperStyle}>
-        {(['Select Source', 'Destination', 'Select Objects', 'Compatibility', 'Options & Review'] as const).map(
+        {(['Select Source', 'Destination', 'Select Tables', 'Map Fields', 'Compatibility', 'Review & Run'] as const).map(
           (label, i) => {
             const stepNum = (i + 1) as Step;
             return (
@@ -702,18 +800,39 @@ export function NewMigrationWizard() {
           </div>
         )}
 
-        {/* Step 3 — Objects */}
+        {/* Step 3 — Select Source Tables (live) */}
         {step === 3 && (
           <div>
-            <h2 style={h2}>Select Objects to Migrate</h2>
+            <h2 style={h2}>Select Source Tables</h2>
             <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
-              {selectedObjects.length} of {objects.length} objects selected
+              Select the {selectedSource?.name ?? 'source'} tables you want to migrate.
+              {!loadingTables && ` ${selectedTables.length} of ${sourceTables.length} selected.`}
             </p>
-            <ObjectSelector objects={objects} selected={selectedObjects} onChange={setSelectedObjects} />
+            {tableLoadError && (
+              <div style={{
+                padding: 12, marginBottom: 12, borderRadius: 8,
+                background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
+              }}>
+                {tableLoadError}
+                <button
+                  onClick={loadSourceTables}
+                  disabled={loadingTables}
+                  style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 12 }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            <SourceTableSelector
+              tables={sourceTables}
+              selected={selectedTables}
+              onChange={setSelectedTables}
+              loading={loadingTables}
+            />
             <div style={navRow}>
               <button onClick={() => goStep(2)} style={secondaryBtn}>← Back</button>
               <button
-                disabled={selectedObjects.length === 0}
+                disabled={selectedTables.length === 0}
                 onClick={() => goStep(4)}
                 style={primaryBtn}
               >
@@ -723,28 +842,93 @@ export function NewMigrationWizard() {
           </div>
         )}
 
-        {/* Step 4 — Compatibility Check */}
+        {/* Step 4 — Map to Salesforce (inline mapping) */}
         {step === 4 && (
+          <div>
+            <h2 style={h2}>Map to Salesforce</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+              For each selected source table, choose a Salesforce object and configure field mappings.
+              {loadingSfObjects && ' Loading Salesforce objects...'}
+            </p>
+
+            {savingMappings && (
+              <div style={{ padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+                Saving mappings...
+              </div>
+            )}
+
+            {tableMappings.map((m, idx) => (
+              <TableMappingCard
+                key={m.sourceTable}
+                state={m}
+                sfObjects={sfObjects}
+                sourceType={selectedSource?.id ?? 'servicenow'}
+                sourceCreds={sourceCreds}
+                destCreds={destCreds}
+                onChange={(next) =>
+                  setTableMappings((prev) => prev.map((p, i) => (i === idx ? next : p)))
+                }
+              />
+            ))}
+
+            {tableMappings.length === 0 && (
+              <p style={{ color: '#9ca3af', textAlign: 'center', padding: '32px 0' }}>
+                No tables selected. Go back to Step 3 and select tables.
+              </p>
+            )}
+
+            <div style={navRow}>
+              <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
+              <button
+                disabled={mappingNames.length === 0 || savingMappings}
+                onClick={() => goStep(5)}
+                style={primaryBtn}
+              >
+                {savingMappings ? 'Saving...' : 'Next →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5 — Compatibility Check */}
+        {step === 5 && (
           <div>
             <h2 style={h2}>Compatibility Check</h2>
             <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
-              Analyse how well your selected {selectedSource?.name} objects map onto Salesforce.
+              Analyse how well your mappings work with the Salesforce destination.
               This is a dry-run analysis — no data is moved.
             </p>
 
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <button
                 onClick={runCompatibilityCheck}
                 disabled={checkingCompat}
                 style={primaryBtn}
               >
-                {checkingCompat ? '⏳ Checking…' : '🔍 Run Compatibility Check'}
+                {checkingCompat ? 'Checking...' : 'Run Compatibility Check'}
               </button>
+              <Link
+                to={`/mappings/new?source=${selectedSource?.id ?? ''}&srcConn=${selectedSourceConn}&destConn=${selectedDestConn}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '10px 16px',
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  textDecoration: 'none',
+                }}
+              >
+                Customize Mappings
+              </Link>
             </div>
 
             {compatError && (
               <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>
-                ⚠️ {compatError}
+                {compatError}
               </div>
             )}
 
@@ -757,7 +941,6 @@ export function NewMigrationWizard() {
                   border: `1px solid ${compatBorder(compatReport.overall_pct)}`,
                 }}>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>
-                    {compatIcon(compatReport.overall_pct)}{' '}
                     Overall Compatibility: {compatReport.overall_pct}%
                   </div>
                   <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{compatReport.summary}</div>
@@ -777,7 +960,7 @@ export function NewMigrationWizard() {
                     >
                       <div>
                         <strong>{obj.source_label}</strong>
-                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>→ {obj.salesforce_object}</span>
+                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{'->'} {obj.salesforce_object}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span style={{
@@ -789,7 +972,7 @@ export function NewMigrationWizard() {
                         <span style={{ fontSize: 12, color: '#6b7280' }}>
                           {obj.mapped_fields}/{obj.total_fields} fields mapped
                         </span>
-                        <span>{expandedCompatObj === obj.object_name ? '▼' : '▶'}</span>
+                        <span>{expandedCompatObj === obj.object_name ? '\u25BC' : '\u25B6'}</span>
                       </div>
                     </div>
                     {expandedCompatObj === obj.object_name && (
@@ -797,29 +980,30 @@ export function NewMigrationWizard() {
                         {obj.blockers.length > 0 && (
                           <div style={{ marginBottom: 10, padding: 10, background: '#fef2f2', borderRadius: 6, border: '1px solid #fca5a5' }}>
                             {obj.blockers.map((b, i) => (
-                              <div key={i} style={{ fontSize: 12, color: '#dc2626' }}>🚫 {b}</div>
+                              <div key={i} style={{ fontSize: 12, color: '#dc2626' }}>{b}</div>
                             ))}
                           </div>
                         )}
 
                         {/* Bulk create all missing fields button */}
-                        {obj.fields.some((f) => f.status === 'no_mapping') && (
+                        {obj.fields.some((f) => f.status === 'no_mapping' && f.suggested_custom_field) && (
                           <div style={{ marginBottom: 12, padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>
-                                {obj.fields.filter((f) => f.status === 'no_mapping').length} missing field(s) detected
+                                {obj.fields.filter((f) => f.status === 'no_mapping' && f.suggested_custom_field).length} missing field(s) detected
                               </div>
                               <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                                Create all missing fields as custom Text fields in Salesforce with suggested names
+                                Create all missing fields in Salesforce with auto-detected types
                               </div>
                             </div>
                             <button
                               onClick={() => handleBulkCreateFields(
                                 obj.salesforce_object,
-                                obj.fields.filter((f) => f.status === 'no_mapping').map((f) => ({
+                                obj.fields.filter((f) => f.status === 'no_mapping' && f.suggested_custom_field).map((f) => ({
                                   destination_field: f.destination_field,
                                   suggested_custom_field: f.suggested_custom_field,
                                   source_field: f.source_field,
+                                  suggested_field_type: f.suggested_field_type,
                                 }))
                               )}
                               disabled={bulkCreating}
@@ -828,7 +1012,7 @@ export function NewMigrationWizard() {
                                 border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
                               }}
                             >
-                              {bulkCreating ? '⏳ Creating...' : '⚡ Create All Missing Fields'}
+                              {bulkCreating ? 'Creating...' : 'Create All Missing Fields'}
                             </button>
                           </div>
                         )}
@@ -839,7 +1023,7 @@ export function NewMigrationWizard() {
                             <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Creation Results:</div>
                             {bulkResults.map((r, i) => (
                               <div key={i} style={{ fontSize: 11, color: r.success ? '#16a34a' : '#dc2626', marginBottom: 2 }}>
-                                {r.success ? '✅' : '❌'} {r.field}: {r.message}
+                                {r.field}: {r.message}
                               </div>
                             ))}
                           </div>
@@ -859,7 +1043,7 @@ export function NewMigrationWizard() {
                               const fieldKey = `${obj.salesforce_object}::${f.destination_field}`;
                               return (
                               <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <td style={tdStyle}>{f.source_field || '—'}</td>
+                                <td style={tdStyle}>{f.source_field || '\u2014'}</td>
                                 <td style={tdStyle}>{f.destination_field}</td>
                                 <td style={tdStyle}>
                                   <span style={{
@@ -870,9 +1054,9 @@ export function NewMigrationWizard() {
                                     {f.status}
                                   </span>
                                 </td>
-                                <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '—'}</td>
+                                <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '\u2014'}</td>
                                 <td style={tdStyle}>
-                                  {f.status === 'no_mapping' && (
+                                  {f.status === 'no_mapping' && f.suggested_custom_field && (
                                     <button
                                       onClick={() => openCreateFieldDialog(obj.salesforce_object, f)}
                                       style={{
@@ -965,7 +1149,7 @@ export function NewMigrationWizard() {
                             </div>
                             {customFieldMsg && customFieldMsg.key === creatingField && (
                               <div style={{ marginTop: 8, fontSize: 12, color: customFieldMsg.success ? '#16a34a' : '#dc2626' }}>
-                                {customFieldMsg.success ? '✅' : '❌'} {customFieldMsg.message}
+                                {customFieldMsg.message}
                               </div>
                             )}
                           </div>
@@ -978,16 +1162,16 @@ export function NewMigrationWizard() {
             )}
 
             <div style={navRow}>
-              <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
-              <button onClick={() => goStep(5)} style={primaryBtn}>Next →</button>
+              <button onClick={() => goStep(4)} style={secondaryBtn}>&larr; Back</button>
+              <button onClick={() => goStep(6)} style={primaryBtn}>Next &rarr;</button>
             </div>
           </div>
         )}
 
-        {/* Step 5 — Options & Review */}
-        {step === 5 && (
+        {/* Step 6 — Options & Review */}
+        {step === 6 && (
           <div>
-            <h2 style={h2}>Options & Review</h2>
+            <h2 style={h2}>Review & Run</h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
               <div>
@@ -1012,8 +1196,8 @@ export function NewMigrationWizard() {
                 <label style={labelStyle}>Source Batch Size</label>
                 <input
                   type="number"
-                  value={options.service_now_batch_size}
-                  onChange={(e) => setOptions((o) => ({ ...o, service_now_batch_size: +e.target.value }))}
+                  value={options.source_batch_size}
+                  onChange={(e) => setOptions((o) => ({ ...o, source_batch_size: +e.target.value }))}
                   style={inputStyle}
                 />
               </div>
@@ -1043,15 +1227,21 @@ export function NewMigrationWizard() {
               <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div><strong>Source:</strong> {selectedSource?.name}</div>
                 <div><strong>Destination:</strong> Salesforce ({destCreds.base_url || 'not set'})</div>
-                <div><strong>Objects:</strong> {selectedObjects.length} selected</div>
-                  {compatReport && (
-                    <div>
-                      <strong>Compatibility:</strong>{' '}
-                      <span style={{ color: compatColor(compatReport.overall_pct) }}>
-                        {compatReport.overall_pct}%
-                      </span>
-                    </div>
-                  )}
+                <div><strong>Mappings:</strong> {mappingNames.length} configured</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 16 }}>
+                  {tableMappings
+                    .filter((m) => m.sfObject && m.mappingName)
+                    .map((m) => `${m.sourceTable} -> ${m.sfObject} (${m.mappingName})`)
+                    .join(', ')}
+                </div>
+                {compatReport && (
+                  <div>
+                    <strong>Compatibility:</strong>{' '}
+                    <span style={{ color: compatColor(compatReport.overall_pct) }}>
+                      {compatReport.overall_pct}%
+                    </span>
+                  </div>
+                )}
                 <div><strong>Dry run:</strong> {options.disable_load ? 'Yes (extract & transform only)' : 'No'}</div>
               </div>
             </div>
@@ -1059,9 +1249,9 @@ export function NewMigrationWizard() {
             {error && <p style={{ color: '#dc2626', fontSize: 13 }}>Error: {error}</p>}
 
             <div style={navRow}>
-              <button onClick={() => goStep(4)} style={secondaryBtn}>← Back</button>
+              <button onClick={() => goStep(5)} style={secondaryBtn}>&larr; Back</button>
               <button onClick={submit} disabled={submitting} style={primaryBtn}>
-                {submitting ? 'Creating…' : '🚀 Create Migration'}
+                {submitting ? 'Creating...' : 'Create Migration'}
               </button>
             </div>
           </div>

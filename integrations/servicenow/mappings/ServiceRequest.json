@@ -16,7 +16,7 @@
     "filters": [
 
     ],
-    "operation": "update",
+    "operation": "upsert",
     "salesforce_object": "SvcCatalogRequest",
     "salesforce_objects": [
         {

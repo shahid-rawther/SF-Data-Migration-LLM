@@ -7,7 +7,7 @@ PATH_TO_TRANSFORMATION = (
 )
 PATH_TO_RESULTS = Path(__file__).resolve().parent.parent.absolute() / "data/results"
 PATH_TO_MAPPING = (
-    Path(__file__).resolve().parent.parent.absolute() / "data/mappings/field_mappings"
+    Path(__file__).resolve().parent.parent.absolute() / "integrations/servicenow/mappings"
 )
 PATH_TO_PRIORITY_MAPPING = (
     Path(__file__).resolve().parent.parent.absolute() / "data/mappings/priority"
@@ -24,7 +24,7 @@ SALESFORCE_BATCH_SIZE = 1000
 
 # Service Now Batch
 SERVICE_NOW_NO_OF_BATCH = None
-SERVICE_NOW_BATCH_SIZE = 5000
+SERVICE_NOW_BATCH_SIZE = 10000
 SERVICE_NOW_START_DATE = ""
 SERCICE_NOW_END_DATE = ""
 

@@ -1,28 +1,15 @@
-from api.sources.base import SourceProvider
-from api.sources.servicenow import ServiceNowProvider
-from api.sources.jira_service_management import JSMProvider
-from api.sources.zendesk import ZendeskProvider
-from api.sources.freshworks import FreshworksProvider
-from api.sources.zoho import ZohoProvider
+"""Backward-compatibility shim for the source registry.
 
-_REGISTRY: dict[str, SourceProvider] = {}
-
-
-def register(provider: SourceProvider) -> None:
-    _REGISTRY[provider.source_id] = provider
-
-
-def get_all() -> list[SourceProvider]:
-    return list(_REGISTRY.values())
-
-
-def get(source_id: str) -> SourceProvider | None:
-    return _REGISTRY.get(source_id)
-
-
-# Register built-in providers
-register(ServiceNowProvider())
-register(JSMProvider())
-register(ZendeskProvider())
-register(FreshworksProvider())
-register(ZohoProvider())
+The registry and provider implementations now live in the ``integrations``
+package. Existing callers do ``from api import sources as source_registry`` and
+use ``source_registry.get(...)`` / ``.get_all()`` / ``.register(...)`` — those
+names are re-exported here and delegate to :mod:`integrations`.
+"""
+from integrations import (  # noqa: F401
+    get,
+    get_all,
+    get_destination,
+    get_all_destinations,
+    register,
+    register_destination,
+)

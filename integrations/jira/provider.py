@@ -10,7 +10,7 @@ from typing import Iterator
 
 import requests
 
-from api.sources.base import MigratableObject, SourceField, SourceProvider
+from integrations.base import MigratableObject, SourceField, SourceProvider
 
 _JSM_OBJECTS: list[dict] = [
     {

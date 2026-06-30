@@ -6,7 +6,11 @@ from pydantic import BaseModel
 import requests
 import re
 
+from services.internal import mappings_service
+
 router = APIRouter(prefix="/custom-fields", tags=["custom-fields"])
+
+_PRODUCT_ID_MAPPING_TABLE = "sc_cat_item_Product2_Product"
 
 
 class CreateCustomFieldRequest(BaseModel):
@@ -85,14 +89,17 @@ def _suggest_label(source_field: str) -> str:
 
 @router.post("/suggest", response_model=SuggestFieldNameResponse)
 def suggest_custom_field_name(body: SuggestFieldNameRequest):
-    """Suggest a custom field name based on the source field."""
+    """Suggest a custom field name and type based on the source field."""
+    from api.compat_engine import _infer_field_type
     label = _suggest_label(body.source_field)
     api_name = _sanitize_api_name(body.source_field)
+    inferred_type = _infer_field_type(api_name)
+    length = 32768 if inferred_type == "LongTextArea" else 255
     return SuggestFieldNameResponse(
         suggested_label=label,
         suggested_api_name=api_name,
-        suggested_type="Text",
-        suggested_length=255,
+        suggested_type=inferred_type,
+        suggested_length=length,
     )
 
 
@@ -211,8 +218,64 @@ def create_custom_field(body: CreateCustomFieldRequest):
         except Exception:
             msg = resp.text[:500]
 
+        # Treat "already exists" as success — the field is present, which is the goal.
+        if "there is already a field named" in msg.lower():
+            return CreateCustomFieldResponse(
+                success=True,
+                message=f"Field '{body.field_label}' already exists on {body.salesforce_object} — no action needed.",
+                field_api_name=body.field_api_name,
+            )
+
         return CreateCustomFieldResponse(
             success=False,
             message=f"Failed to create field: {msg}",
             field_api_name=body.field_api_name,
         )
+
+
+# ── Product ID mapping sync ────────────────────────────────────────────────────
+
+
+class SyncProductMappingsRequest(BaseModel):
+    source_credentials: dict   # ServiceNow: base_url, username, password
+    destination_credentials: dict  # Salesforce: base_url, client_id, client_secret, api_version
+
+
+class SyncProductMappingsResponse(BaseModel):
+    matched: int
+    unmatched_sn: list[str]   # ServiceNow catalog item names with no Salesforce match
+    unmatched_sf: list[str]   # Salesforce product names with no ServiceNow match
+    message: str
+
+
+@router.post("/sync-product-mappings", response_model=SyncProductMappingsResponse)
+def sync_product_mappings(body: SyncProductMappingsRequest):
+    """Populate id_mappings for sc_cat_item → Product2 by matching on Name.
+
+    This is called automatically at migration start when InsertCase,
+    ServiceRequest, or UpdateServiceRequestFinal are selected.  It can also
+    be triggered manually here.
+    """
+    sn = body.source_credentials
+    sf = body.destination_credentials
+
+    sn_base = (sn.get("base_url") or "").rstrip("/")
+    sn_user = sn.get("username") or sn.get("user") or ""
+    sn_pass = sn.get("password") or ""
+
+    try:
+        result = mappings_service.sync_product_id_mappings(sn_base, sn_user, sn_pass, sf)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Sync failed: {e}")
+
+    return SyncProductMappingsResponse(
+        matched=result["matched"],
+        unmatched_sn=result["unmatched_sn"],
+        unmatched_sf=result["unmatched_sf"],
+        message=(
+            f"Synced {result['matched']} product mapping(s) into id_mappings. "
+            f"{len(result['unmatched_sn'])} ServiceNow catalog item(s) had no matching Salesforce product."
+        ),
+    )

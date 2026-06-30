@@ -59,7 +59,8 @@ class FieldResult:
     source_type: str
     destination_type: str
     suggestion: str      # Human-readable guidance
-    suggested_custom_field: str = ""  # Suggested custom field API name (only for no_mapping)
+    suggested_custom_field: str = ""   # Suggested custom field API name (only for no_mapping)
+    suggested_field_type: str = "Text" # Inferred Salesforce field type for creation
 
 
 @dataclass
@@ -133,6 +134,228 @@ def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
         return {}
 
 
+def _sf_describe(sf_object: str, sf_credentials: dict) -> list[dict]:
+    """Return the raw Salesforce describe `fields` list for an object.
+
+    Returns [] on any error so callers can degrade gracefully.
+    """
+    try:
+        import requests
+
+        base_url = (sf_credentials.get("base_url") or "").rstrip("/")
+        client_id = sf_credentials.get("client_id", "")
+        client_secret = sf_credentials.get("client_secret", "")
+        api_version = sf_credentials.get("api_version", "v60.0")
+
+        if not (base_url and client_id and client_secret):
+            return []
+
+        token_resp = requests.post(
+            f"{base_url}/services/oauth2/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=12,
+        )
+        if token_resp.status_code != 200:
+            return []
+        access_token = token_resp.json().get("access_token", "")
+        instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
+
+        describe_resp = requests.get(
+            f"{instance_url}/services/data/{api_version}/sobjects/{sf_object}/describe",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=20,
+        )
+        if describe_resp.status_code != 200:
+            return []
+        return describe_resp.json().get("fields", [])
+    except Exception:
+        return []
+
+
+def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
+    """Return rich field metadata for a Salesforce object.
+
+    Each entry: {name, label, type, length, required, createable, updateable,
+    reference_to, picklist_values}. Used by the schema-discovery and
+    auto-suggest APIs.
+    """
+    fields: list[dict] = []
+    for f in _sf_describe(sf_object, sf_credentials):
+        required = (not f.get("nillable", True)) and (not f.get("defaultedOnCreate", False))
+        fields.append({
+            "name": f.get("name", ""),
+            "label": f.get("label", f.get("name", "")),
+            "type": f.get("type", ""),
+            "length": f.get("length", 0),
+            "required": bool(required),
+            "createable": bool(f.get("createable", False)),
+            "updateable": bool(f.get("updateable", False)),
+            "reference_to": f.get("referenceTo", []),
+            "picklist_values": [
+                pv.get("value", "")
+                for pv in f.get("picklistValues", [])
+                if pv.get("active", True)
+            ],
+        })
+    return sorted(fields, key=lambda x: x["name"])
+
+
+# ── Auto-suggest mapping ────────────────────────────────────────────────────────
+
+# Generic source type → normalised type, mirrors _norm_sf_type for the SF side.
+_SOURCE_TYPE_MAP: dict[str, str] = {
+    "string": "string",
+    "glide_date_time": "datetime",
+    "glide_date": "date",
+    "due_date": "datetime",
+    "integer": "integer",
+    "decimal": "number",
+    "float": "number",
+    "boolean": "boolean",
+    "reference": "reference",
+    "glide_list": "string",
+    "journal": "string",
+    "journal_input": "string",
+    "html": "string",
+    "translated_text": "string",
+    "choice": "string",
+}
+
+
+def _norm_source_type(src_type: str) -> str:
+    return _SOURCE_TYPE_MAP.get((src_type or "").lower(), "string")
+
+
+def _short_name(field_name: str) -> str:
+    """Return the comparable short name (strip table prefix and __c suffix)."""
+    base = field_name.split(".")[-1]
+    return base.replace("__c", "").replace("_", "").lower()
+
+
+def auto_suggest_mapping(
+    source_type: str,
+    source_table: str,
+    salesforce_object: str,
+    source_credentials: dict,
+    destination_credentials: dict,
+) -> dict:
+    """Generate a draft mapping config by matching source fields to Salesforce
+    fields using name similarity and type compatibility.
+
+    Returns a mapping dict in the same shape as the JSON mapping files, with an
+    extra per-field `confidence` (0-1) and `match_reason` for UI review.
+    """
+    import difflib
+    from api import sources as source_registry
+
+    provider = source_registry.get(source_type)
+    source_fields = (
+        provider.get_table_fields(source_table, source_credentials) if provider else []
+    )
+    dest_fields = get_destination_fields(salesforce_object, destination_credentials)
+
+    # Index source fields by their comparable short name for quick lookup.
+    src_by_short: dict[str, list] = {}
+    for sf in source_fields:
+        src_by_short.setdefault(_short_name(sf.name), []).append(sf)
+    src_short_names = list(src_by_short.keys())
+
+    suggested_fields: list[dict] = []
+    for dest in dest_fields:
+        # Only suggest mappings for writable fields (skip read-only/system).
+        if not dest.get("createable"):
+            continue
+        dest_name = dest["name"]
+        dest_short = _short_name(dest_name)
+        dest_norm_type = _norm_sf_type(dest.get("type", ""))
+
+        confidence = 0.0
+        match_reason = ""
+        matched_source = ""
+
+        # 1. Exact short-name match
+        if dest_short in src_by_short:
+            matched_source = src_by_short[dest_short][0].name
+            confidence = 0.95
+            match_reason = "name match"
+        else:
+            # 2. Fuzzy name match
+            close = difflib.get_close_matches(dest_short, src_short_names, n=1, cutoff=0.6)
+            if close:
+                matched_source = src_by_short[close[0]][0].name
+                ratio = difflib.SequenceMatcher(None, dest_short, close[0]).ratio()
+                confidence = round(0.6 + 0.3 * ratio, 2)
+                match_reason = "fuzzy name match"
+
+        if not matched_source:
+            continue
+
+        # Adjust confidence by type compatibility.
+        src_field = src_by_short[_short_name(matched_source)][0]
+        src_norm_type = _norm_source_type(src_field.field_type)
+        transformation_function = ""
+        transformation_function = ""
+        transformation_params = None
+
+        if src_norm_type == dest_norm_type:
+            pass
+        elif dest_norm_type in ("", "string"):
+            pass
+        elif dest_norm_type == "datetime" and src_norm_type in ("datetime", "date"):
+            transformation_function = "generic_format_datetime"
+            transformation_params = {"input_format": "%Y-%m-%d %H:%M:%S", "output_format": "%Y-%m-%dT%H:%M:%S.000+0000"}
+        elif dest_norm_type == "string" and dest.get("length", 0) > 0:
+            src_len_hint = 255
+            if src_len_hint > dest["length"]:
+                transformation_function = "generic_truncate"
+                transformation_params = {"max_length": dest["length"]}
+        elif dest.get("picklist_values"):
+            transformation_function = "generic_value_map"
+            transformation_params = {"map": {}, "default": ""}
+            confidence = round(confidence * 0.8, 2)
+            match_reason += "; picklist — fill value map"
+        else:
+            confidence = round(confidence * 0.7, 2)
+            match_reason += "; type may need coercion"
+
+        field_entry: dict = {
+            "source_field": matched_source,
+            "destination_field": dest_name,
+            "confidence": confidence,
+            "match_reason": match_reason,
+        }
+        if transformation_function:
+            field_entry["transformation_function"] = transformation_function
+        if transformation_params is not None:
+            field_entry["transformation_params"] = transformation_params
+        suggested_fields.append(field_entry)
+
+    suggested_fields.sort(key=lambda f: f["confidence"], reverse=True)
+
+    return {
+        "name": salesforce_object,
+        "source_type": source_type,
+        "destination_object": salesforce_object,
+        "source_tables": [source_table],
+        "salesforce_object": salesforce_object,
+        "servicenow_tables": [source_table],
+        "operation": "insert",
+        "joins": [],
+        "filters": [],
+        "priority": 9999,
+        "fields": suggested_fields,
+        "_meta": {
+            "source_field_count": len(source_fields),
+            "destination_field_count": len(dest_fields),
+            "suggested_count": len(suggested_fields),
+        },
+    }
+
+
 def _load_mapping_file(object_name: str) -> dict:
     """Load the field-mapping JSON for object_name.
 
@@ -203,6 +426,7 @@ def check_compatibility(
             for fm in explicit_mappings:
                 dest = fm.get("destination_field", "")
                 src = fm.get("source_field", "")
+                transform_fn = fm.get("transformation_function", "")
                 if isinstance(src, list):
                     src = ", ".join(src)
 
@@ -214,19 +438,37 @@ def check_compatibility(
                     status = "mapped"
                     suggestion = "Constant value injected."
                     mapped += 1
+                    suggested_name = ""
+                    inferred_type = "Text"
                 elif not has_dest:
                     status = "no_mapping"
-                    suggested_name = _suggest_custom_field_api_name(dest)
-                    suggestion = (
-                        f"Destination field '{dest}' not found in Salesforce {sf_object}. "
-                        "You can create this as a custom field in Salesforce."
-                    )
+                    if not dest.endswith("__c"):
+                        # Standard Salesforce field (e.g. ProductId, OwnerId, ContactId).
+                        # These already exist in Salesforce — never suggest creating a
+                        # custom duplicate. A missing standard field means a permissions
+                        # or org configuration issue, not a missing custom field.
+                        suggested_name = ""
+                        inferred_type = "Text"
+                        suggestion = (
+                            f"Standard field '{dest}' not found on {sf_object}. "
+                            "Check field-level security or object permissions — "
+                            "do not create a custom field for this."
+                        )
+                    else:
+                        # Genuine custom field that needs to be created.
+                        suggested_name = _suggest_custom_field_api_name(dest)
+                        inferred_type = _infer_field_type(dest, transform_fn)
+                        suggestion = (
+                            f"Destination field '{dest}' not found in Salesforce {sf_object}. "
+                            f"You can create this as a custom {inferred_type} field in Salesforce."
+                        )
                     missing_in_source += 1
                 else:
                     status = "mapped"
                     suggestion = ""
                     mapped += 1
                     suggested_name = ""
+                    inferred_type = "Text"
 
                 field_results.append(FieldResult(
                     source_field=src,
@@ -236,6 +478,7 @@ def check_compatibility(
                     destination_type=dest_type,
                     suggestion=suggestion,
                     suggested_custom_field=suggested_name if status == "no_mapping" else "",
+                    suggested_field_type=inferred_type if status == "no_mapping" else "Text",
                 ))
         else:
             # Generic analysis: compare source fields to SF fields by name similarity
@@ -335,6 +578,60 @@ def check_compatibility(
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+# Transformation functions that imply a specific Salesforce field type
+_TRANSFORM_TO_SF_TYPE: dict[str, str] = {
+    "convert_to_sf_time_format": "DateTime",
+    "convert_to_boolean": "Checkbox",
+    "check_body_length_limit": "LongTextArea",
+    "check_header_length_limit": "LongTextArea",
+}
+
+# Destination field name suffixes/keywords → Salesforce field type (checked lower-case)
+_NAME_SUFFIX_TO_SF_TYPE: list[tuple[str, str]] = [
+    # DateTime patterns
+    ("_on__c", "DateTime"),
+    ("_at__c", "DateTime"),
+    ("_date__c", "DateTime"),
+    ("_datetime__c", "DateTime"),
+    ("_time__c", "DateTime"),
+    # Date-only patterns (no __c suffix — standard fields)
+    ("date", "Date"),
+    # Checkbox patterns
+    ("_active__c", "Checkbox"),
+    ("_enabled__c", "Checkbox"),
+    ("_flag__c", "Checkbox"),
+    ("_boolean__c", "Checkbox"),
+    # Number patterns
+    ("_count__c", "Number"),
+    ("_number__c", "Number"),
+    ("_size__c", "Number"),
+    ("_amount__c", "Number"),
+    # Long text patterns
+    ("_notes__c", "LongTextArea"),
+    ("_body__c", "LongTextArea"),
+    ("_description__c", "LongTextArea"),
+    ("_comments__c", "LongTextArea"),
+]
+
+
+def _infer_field_type(dest_field: str, transformation_function: str = "") -> str:
+    """Infer the best Salesforce custom field type from the transformation
+    function (most reliable) and the destination field name (fallback).
+
+    Returns a Salesforce field type string compatible with the Tooling API:
+    Text | DateTime | Date | Checkbox | Number | LongTextArea
+    """
+    if transformation_function and transformation_function in _TRANSFORM_TO_SF_TYPE:
+        return _TRANSFORM_TO_SF_TYPE[transformation_function]
+
+    dest_lower = dest_field.lower()
+    for suffix, sf_type in _NAME_SUFFIX_TO_SF_TYPE:
+        if dest_lower.endswith(suffix):
+            return sf_type
+
+    return "Text"
+
 
 def _suggest_custom_field_api_name(field_name: str) -> str:
     """Suggest a Salesforce custom field API name from a destination field name.

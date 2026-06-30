@@ -26,15 +26,21 @@
             "object_name": "Case",
             "fields": [
                 "Id",
-                "Subject",
-                "ProductId"
+                "Subject"
+            ]
+        },
+        {
+            "object_name": "Account",
+            "fields": [
+                "Id",
+                "PersonContactId"
             ]
         }
     ],
     "filters": [
 
     ],
-    "operation": "update",
+    "operation": "upsert",
     "salesforce_object": "Case",
     "transformation_name": "InsertCase",
     "fields": [

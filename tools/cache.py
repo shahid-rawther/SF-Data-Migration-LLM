@@ -34,6 +34,10 @@ class ExecutionCache:
     def exists(self, key: str) -> bool:
         return key in self._cache
 
+    def invalidate(self, key: str) -> None:
+        """Remove a single key from the cache so it is reloaded on next access."""
+        self._cache.pop(key, None)
+
     def clear(self) -> None:
         """Clear entire cache."""
         self._cache.clear()

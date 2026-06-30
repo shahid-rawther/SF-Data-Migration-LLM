@@ -1,28 +1,44 @@
 
-from datetime import datetime
-import tqdm
 from config.settings import MAX_WORKERS
-from services.internal.extraction_service import extract_servicenow_tables, extract_servicenow_files
-from services.internal.mappings_service import get_mappings, validate_mappings
+from services.internal.mappings_service import get_mappings, validate_mappings, cfg_source_tables
 import services.internal.jobs_service as jobs_service
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 
-def extract_full_tables():
+def _resolve_source_plugin(source_plugin=None, source_type: str = "servicenow"):
+    """Return the given source plugin, or look one up from the registry.
+
+    Keeping a registry fallback lets CLI / utility callers that don't have a
+    plugin instance handy keep working (they default to ServiceNow).
+    """
+    if source_plugin is not None:
+        return source_plugin
+    from api import sources as plugin_registry
+
+    plugin = plugin_registry.get(source_type)
+    if plugin is None:
+        raise ValueError(f"No source integration registered for '{source_type}'")
+    return plugin
+
+
+def extract_full_tables(source_plugin=None):
     job_id = jobs_service.get_or_create_job(1, "extraction")
-    from services.http_clients.servicenow_http_client import servicenow_client
+    plugin = _resolve_source_plugin(source_plugin)
+    from integrations.servicenow.http_client import servicenow_client
     all_tables = servicenow_client.get_all_table_list()
     all_tables.remove("sys_attachment_doc")
     all_tables.remove("sys_attachment_doc_v2")
-    extract_servicenow_tables(job_id, all_tables)
+    plugin.extract_tables(job_id, all_tables)
     jobs_service.update_job_status(job_id, "success")
 
-def start_extraction(job_id: int, mappings_file_names: list[str] = []):
+
+def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_plugin=None):
     job_id = jobs_service.get_or_create_job(job_id, "extraction")
     jobs_service.update_job_status(job_id, "in-progress")
     total_extracted = 0
+    plugin = _resolve_source_plugin(source_plugin)
     try:
         tables_mappings = get_mappings(mappings_file_names)
         validate_mappings(tables_mappings)
@@ -30,43 +46,42 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = []):
         all_tables = []
 
         for table_mapping in tables_mappings:
-            all_tables.extend(table_mapping["servicenow_tables"])
+            all_tables.extend(cfg_source_tables(table_mapping))
 
         all_tables = list(dict.fromkeys(all_tables))
-        total_extracted = extract_servicenow_tables(job_id, all_tables)
+        total_extracted = plugin.extract_tables(job_id, all_tables)
     except Exception:
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
     return total_extracted
 
-def start_attachment_table_extraction(job_id: int, mappings_file_names: list[str] = []):
+
+def start_attachment_table_extraction(job_id: int, mappings_file_names: list[str] = [], source_plugin=None):
     job_id = jobs_service.get_or_create_job(job_id, "extraction-attachment-table")
+    plugin = _resolve_source_plugin(source_plugin)
     tables_mappings = get_mappings(mappings_file_names)
     validate_mappings(tables_mappings)
 
     all_tables = []
 
     for table_mapping in tables_mappings:
-        all_tables.extend(table_mapping["servicenow_tables"])
+        all_tables.extend(cfg_source_tables(table_mapping))
 
-    extract_servicenow_tables(job_id, all_tables)
+    plugin.extract_tables(job_id, all_tables)
     jobs_service.update_job_status(job_id, "success")
 
 
-
-def start_attachment_file_extraction(job_id: int, mappings_file_names: list[str] = []):
+def start_attachment_file_extraction(job_id: int, mappings_file_names: list[str] = [], source_plugin=None):
     job_id = jobs_service.get_or_create_job(job_id, "extraction-attachment-files")
+    plugin = _resolve_source_plugin(source_plugin)
     tables_mappings = get_mappings(mappings_file_names)
     validate_mappings(tables_mappings)
     try:
 
         for table_mapping in tables_mappings:
-            extract_servicenow_files(job_id, table_mapping)
-    except Exception as e:
-         jobs_service.update_job_status(job_id, "failed")
-         raise
+            plugin.extract_attachment_files(job_id, table_mapping)
+    except Exception:
+        jobs_service.update_job_status(job_id, "failed")
+        raise
     jobs_service.update_job_status(job_id, "success")
-
-
-

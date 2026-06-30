@@ -32,6 +32,7 @@ class ProgressEvent:
     overall_percent: float
     status: str
     message: str = ""
+    records_by_object: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -46,6 +47,7 @@ class ProgressEvent:
             "overall_percent": self.overall_percent,
             "status": self.status,
             "message": self.message,
+            "records_by_object": self.records_by_object,
         }
 
 
@@ -134,6 +136,7 @@ class MigrationManager:
             "overall_percent": 0.0,
             "status": db_session.get("status", "pending"),
             "message": "",
+            "records_by_object": {},
         }
 
     def is_active(self, session_id: str) -> bool:
@@ -220,49 +223,77 @@ class MigrationManager:
             self._emit(session_id, err_event)
 
     def _do_run(self, session_id: str, config: dict, state: SessionState) -> None:
-        from controllers import extraction_controller, transformation_controller, loading_controller
-        from services.http_clients.salesforce_http_client import salesforce_client
-        from services.http_clients.servicenow_http_client import servicenow_client
+        from controllers import extraction_controller, transformation_controller
+        from api import sources as plugin_registry
         from config.settings import (
             EXTRACTION_JOB_NUMBER,
             TRANSFORMATION_JOB_NUMBER,
             LOADING_JOB_NUMBER,
-            ATTACHMENT_MAPPING_PRIORITY,
         )
+        from tools.cache import execution_cache
+
+        execution_cache.clear()
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
         source_type: str = config.get("source_type", "servicenow")
+        destination_type: str = config.get("destination_type", "salesforce")
         source_credentials: dict = config.get("source_credentials", {})
         destination_credentials: dict = config.get("destination_credentials", {})
         dry_run: bool = bool(options.get("disable_load", False))
         token = state.token
 
-        # Configure destination client with credentials from this session.
-        salesforce_client.configure(
-            base_url=destination_credentials.get("base_url"),
-            client_id=destination_credentials.get("client_id"),
-            client_secret=destination_credentials.get("client_secret"),
-            api_version=destination_credentials.get("api_version"),
-        )
-
-        # Configure the source client with credentials from this session.
-        if source_type == "servicenow":
-            servicenow_client.configure(
-                base_url=source_credentials.get("base_url"),
-                username=source_credentials.get("username"),
-                password=source_credentials.get("password"),
+        # Resolve the source and destination plugins from the integration registry.
+        source_plugin = plugin_registry.get(source_type)
+        if source_plugin is None:
+            raise ValueError(f"No source integration registered for '{source_type}'")
+        destination_plugin = plugin_registry.get_destination(destination_type)
+        if destination_plugin is None:
+            raise ValueError(
+                f"No destination integration registered for '{destination_type}'"
             )
 
-        # Build an ordered priority list containing only selected objects
-        from config.settings import MAPPING_PRIORITY
+        # Configure each plugin's client with credentials from this session.
+        destination_plugin.configure_client(destination_credentials)
+        source_plugin.configure_client(source_credentials)
+
+        # ── Pre-flight: sync Product2 ↔ sc_cat_item ID mappings ─────────────────
+        # ServiceNow-specific; only runs when source is ServiceNow.
+        _PRODUCT_SYNC_OBJECTS = {"InsertCase", "ServiceRequest", "UpdateServiceRequestFinal"}
+        if source_type == "servicenow" and any(obj in selected_objects for obj in _PRODUCT_SYNC_OBJECTS):
+            try:
+                from services.internal import mappings_service as _ms
+                _result = _ms.sync_product_id_mappings(
+                    sn_base=source_credentials.get("base_url", ""),
+                    sn_user=source_credentials.get("username", ""),
+                    sn_pass=source_credentials.get("password", ""),
+                    sf_credentials=destination_credentials,
+                )
+                logger.info(
+                    "Product mapping pre-flight sync complete: %d matched, "
+                    "%d unmatched ServiceNow items",
+                    _result["matched"], len(_result["unmatched_sn"]),
+                )
+            except Exception as _sync_err:
+                logger.warning(
+                    "Product mapping pre-flight sync failed (non-blocking) — "
+                    "ProductId/Item__c may be blank: %s", _sync_err,
+                )
+
+        # Build an ordered priority list containing only selected objects.
+        # Priority groups are derived from the mapping_configs DB table so that
+        # user-created mappings (added via the Mapping Editor) participate in
+        # ordering; falls back to the hardcoded settings groups when empty.
+        from services.internal.mappings_service import get_priority_groups
+
+        priority_groups = get_priority_groups(source_type)
 
         # Auto-include dependency objects required by the selected objects
-        selected_objects = _resolve_dependencies(selected_objects, MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY)
+        selected_objects = _resolve_dependencies(selected_objects, priority_groups)
         logger.info("Resolved dependencies — final object list: %s", selected_objects)
 
         ordered: list[list[str]] = []
-        for group in MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY:
+        for group in priority_groups:
             filtered = [name for name in group if name in selected_objects]
             if filtered:
                 ordered.append(filtered)
@@ -273,6 +304,7 @@ class MigrationManager:
         total_fetched = 0
         total_processed = 0
         total_failed = 0
+        records_by_object: dict[str, dict[str, int]] = {}
 
         # ── Phase 1: Extraction ──────────────────────────────────────
         session_db.update_session_status(session_id, "running", "extraction")
@@ -299,7 +331,24 @@ class MigrationManager:
             )
 
         # Perform actual extraction (all selected tables at once)
-        total_fetched = extraction_controller.start_extraction(EXTRACTION_JOB_NUMBER, flat)
+        total_fetched = extraction_controller.start_extraction(
+            EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin
+        )
+
+        # Extract individual attachment files for any attachment objects.
+        # Detection is data-driven: a mapping with is_attachment_table=true.
+        from services.internal.mappings_service import get_mapping_config
+        attachment_names = set()
+        for n in flat:
+            mcfg = get_mapping_config(n)
+            if mcfg and mcfg.get("is_attachment_table"):
+                attachment_names.add(n)
+        selected_attachment_names = [n for n in flat if n in attachment_names]
+        if selected_attachment_names:
+            logger.info("Extracting attachment files for: %s", selected_attachment_names)
+            extraction_controller.start_attachment_file_extraction(
+                EXTRACTION_JOB_NUMBER, selected_attachment_names, source_plugin=source_plugin
+            )
 
         self._emit(
             session_id,
@@ -391,9 +440,11 @@ class MigrationManager:
                 ),
             )
 
-            load_result = loading_controller.start_loading(LOADING_JOB_NUMBER, group)
+            load_result = destination_plugin.start_loading(LOADING_JOB_NUMBER, group)
             total_processed += load_result.get("records_processed", 0)
             total_failed += load_result.get("records_failed", 0)
+            for obj_name, counts in load_result.get("by_object", {}).items():
+                records_by_object[obj_name] = counts
 
             self._emit(
                 session_id,
@@ -409,6 +460,7 @@ class MigrationManager:
                     overall_percent=overall,
                     status="running",
                     message=f"Loaded {', '.join(group)} — {total_processed:,} processed, {total_failed:,} failed",
+                    records_by_object=records_by_object,
                 ),
             )
 
@@ -437,6 +489,7 @@ class MigrationManager:
                 overall_percent=100.0,
                 status="completed",
                 message=final_msg,
+                records_by_object=records_by_object,
             ),
         )
 
@@ -471,23 +524,18 @@ def _resolve_dependencies(
 ) -> list[str]:
     """Ensure all dependency objects are included and ordered correctly.
 
-    Scans each selected object's mapping file for transformation functions
-    that require lookup tables from other objects.  If those prerequisite
-    objects are not already selected, they are automatically added.
+    Scans each selected object's mapping config (from DB first, JSON fallback)
+    for transformation functions that require lookup tables from other objects.
+    If those prerequisite objects are not already selected, they are
+    automatically added.
     """
-    import json
-    from pathlib import Path
-    from config.settings import PATH_TO_MAPPING
+    from services.internal.mappings_service import get_mapping_config
 
     needed: set[str] = set(selected_objects)
 
     for obj_name in list(selected_objects):
-        mapping_path = PATH_TO_MAPPING / f"{obj_name}.json"
-        if not mapping_path.exists():
-            continue
-        try:
-            mapping = json.load(open(mapping_path, "r", encoding="utf-8"))
-        except Exception:
+        mapping = get_mapping_config(obj_name)
+        if not mapping:
             continue
         for field_def in mapping.get("fields", []):
             func = field_def.get("transformation_function", "")
@@ -504,7 +552,6 @@ def _resolve_dependencies(
     # Return in priority order
     all_flat = [name for group in all_priority_groups for name in group]
     ordered = [name for name in all_flat if name in needed]
-    # Append any objects that weren't in priority lists (shouldn't happen, but safety)
     for name in needed:
         if name not in ordered:
             ordered.append(name)

@@ -12,9 +12,11 @@ from services.internal.mappings_service import (
     insert_id_mappings,
     map_servicenow_to_salesforce,
     get_id_mapping_table_name,
+    cfg_source_tables,
+    cfg_destination_object,
 )
 import services.internal.jobs_service as jobs_service
-from services.http_clients.salesforce_http_client import salesforce_client
+from integrations.salesforce.http_client import salesforce_client
 from config.settings import (
     DISABLE_LOAD,
     HASH_KEY_NAME,
@@ -22,11 +24,16 @@ from config.settings import (
     PATH_TO_TRANSFORMATION,
     PATH_TO_RESULTS,
     POLL_TIME,
+    SERVICE_NOW_ID_COLUMN,
+    SALESFORCE_ID_COLUMN,
+    SALESFORCE_CREATED_AT_COLUMN,
 )
 from tools.file_manager import save_text_to_file, read_text_from_file
 from tools.csv_manager import convert_to_salesforce_hash, convert_to_servicenow_hash, read_csv_as_dictionary, save_as_csv
+from helpers.hash_helper import create_hash_for_row
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from services.internal import loading_service
+from integrations.salesforce import loading as loading_service
+from typing import List, Dict
 
 
 def start_loading(job_id: int, mappings_file_names: list[str] = []):
@@ -34,6 +41,7 @@ def start_loading(job_id: int, mappings_file_names: list[str] = []):
     jobs_service.update_job_status(job_id, "in-progress")
     total_processed = 0
     total_failed = 0
+    by_object: dict[str, dict[str, int]] = {}
     
     try:
         tables_mappings = get_mappings(mappings_file_names)
@@ -41,11 +49,13 @@ def start_loading(job_id: int, mappings_file_names: list[str] = []):
             processed, failed = load_table(job_id, table_mapping)
             total_processed += processed
             total_failed += failed
+            obj_name = table_mapping.get("transformation_name") or cfg_destination_object(table_mapping)
+            by_object[obj_name] = {"processed": processed, "failed": failed}
     except Exception as e:
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
-    return {"records_processed": total_processed, "records_failed": total_failed}
+    return {"records_processed": total_processed, "records_failed": total_failed, "by_object": by_object}
 
 
 def load_csv_batch(
@@ -158,23 +168,24 @@ def load_attachment_batch(
         logger.info(
             f"Loading: {job_table}: Batch Number: {batch_number} skipped as per configuration"
         )
-        return []
+        return {"processed": 0, "failed": 0}
 
     if operation == "insert" and insert_path:
-        loading_service.load_insert_attachments(
+        return loading_service.load_insert_attachments(
             insert_path,
             job_table_id,
             job_table,
             table_mapping
-        )
+        ) or {"processed": 0, "failed": 0}
+    return {"processed": 0, "failed": 0}
 
 
 
 def load_table(job_id: int, table_mapping: dict):
     executer_parallel = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     executer_queue = ThreadPoolExecutor(max_workers=1)
-    table_name = table_mapping["servicenow_tables"][0]  # Driving table
-    salesforce_object = table_mapping["salesforce_object"]
+    table_name = cfg_source_tables(table_mapping)[0]  # Driving table
+    salesforce_object = cfg_destination_object(table_mapping)
     transformation_name = table_mapping.get("transformation_name")
     use_queue = table_mapping.get("use_queue")
     batch_numbers = table_mapping.get("load_batches")
@@ -190,7 +201,7 @@ def load_table(job_id: int, table_mapping: dict):
     operation = table_mapping["operation"]
     job_table = get_id_mapping_table_name(
         table_name,
-        table_mapping["salesforce_object"],
+        salesforce_object,
         table_mapping.get("transformation_name"),
     )
     logger.info(f"Loading: {job_table}...")
@@ -326,12 +337,78 @@ def load_update_batch(
         logger.exception(f"Loading: Update: Batch: {batch_number}, Update Batch Size: {batch_update_size}, Status: Failed", exc_info=e)
         raise
 
+
+def _match_id_mappings_by_recomputed_hash(
+    transformation_csv_path: Path,
+    servicenow_hash_path: Path,
+    salesforce_hash: List[Dict[str, str]],
+    success_data: List[Dict],
+    picklist_values: dict | None,
+    force_values: dict | None,
+) -> List[Dict[str, str]]:
+    """Fallback ID-mapping strategy when the pre-computed hash CSV doesn't match.
+
+    The mismatch happens because the transformation hash is computed from ALL
+    fields, but ``upload_csv`` removes non-existent Salesforce fields (e.g.
+    audit fields) before sending.  Here we recompute ServiceNow hashes using
+    only the fields that appear in the Salesforce success response, applying
+    the same picklist-blanking and force-value overrides so the hashes align.
+
+    The transformation CSV contains only Salesforce fields (no sys_id).
+    The hash CSV contains sys_id + hash_key, in the same row order.
+    We merge them by position to recover sys_id for each record.
+    """
+    if not success_data or not salesforce_hash:
+        return []
+
+    sf_fields = set(success_data[0].keys())
+
+    sf_hash_lookup: Dict[str, str] = {
+        entry[HASH_KEY_NAME]: entry[SALESFORCE_ID_COLUMN]
+        for entry in salesforce_hash
+        if entry.get(HASH_KEY_NAME) and entry.get(SALESFORCE_ID_COLUMN)
+    }
+
+    hash_rows: List[Dict[str, str]] = []
+    if servicenow_hash_path.exists():
+        with open(servicenow_hash_path, newline="", encoding="utf-8") as hf:
+            hash_rows = list(csv.DictReader(hf))
+
+    mappings: List[Dict[str, str]] = []
+    with open(transformation_csv_path, newline="", encoding="utf-8") as f:
+        for idx, row in enumerate(csv.DictReader(f)):
+            sys_id = hash_rows[idx].get(SERVICE_NOW_ID_COLUMN, "") if idx < len(hash_rows) else ""
+            if not sys_id:
+                continue
+
+            filtered = {k: row[k] for k in sf_fields if k in row}
+
+            if picklist_values:
+                for field_name, allowed in picklist_values.items():
+                    if field_name in filtered and filtered[field_name] and filtered[field_name] not in allowed:
+                        filtered[field_name] = ""
+            if force_values:
+                for field_name, val in force_values.items():
+                    if field_name in filtered:
+                        filtered[field_name] = val
+
+            h = create_hash_for_row(filtered)
+            sf_id = sf_hash_lookup.get(h)
+            if sf_id:
+                mappings.append({
+                    SERVICE_NOW_ID_COLUMN: sys_id,
+                    SALESFORCE_ID_COLUMN: sf_id,
+                    HASH_KEY_NAME: h,
+                })
+    return mappings
+
+
 def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operation: str, table_mappings: dict):
     if DISABLE_LOAD:
         return {"processed": 0, "failed": 0}
-    salesforce_object = table_mappings["salesforce_object"]
+    salesforce_object = cfg_destination_object(table_mappings)
     transformation_name = table_mappings.get("transformation_name")
-    service_now_driving_table = table_mappings["servicenow_tables"][0]
+    service_now_driving_table = cfg_source_tables(table_mappings)[0]
     id_mapping_table_name = get_id_mapping_table_name(
         service_now_driving_table, salesforce_object, transformation_name
     )
@@ -421,7 +498,6 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
 
     if operation == "insert":
         salesforce_hash = convert_to_salesforce_hash(success_data)
-        servicenow_hash_path = ""
         servicenow_hash_path = (
             PATH_TO_TRANSFORMATION
             / "hash"
@@ -429,10 +505,21 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             / batch_path.parent.stem
             / f"{batch_path.stem}_hash.csv"
         )
-        
+
         id_mappings = map_servicenow_to_salesforce(
             servicenow_hash_path, salesforce_hash
         )
+
+        if not id_mappings and salesforce_hash:
+            id_mappings = _match_id_mappings_by_recomputed_hash(
+                batch_path, servicenow_hash_path, salesforce_hash, success_data,
+                picklist_values, insert_force_values,
+            )
+            if id_mappings:
+                logger.info(
+                    "Recovered %d ID mappings via recomputed-hash fallback for %s",
+                    len(id_mappings), id_mapping_table_name,
+                )
 
         insert_id_mappings(id_mapping_table_name, id_mappings)
 

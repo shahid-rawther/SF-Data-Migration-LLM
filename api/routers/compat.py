@@ -24,6 +24,7 @@ class FieldResultOut(BaseModel):
     destination_type: str
     suggestion: str
     suggested_custom_field: str = ""
+    suggested_field_type: str = "Text"
 
 
 class ObjectCompatibilityOut(BaseModel):
@@ -82,6 +83,7 @@ def check_compat(body: CompatCheckRequest) -> CompatReportOut:
                         destination_type=f.destination_type,
                         suggestion=f.suggestion,
                         suggested_custom_field=f.suggested_custom_field,
+                        suggested_field_type=f.suggested_field_type,
                     )
                     for f in obj.fields
                 ],

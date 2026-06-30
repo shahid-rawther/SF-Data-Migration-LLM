@@ -40,7 +40,11 @@ export interface MigratableObject {
   name: string;
   label: string;
   category: string;
+  destination_object: string;
+  source_tables: string[];
+  /** @deprecated use destination_object */
   salesforce_object: string;
+  /** @deprecated use source_tables */
   servicenow_tables: string[];
   dependencies: string[];
   priority: number;
@@ -75,6 +79,11 @@ export interface MigrationOptions {
   disable_load: boolean;
 }
 
+export interface ObjectCounts {
+  processed: number;
+  failed: number;
+}
+
 export interface ProgressEvent {
   session_id: string;
   phase: string;
@@ -87,10 +96,12 @@ export interface ProgressEvent {
   overall_percent: number;
   status: string;
   message: string;
+  records_by_object: Record<string, ObjectCounts>;
 }
 
 export interface CreateMigrationRequest {
   source_type: string;
+  destination_type?: string;
   source_credentials: Record<string, string>;
   destination_credentials: Record<string, string>;
   selected_objects: string[];
@@ -114,6 +125,7 @@ export interface FieldResult {
   destination_type: string;
   suggestion: string;
   suggested_custom_field: string;
+  suggested_field_type?: string;  // Inferred Salesforce field type for creation
 }
 
 export interface CreateCustomFieldRequest {
@@ -166,6 +178,86 @@ export interface SavedConnection {
   credentials: Record<string, string>;
   created_at: string;
   updated_at: string;
+}
+
+// ── Dynamic mapping types ───────────────────────────────────────────────────────
+
+export interface MappingMeta {
+  name: string;
+  source_type: string;
+  priority: number;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SourceFieldInfo {
+  name: string;
+  label: string;
+  field_type: string;
+  required: boolean;
+  example: string;
+}
+
+export interface DestinationFieldInfo {
+  name: string;
+  label: string;
+  type: string;
+  length: number;
+  required: boolean;
+  createable: boolean;
+  updateable: boolean;
+  reference_to: string[];
+  picklist_values: string[];
+}
+
+export interface MappingFieldDef {
+  source_field?: string | string[];
+  destination_field: string;
+  transformation_function?: string;
+  transformation_params?: Record<string, unknown>;
+  use_constant?: string;
+  skip_if_not_found?: boolean;
+  // Present on auto-suggested fields only:
+  confidence?: number;
+  match_reason?: string;
+}
+
+export interface TransformDef {
+  name: string;
+  label: string;
+  description: string;
+  params_schema: Record<string, { type: string; default: unknown; description: string }>;
+}
+
+export interface MappingConfig {
+  name?: string;
+  source_type?: string;
+  destination_object: string;
+  source_tables: string[];
+  /** @deprecated use destination_object */
+  salesforce_object?: string;
+  /** @deprecated use source_tables */
+  servicenow_tables?: string[];
+  operation: 'insert' | 'update' | 'upsert';
+  priority: number;
+  fields: MappingFieldDef[];
+  joins?: unknown[];
+  filters?: unknown[];
+  source_id_column?: string;
+  transformation_name?: string;
+  _meta?: {
+    source_field_count: number;
+    destination_field_count: number;
+    suggested_count: number;
+  };
+}
+
+export interface MappingValidationResult {
+  name: string;
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 // ── Sources ───────────────────────────────────────────────────────────────────
@@ -273,6 +365,81 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+  },
+
+  schema: {
+    sourceTables: (
+      source_type: string,
+      credentials: Record<string, string>,
+    ): Promise<{ source_type: string; tables: string[] }> =>
+      request('/schema/source-tables', {
+        method: 'POST',
+        body: JSON.stringify({ source_type, credentials }),
+      }),
+    sourceFields: (
+      source_type: string,
+      credentials: Record<string, string>,
+      opts: { object_name?: string; table?: string },
+    ): Promise<{ source_type: string; fields: SourceFieldInfo[] }> =>
+      request('/schema/source-fields', {
+        method: 'POST',
+        body: JSON.stringify({ source_type, credentials, ...opts }),
+      }),
+    destinationObjects: (
+      credentials: Record<string, string>,
+      destination_type = 'salesforce',
+    ): Promise<{ destination_type: string; objects: { name: string; label: string; createable: boolean }[] }> =>
+      request('/schema/destination-objects', {
+        method: 'POST',
+        body: JSON.stringify({ destination_type, credentials }),
+      }),
+    destinationFields: (
+      object_name: string,
+      credentials: Record<string, string>,
+    ): Promise<{ object_name: string; fields: DestinationFieldInfo[] }> =>
+      request('/schema/destination-fields', {
+        method: 'POST',
+        body: JSON.stringify({ object_name, credentials }),
+      }),
+  },
+
+  mappings: {
+    list: (source_type?: string): Promise<MappingMeta[]> =>
+      request(source_type ? `/mappings/?source_type=${source_type}` : '/mappings/'),
+    get: (name: string): Promise<{ name: string; config: MappingConfig }> =>
+      request(`/mappings/${encodeURIComponent(name)}`),
+    create: (name: string, config: MappingConfig, source_type: string): Promise<MappingMeta> =>
+      request('/mappings/', {
+        method: 'POST',
+        body: JSON.stringify({ name, config, source_type }),
+      }),
+    update: (name: string, config: MappingConfig, source_type: string): Promise<MappingMeta> =>
+      request(`/mappings/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ config, source_type }),
+      }),
+    remove: (name: string): Promise<{ ok: boolean }> =>
+      request(`/mappings/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    autoSuggest: (body: {
+      source_type: string;
+      source_table: string;
+      salesforce_object: string;
+      source_credentials: Record<string, string>;
+      destination_credentials: Record<string, string>;
+    }): Promise<MappingConfig> =>
+      request('/mappings/auto-suggest', { method: 'POST', body: JSON.stringify(body) }),
+    validate: (
+      name: string,
+      destination_credentials: Record<string, string>,
+    ): Promise<MappingValidationResult> =>
+      request(`/mappings/${encodeURIComponent(name)}/validate`, {
+        method: 'POST',
+        body: JSON.stringify({ destination_credentials }),
+      }),
+  },
+
+  transforms: {
+    list: (): Promise<TransformDef[]> => request('/transforms/'),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),
