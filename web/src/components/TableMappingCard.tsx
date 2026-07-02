@@ -4,6 +4,7 @@ import type { MappingFieldDef, SourceFieldInfo, DestinationFieldInfo } from '../
 import { FieldMapper } from './FieldMapper';
 
 export interface TableMappingState {
+  id: string;
   sourceTable: string;
   sfObject: string;
   mappingName: string;
@@ -29,6 +30,9 @@ interface Props {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onAddTables: (tables: string[]) => void;
+  onSplit: () => void;
+  onRemove: () => void;
+  canRemove: boolean;
 }
 
 export function TableMappingCard({
@@ -45,6 +49,9 @@ export function TableMappingCard({
   onMoveUp,
   onMoveDown,
   onAddTables,
+  onSplit,
+  onRemove,
+  canRemove,
 }: Props) {
   const [loadingFields, setLoadingFields] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -151,7 +158,7 @@ export function TableMappingCard({
           </span>
         </div>
 
-        {/* Reorder buttons */}
+        {/* Reorder & split buttons */}
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto', marginRight: 8 }}>
           <button
             type="button"
@@ -170,6 +177,27 @@ export function TableMappingCard({
             title="Move down (lower priority)"
           >
             &#9660;
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSplit(); }}
+            style={splitBtn}
+            title="Split: map this source table to an additional Salesforce object"
+          >
+            &#8621;
+          </button>
+          <button
+            type="button"
+            disabled={!canRemove}
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            style={{
+              ...removeCardBtn,
+              opacity: canRemove ? 1 : 0.35,
+              cursor: canRemove ? 'pointer' : 'not-allowed',
+            }}
+            title={canRemove ? 'Remove this mapping card' : 'Cannot remove the only card for this source table'}
+          >
+            &#10005;
           </button>
         </div>
 
@@ -304,6 +332,9 @@ export function TableMappingCard({
               fields={state.fields}
               sourceFields={state.sourceFields}
               destFields={state.destFields}
+              sfObject={state.sfObject}
+              destCreds={destCreds}
+              onDestFieldsChange={(df) => patch({ destFields: df })}
               onChange={(f) => patch({ fields: f })}
             />
           )}
@@ -397,6 +428,24 @@ const reorderBtn: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+};
+
+const splitBtn: React.CSSProperties = {
+  ...reorderBtn,
+  fontSize: 13,
+  color: '#2563eb',
+  border: '1px solid #bfdbfe',
+  background: '#eff6ff',
+  marginLeft: 4,
+};
+
+const removeCardBtn: React.CSSProperties = {
+  ...reorderBtn,
+  fontSize: 11,
+  color: '#dc2626',
+  border: '1px solid #fecaca',
+  background: '#fef2f2',
+  marginLeft: 4,
 };
 
 const refBannerStyle: React.CSSProperties = {

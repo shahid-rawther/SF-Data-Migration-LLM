@@ -457,32 +457,30 @@ def check_compatibility(
     destination_credentials: dict,
     selected_objects: list[str],
 ) -> CompatibilityReport:
-    """Run a full compatibility analysis and return a structured report."""
-    from api import sources as source_registry
+    """Run a full compatibility analysis and return a structured report.
 
-    provider = source_registry.get(source_type)
-    if not provider:
-        return CompatibilityReport(
-            source_type=source_type,
-            overall_pct=0.0,
-            summary=f"Unknown source type: {source_type}",
-        )
+    Loads mapping configs from the database first (where the wizard saves
+    them in Step 4), falling back to static JSON files for backward
+    compatibility.
+    """
+    import services.internal.mappings_service as mappings_service
 
-    all_objects = {o.name: o for o in provider.get_objects()}
     results: list[ObjectCompatibility] = []
 
     for obj_name in selected_objects:
-        obj_meta = all_objects.get(obj_name)
-        if not obj_meta:
+        config = mappings_service.get_mapping_config(obj_name)
+        if not config:
             continue
 
-        sf_object = obj_meta.salesforce_object
-        sf_fields = _get_sf_fields(sf_object, destination_credentials)
-        source_fields = {f.name: f for f in provider.get_source_fields(obj_name, source_credentials)}
+        sf_object = config.get("destination_object", "")
+        if not sf_object:
+            continue
 
-        # Load the explicit field-mapping file when available (ServiceNow style)
-        mapping_file = _load_mapping_file(obj_name)
-        explicit_mappings: list[dict] = mapping_file.get("fields", [])
+        source_tables = config.get("source_tables", [])
+        source_label = source_tables[0] if source_tables else obj_name
+
+        sf_fields = _get_sf_fields(sf_object, destination_credentials)
+        explicit_mappings: list[dict] = config.get("fields", [])
 
         field_results: list[FieldResult] = []
         mapped = 0
@@ -549,7 +547,19 @@ def check_compatibility(
                     suggested_field_type=inferred_type if status == "no_mapping" else "Text",
                 ))
         else:
-            # Generic analysis: compare source fields to SF fields by name similarity
+            # Generic analysis: compare source fields to SF fields by name similarity.
+            # Load source fields on-demand via the provider when available.
+            source_fields: dict = {}
+            try:
+                from api import sources as source_registry
+                provider = source_registry.get(source_type)
+                if provider and source_tables:
+                    source_fields = {
+                        f.name: f
+                        for f in provider.get_table_fields(source_tables[0], source_credentials)
+                    }
+            except Exception:
+                pass
             for sf_field_name, sf_field_type in sf_fields.items():
                 # Direct name match
                 direct_match = sf_field_name in source_fields
@@ -619,7 +629,7 @@ def check_compatibility(
 
         results.append(ObjectCompatibility(
             object_name=obj_name,
-            source_label=obj_meta.label,
+            source_label=source_label,
             salesforce_object=sf_object,
             total_fields=total,
             mapped_fields=mapped,

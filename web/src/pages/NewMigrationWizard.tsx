@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
@@ -218,21 +218,39 @@ export function NewMigrationWizard() {
 
   const syncTableMappings = useCallback((tables: string[]) => {
     setTableMappings((prev) => {
-      const existing = new Map(prev.map((m) => [m.sourceTable, m]));
-      return tables.map(
-        (t, idx) =>
-          existing.get(t) ?? {
+      const existingByTable = new Map<string, TableMappingState[]>();
+      for (const m of prev) {
+        const arr = existingByTable.get(m.sourceTable) ?? [];
+        arr.push(m);
+        existingByTable.set(m.sourceTable, arr);
+      }
+      const tableSet = new Set(tables);
+      const result: TableMappingState[] = [];
+      for (const t of tables) {
+        const existing = existingByTable.get(t);
+        if (existing && existing.length > 0) {
+          result.push(...existing);
+          existingByTable.delete(t);
+        } else {
+          result.push({
+            id: crypto.randomUUID(),
             sourceTable: t,
             sfObject: '',
             mappingName: defaultMappingName(t),
             operation: 'insert' as const,
-            priority: idx + 1,
+            priority: 0,
             fields: [],
             sourceFields: [],
             destFields: [],
             fieldsLoaded: false,
-          },
-      );
+          });
+        }
+      }
+      // Drop cards whose sourceTable was deselected (not in the new set)
+      // but keep split duplicates as long as the base table is still selected
+      return result
+        .filter((m) => tableSet.has(m.sourceTable))
+        .map((m, i) => ({ ...m, priority: i + 1 }));
     });
   }, []);
 
@@ -250,7 +268,8 @@ export function NewMigrationWizard() {
     if (newTables.length === 0) return;
     setSelectedTables((prev) => [...newTables, ...prev]);
     setTableMappings((prev) => {
-      const newCards: TableMappingState[] = newTables.map((t, i) => ({
+      const newCards: TableMappingState[] = newTables.map((t) => ({
+        id: crypto.randomUUID(),
         sourceTable: t,
         sfObject: '',
         mappingName: defaultMappingName(t),
@@ -266,6 +285,41 @@ export function NewMigrationWizard() {
       return next.map((m, i) => ({ ...m, priority: i + 1 }));
     });
   }, [selectedTables]);
+
+  const handleSplitMapping = useCallback((idx: number) => {
+    setTableMappings((prev) => {
+      const source = prev[idx];
+      const suffix = prev.filter((m) => m.sourceTable === source.sourceTable).length + 1;
+      const newCard: TableMappingState = {
+        id: crypto.randomUUID(),
+        sourceTable: source.sourceTable,
+        sfObject: '',
+        mappingName: `${defaultMappingName(source.sourceTable)}_${suffix}`,
+        operation: 'insert',
+        priority: 0,
+        fields: [],
+        sourceFields: source.sourceFields,
+        destFields: [],
+        fieldsLoaded: false,
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, newCard);
+      return next.map((m, i) => ({ ...m, priority: i + 1 }));
+    });
+  }, []);
+
+  const handleRemoveMapping = useCallback((idx: number) => {
+    setTableMappings((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      return next.map((m, i) => ({ ...m, priority: i + 1 }));
+    });
+  }, []);
+
+  const tableCardCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    tableMappings.forEach((m) => counts.set(m.sourceTable, (counts.get(m.sourceTable) ?? 0) + 1));
+    return counts;
+  }, [tableMappings]);
 
   const otherMappingsContext = useMemo(
     () =>
@@ -285,17 +339,19 @@ export function NewMigrationWizard() {
       for (let i = 0; i < tableMappings.length; i++) {
         const m = tableMappings[i];
         if (!m.sfObject || !m.mappingName) continue;
-        await api.mappings.create(
-          m.mappingName,
-          {
-            destination_object: m.sfObject,
-            source_tables: [m.sourceTable],
-            operation: m.operation,
-            priority: i + 1,
-            fields: m.fields,
-          },
-          selectedSource?.id ?? 'servicenow',
-        );
+        const config = {
+          destination_object: m.sfObject,
+          source_tables: [m.sourceTable],
+          operation: m.operation,
+          priority: i + 1,
+          fields: m.fields,
+        };
+        const sourceType = selectedSource?.id ?? 'servicenow';
+        try {
+          await api.mappings.create(m.mappingName, config, sourceType);
+        } catch {
+          await api.mappings.update(m.mappingName, config, sourceType);
+        }
       }
     } catch (err) {
       console.error('Failed to save mappings', err);
@@ -325,6 +381,14 @@ export function NewMigrationWizard() {
   };
 
   const mappingNames = tableMappings.filter((m) => m.sfObject && m.mappingName).map((m) => m.mappingName);
+
+  const duplicateMappingNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const name of mappingNames) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].filter(([, c]) => c > 1).map(([name]) => name);
+  }, [mappingNames]);
 
   const checkObjectVisibility = async () => {
     setCheckingDiagnostics(true);
@@ -904,7 +968,7 @@ export function NewMigrationWizard() {
 
             {tableMappings.map((m, idx) => (
               <TableMappingCard
-                key={m.sourceTable}
+                key={m.id}
                 state={m}
                 index={idx}
                 total={tableMappings.length}
@@ -920,6 +984,9 @@ export function NewMigrationWizard() {
                 onMoveUp={() => moveMapping(idx, idx - 1)}
                 onMoveDown={() => moveMapping(idx, idx + 1)}
                 onAddTables={(tables) => handleAddMissingTables(idx, tables)}
+                onSplit={() => handleSplitMapping(idx)}
+                onRemove={() => handleRemoveMapping(idx)}
+                canRemove={(tableCardCounts.get(m.sourceTable) ?? 1) > 1}
               />
             ))}
 
@@ -929,10 +996,20 @@ export function NewMigrationWizard() {
               </p>
             )}
 
+            {duplicateMappingNames.length > 0 && (
+              <div style={{
+                padding: 12, marginBottom: 12, borderRadius: 8,
+                background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
+              }}>
+                <strong>Duplicate mapping names detected:</strong> {duplicateMappingNames.join(', ')}.
+                Each mapping must have a unique name. Rename the duplicates before proceeding.
+              </div>
+            )}
+
             <div style={navRow}>
               <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
               <button
-                disabled={mappingNames.length === 0 || savingMappings}
+                disabled={mappingNames.length === 0 || savingMappings || duplicateMappingNames.length > 0}
                 onClick={() => goStep(5)}
                 style={primaryBtn}
               >
@@ -959,23 +1036,6 @@ export function NewMigrationWizard() {
               >
                 {checkingCompat ? 'Checking...' : 'Run Compatibility Check'}
               </button>
-              <Link
-                to={`/mappings/new?source=${selectedSource?.id ?? ''}&srcConn=${selectedSourceConn}&destConn=${selectedDestConn}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  padding: '10px 16px',
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: 14,
-                  textDecoration: 'none',
-                }}
-              >
-                Customize Mappings
-              </Link>
             </div>
 
             {compatError && (
