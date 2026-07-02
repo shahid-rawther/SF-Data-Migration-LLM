@@ -34,6 +34,7 @@ class SourceField:
     field_type: str  # e.g. "string", "datetime", "integer", "boolean", "reference"
     required: bool = False
     example: str = ""
+    reference_table: str = ""  # target table for reference-type fields
 
 
 class SourceProvider(ABC):

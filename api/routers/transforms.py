@@ -71,6 +71,15 @@ GENERIC_TRANSFORMS: list[dict] = [
             "replacement": {"type": "string", "default": "", "description": "Replacement string"},
         },
     },
+    {
+        "name": "generic_lookup",
+        "label": "ID Lookup",
+        "description": "Resolve a source sys_id to a Salesforce record ID via id_mappings.",
+        "params_schema": {
+            "lookup_tables": {"type": "array", "default": [], "description": "id_mapping table names to search"},
+            "default": {"type": "string", "default": "", "description": "Fallback value if not found"},
+        },
+    },
 ]
 
 

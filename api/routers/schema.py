@@ -88,6 +88,7 @@ def source_fields(body: SourceFieldsRequest):
                 "field_type": f.field_type,
                 "required": f.required,
                 "example": f.example,
+                "reference_table": getattr(f, "reference_table", ""),
             }
             for f in fields
         ],

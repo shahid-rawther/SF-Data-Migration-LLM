@@ -197,6 +197,7 @@ export interface SourceFieldInfo {
   field_type: string;
   required: boolean;
   example: string;
+  reference_table?: string;
 }
 
 export interface DestinationFieldInfo {
@@ -426,6 +427,7 @@ export const api = {
       salesforce_object: string;
       source_credentials: Record<string, string>;
       destination_credentials: Record<string, string>;
+      other_mappings?: { source_table: string; sf_object: string; mapping_name: string }[];
     }): Promise<MappingConfig> =>
       request('/mappings/auto-suggest', { method: 'POST', body: JSON.stringify(body) }),
     validate: (

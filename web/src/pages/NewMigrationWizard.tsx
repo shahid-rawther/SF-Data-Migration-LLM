@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
@@ -220,12 +220,13 @@ export function NewMigrationWizard() {
     setTableMappings((prev) => {
       const existing = new Map(prev.map((m) => [m.sourceTable, m]));
       return tables.map(
-        (t) =>
+        (t, idx) =>
           existing.get(t) ?? {
             sourceTable: t,
             sfObject: '',
             mappingName: defaultMappingName(t),
             operation: 'insert' as const,
+            priority: idx + 1,
             fields: [],
             sourceFields: [],
             destFields: [],
@@ -235,10 +236,54 @@ export function NewMigrationWizard() {
     });
   }, []);
 
+  const moveMapping = useCallback((fromIdx: number, toIdx: number) => {
+    setTableMappings((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, item);
+      return next.map((m, i) => ({ ...m, priority: i + 1 }));
+    });
+  }, []);
+
+  const handleAddMissingTables = useCallback((requestingIdx: number, tables: string[]) => {
+    const newTables = tables.filter((t) => !selectedTables.includes(t));
+    if (newTables.length === 0) return;
+    setSelectedTables((prev) => [...newTables, ...prev]);
+    setTableMappings((prev) => {
+      const newCards: TableMappingState[] = newTables.map((t, i) => ({
+        sourceTable: t,
+        sfObject: '',
+        mappingName: defaultMappingName(t),
+        operation: 'insert' as const,
+        priority: 0,
+        fields: [],
+        sourceFields: [],
+        destFields: [],
+        fieldsLoaded: false,
+      }));
+      const next = [...prev];
+      next.splice(requestingIdx, 0, ...newCards);
+      return next.map((m, i) => ({ ...m, priority: i + 1 }));
+    });
+  }, [selectedTables]);
+
+  const otherMappingsContext = useMemo(
+    () =>
+      tableMappings
+        .filter((m) => m.sfObject && m.mappingName)
+        .map((m) => ({
+          source_table: m.sourceTable,
+          sf_object: m.sfObject,
+          mapping_name: m.mappingName,
+        })),
+    [tableMappings],
+  );
+
   const saveMappingsToDb = async () => {
     setSavingMappings(true);
     try {
-      for (const m of tableMappings) {
+      for (let i = 0; i < tableMappings.length; i++) {
+        const m = tableMappings[i];
         if (!m.sfObject || !m.mappingName) continue;
         await api.mappings.create(
           m.mappingName,
@@ -246,7 +291,7 @@ export function NewMigrationWizard() {
             destination_object: m.sfObject,
             source_tables: [m.sourceTable],
             operation: m.operation,
-            priority: 100,
+            priority: i + 1,
             fields: m.fields,
           },
           selectedSource?.id ?? 'servicenow',
@@ -861,13 +906,20 @@ export function NewMigrationWizard() {
               <TableMappingCard
                 key={m.sourceTable}
                 state={m}
+                index={idx}
+                total={tableMappings.length}
                 sfObjects={sfObjects}
                 sourceType={selectedSource?.id ?? 'servicenow'}
                 sourceCreds={sourceCreds}
                 destCreds={destCreds}
+                selectedTables={selectedTables}
+                otherMappings={otherMappingsContext}
                 onChange={(next) =>
-                  setTableMappings((prev) => prev.map((p, i) => (i === idx ? next : p)))
+                  setTableMappings((prev) => prev.map((p, i) => (i === idx ? next : p)).map((p, i) => ({ ...p, priority: i + 1 })))
                 }
+                onMoveUp={() => moveMapping(idx, idx - 1)}
+                onMoveDown={() => moveMapping(idx, idx + 1)}
+                onAddTables={(tables) => handleAddMissingTables(idx, tables)}
               />
             ))}
 

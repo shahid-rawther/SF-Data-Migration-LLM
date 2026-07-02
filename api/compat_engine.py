@@ -242,9 +242,16 @@ def auto_suggest_mapping(
     salesforce_object: str,
     source_credentials: dict,
     destination_credentials: dict,
+    other_mappings: list[dict] | None = None,
 ) -> dict:
     """Generate a draft mapping config by matching source fields to Salesforce
     fields using name similarity and type compatibility.
+
+    ``other_mappings`` is an optional list of dicts with keys
+    ``source_table``, ``sf_object``, ``mapping_name`` describing the other
+    tables being mapped in the same wizard session.  When a source field is a
+    reference to one of those tables, a ``generic_lookup`` transform is emitted
+    instead of a plain name match.
 
     Returns a mapping dict in the same shape as the JSON mapping files, with an
     extra per-field `confidence` (0-1) and `match_reason` for UI review.
@@ -258,15 +265,75 @@ def auto_suggest_mapping(
     )
     dest_fields = get_destination_fields(salesforce_object, destination_credentials)
 
+    # Build a lookup from SN table -> (sf_object, mapping_name) using
+    # the other mappings context provided by the wizard.
+    ref_target_map: dict[str, dict] = {}
+    for om in (other_mappings or []):
+        sn_table = om.get("source_table", "")
+        if sn_table:
+            ref_target_map[sn_table] = om
+
+    # Index source reference fields by their reference_table for quick access.
+    src_ref_by_table: dict[str, list] = {}
+    for sf in source_fields:
+        ref_tbl = getattr(sf, "reference_table", "")
+        if sf.field_type == "reference" and ref_tbl:
+            src_ref_by_table.setdefault(ref_tbl, []).append(sf)
+
     # Index source fields by their comparable short name for quick lookup.
     src_by_short: dict[str, list] = {}
     for sf in source_fields:
         src_by_short.setdefault(_short_name(sf.name), []).append(sf)
     src_short_names = list(src_by_short.keys())
 
+    # Track which source fields have already been emitted as reference lookups
+    # so they are not duplicated by the normal name-matching loop.
+    emitted_source_fields: set[str] = set()
+
     suggested_fields: list[dict] = []
+
+    # ── Pass 1: reference-field lookups ─────────────────────────────────────
+    for ref_table, ref_fields in src_ref_by_table.items():
+        target_om = ref_target_map.get(ref_table)
+        if not target_om:
+            continue
+        target_sf_obj = target_om.get("sf_object", "")
+        target_mapping = target_om.get("mapping_name", "")
+        if not target_sf_obj:
+            continue
+        lookup_table_name = f"{ref_table}_{target_sf_obj}_{target_mapping}"
+        for src_f in ref_fields:
+            src_short = _short_name(src_f.name)
+            # Try to find a matching destination field (reference type or name match)
+            dest_match = None
+            for dest in dest_fields:
+                if not dest.get("createable"):
+                    continue
+                d_short = _short_name(dest["name"])
+                if d_short == src_short:
+                    dest_match = dest
+                    break
+                ref_to = dest.get("reference_to") or []
+                if target_sf_obj in ref_to:
+                    d_short_loose = _short_name(dest["name"])
+                    if difflib.SequenceMatcher(None, d_short_loose, src_short).ratio() > 0.5:
+                        dest_match = dest
+                        break
+            if not dest_match:
+                continue
+            field_entry: dict = {
+                "source_field": src_f.name,
+                "destination_field": dest_match["name"],
+                "confidence": 0.85,
+                "match_reason": f"reference lookup -> {ref_table}",
+                "transformation_function": "generic_lookup",
+                "transformation_params": {"lookup_tables": [lookup_table_name], "default": ""},
+            }
+            suggested_fields.append(field_entry)
+            emitted_source_fields.add(src_f.name)
+
+    # ── Pass 2: normal name matching ────────────────────────────────────────
     for dest in dest_fields:
-        # Only suggest mappings for writable fields (skip read-only/system).
         if not dest.get("createable"):
             continue
         dest_name = dest["name"]
@@ -293,11 +360,12 @@ def auto_suggest_mapping(
 
         if not matched_source:
             continue
+        if matched_source in emitted_source_fields:
+            continue
 
         # Adjust confidence by type compatibility.
         src_field = src_by_short[_short_name(matched_source)][0]
         src_norm_type = _norm_source_type(src_field.field_type)
-        transformation_function = ""
         transformation_function = ""
         transformation_params = None
 
@@ -322,7 +390,7 @@ def auto_suggest_mapping(
             confidence = round(confidence * 0.7, 2)
             match_reason += "; type may need coercion"
 
-        field_entry: dict = {
+        field_entry = {
             "source_field": matched_source,
             "destination_field": dest_name,
             "confidence": confidence,

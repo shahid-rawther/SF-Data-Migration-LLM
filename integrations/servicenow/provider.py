@@ -206,29 +206,14 @@ class ServiceNowProvider(SourcePlugin):
 
     def get_source_tables(self, credentials: dict) -> list[str]:
         """Return all ServiceNow table names via the sys_db_object table."""
-        import json as _json, time as _time, pathlib as _pathlib
-        _dbg = _pathlib.Path("debug-7fb1c3.log")
-        def _log(msg, data=None, hid=""):
-            with open(_dbg, "a") as _f:
-                _f.write(_json.dumps({"sessionId":"7fb1c3","hypothesisId":hid,"location":"provider.py:get_source_tables","message":msg,"data":data or {},"timestamp":int(_time.time()*1000)}) + "\n")
-        # #region agent log
-        _log("entry", {"creds_keys": list(credentials.keys()), "has_base_url": bool(credentials.get("base_url")), "has_username": bool(credentials.get("username")), "has_password": bool(credentials.get("password"))}, "H1")
-        # #endregion
         base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
         username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
         password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
         if not base_url or not username:
-            # #region agent log
-            _log("missing_creds", {"base_url": base_url, "username": username}, "H1")
-            # #endregion
             return []
         try:
-            url = f"{base_url}/api/now/table/sys_db_object"
-            # #region agent log
-            _log("before_request", {"url": url, "username": username}, "H5")
-            # #endregion
             resp = requests.get(
-                url,
+                f"{base_url}/api/now/table/sys_db_object",
                 auth=(username, password),
                 headers={"Accept": "application/json"},
                 params={
@@ -239,21 +224,7 @@ class ServiceNowProvider(SourcePlugin):
                 timeout=60,
                 allow_redirects=False,
             )
-            # #region agent log
-            _log("after_request", {
-                "status": resp.status_code,
-                "content_type": resp.headers.get("content-type", "?"),
-                "body_len": len(resp.text),
-                "body_preview": resp.text[:500],
-                "is_redirect": resp.is_redirect,
-                "redirect_url": resp.headers.get("location", ""),
-                "resp_headers": dict(list(resp.headers.items())[:10]),
-            }, "H2,H3,H4,H5")
-            # #endregion
             if resp.status_code in (301, 302, 303, 307, 308):
-                # #region agent log
-                _log("redirect_detected", {"location": resp.headers.get("location", "")}, "H2")
-                # #endregion
                 return []
             ct = resp.headers.get("content-type", "")
             if "application/json" not in ct:
@@ -270,51 +241,107 @@ class ServiceNowProvider(SourcePlugin):
             resp.raise_for_status()
             rows = resp.json().get("result", [])
             names = sorted({r.get("name", "") for r in rows if r.get("name")})
-            # #region agent log
-            _log("success", {"table_count": len(names), "first_5": names[:5]}, "H3")
-            # #endregion
+            logger.info("Fetched %d source tables from ServiceNow", len(names))
             return names
-        except Exception as exc:
-            # #region agent log
-            _log("exception", {"error": str(exc), "type": type(exc).__name__}, "H4")
-            # #endregion
+        except Exception:
             logger.exception("Failed to fetch source tables from ServiceNow")
             return []
 
+    def _resolve_table_hierarchy(self, table_name: str, base_url: str, auth: tuple) -> list[str]:
+        """Walk the sys_db_object parent chain to collect the full table hierarchy.
+
+        Returns a list starting with *table_name* followed by its ancestors
+        (e.g. ``["change_request", "task"]``).  Stops after 5 levels to avoid
+        runaway loops.
+        """
+        tables = [table_name]
+        current = table_name
+        for _ in range(5):
+            try:
+                resp = requests.get(
+                    f"{base_url}/api/now/table/sys_db_object",
+                    auth=auth,
+                    headers={"Accept": "application/json"},
+                    params={
+                        "sysparm_query": f"name={current}",
+                        "sysparm_fields": "super_class",
+                        "sysparm_limit": 1,
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                rows = resp.json().get("result", [])
+                if not rows:
+                    break
+                sc = rows[0].get("super_class") or {}
+                parent_id = sc.get("value", "") if isinstance(sc, dict) else str(sc)
+                if not parent_id:
+                    break
+                # Resolve the parent sys_id to a table name
+                resp2 = requests.get(
+                    f"{base_url}/api/now/table/sys_db_object/{parent_id}",
+                    auth=auth,
+                    headers={"Accept": "application/json"},
+                    params={"sysparm_fields": "name"},
+                    timeout=10,
+                )
+                resp2.raise_for_status()
+                parent_name = resp2.json().get("result", {}).get("name", "")
+                if not parent_name or parent_name in tables:
+                    break
+                tables.append(parent_name)
+                current = parent_name
+            except Exception:
+                break
+        return tables
+
     def get_table_fields(self, table_name: str, credentials: dict) -> list[SourceField]:
-        """Return all fields of a raw ServiceNow table via sys_dictionary."""
+        """Return all fields of a raw ServiceNow table (including inherited) via sys_dictionary."""
         if not table_name:
             return []
         base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
         username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
         password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        auth = (username, password)
         try:
+            hierarchy = self._resolve_table_hierarchy(table_name, base_url, auth)
+            query_filter = "nameIN" + ",".join(hierarchy) + "^active=true"
             resp = requests.get(
                 f"{base_url}/api/now/table/sys_dictionary",
-                auth=(username, password),
+                auth=auth,
                 headers={"Accept": "application/json"},
                 params={
-                    "sysparm_query": f"name={table_name}^active=true",
-                    "sysparm_fields": "element,column_label,internal_type,mandatory",
-                    "sysparm_limit": 1000,
+                    "sysparm_query": query_filter,
+                    "sysparm_fields": "element,column_label,internal_type,mandatory,reference",
+                    "sysparm_limit": 2000,
                 },
-                timeout=20,
+                timeout=30,
             )
             resp.raise_for_status()
             rows = resp.json().get("result", [])
+            seen_elements: set[str] = set()
             fields: list[SourceField] = []
             for row in rows:
                 element = row.get("element", "")
-                if not element:
+                if not element or element in seen_elements:
                     continue
-                field_type = (row.get("internal_type") or {}).get("value", "string")
-                required = str((row.get("mandatory") or {}).get("value", "false")).lower() == "true"
-                label = (row.get("column_label") or {}).get("display_value", element)
+                seen_elements.add(element)
+                raw_type = row.get("internal_type") or {}
+                field_type = raw_type.get("value", raw_type) if isinstance(raw_type, dict) else str(raw_type) or "string"
+                raw_mandatory = row.get("mandatory") or "false"
+                required = str(raw_mandatory.get("value", raw_mandatory) if isinstance(raw_mandatory, dict) else raw_mandatory).lower() == "true"
+                raw_label = row.get("column_label") or element
+                label = raw_label.get("display_value", element) if isinstance(raw_label, dict) else str(raw_label)
+                ref_table = ""
+                if field_type == "reference":
+                    ref_raw = row.get("reference") or {}
+                    ref_table = ref_raw.get("value", "") if isinstance(ref_raw, dict) else str(ref_raw)
                 fields.append(SourceField(
                     name=f"{table_name}.{element}",
                     label=label,
                     field_type=field_type,
                     required=required,
+                    reference_table=ref_table,
                 ))
             return sorted(fields, key=lambda f: f.name)
         except Exception:

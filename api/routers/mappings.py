@@ -46,6 +46,7 @@ class AutoSuggestRequest(BaseModel):
     source_connection_id: str | None = None
     destination_credentials: dict = {}
     destination_connection_id: str | None = None
+    other_mappings: list[dict] = []
 
 
 class ValidateRequest(BaseModel):
@@ -74,6 +75,7 @@ def auto_suggest(body: AutoSuggestRequest):
         salesforce_object=body.salesforce_object,
         source_credentials=src_creds,
         destination_credentials=dest_creds,
+        other_mappings=body.other_mappings,
     )
     return draft
 
