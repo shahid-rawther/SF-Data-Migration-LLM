@@ -1,0 +1,16 @@
+{
+    "priority": 2,
+    "operation": "insert",
+    "source_type": "jsm",
+    "source_tables": ["organizations"],
+    "source_id_column": "id",
+    "joins": [],
+    "filters": [],
+    "destination_object": "Account",
+    "fields": [
+        {
+            "source_field": "organizations.name",
+            "destination_field": "Name"
+        }
+    ]
+}

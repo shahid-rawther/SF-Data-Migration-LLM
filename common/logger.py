@@ -1,24 +1,17 @@
 import os
 import logging
-import queue
 from typing import Optional
-from logging.handlers import RotatingFileHandler, QueueHandler, QueueListener, TimedRotatingFileHandler
+from pathlib import Path
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-_log_queue: queue.Queue | None = None
-_listener: QueueListener | None = None
-
 
 def _create_logger(name: Optional[str] = None) -> logging.Logger:
-    global _log_queue, _listener
-
     logger_name = name or "itsm"
     logger = logging.getLogger(logger_name)
 
     logger.setLevel(LOG_LEVEL)
 
-    # IMPORTANT: do NOT clear handlers repeatedly
     if logger.handlers:
         return logger
 
@@ -28,28 +21,24 @@ def _create_logger(name: Optional[str] = None) -> logging.Logger:
     )
     formatter = logging.Formatter(log_format)
 
-    # Create shared queue + listener once
-    if _log_queue is None:
-        _log_queue = queue.Queue(-1)
+    # Console handler – always emit to terminal
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(LOG_LEVEL)
+    logger.addHandler(console_handler)
 
-        file_handler = TimedRotatingFileHandler(
-            filename="logs/application.log",
-            when="midnight",
-            interval=1,
-            backupCount=0,   # ← keep ALL logs
-            encoding="utf-8"
-        )
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(LOG_LEVEL)
+    # File handler – plain append mode to avoid Windows file-lock issues with rotation
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    file_handler = logging.FileHandler(
+        filename=log_dir / "application.log",
+        mode="a",
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(LOG_LEVEL)
+    logger.addHandler(file_handler)
 
-        _listener = QueueListener(_log_queue, file_handler)
-        _listener.start()
-
-    # QueueHandler for worker threads
-    queue_handler = QueueHandler(_log_queue)
-    queue_handler.setLevel(LOG_LEVEL)
-
-    logger.addHandler(queue_handler)
     logger.propagate = False
 
     return logger

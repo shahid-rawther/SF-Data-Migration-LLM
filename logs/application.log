@@ -4868,3 +4868,91 @@ ValueError: Invalid isoformat string: ''
 2026-06-23 15:34:17,707 - INFO - [ThreadPoolExecutor-57_1] [itsm:171] - Transformation: Batch Number: 1 Status: Success
 2026-06-23 15:34:17,711 - INFO - [migration-fa29e463] [itsm:86] - Transformation: Table: sys_attachment_ContentVersion_AttachmentServiceRequest...Done
 2026-06-23 15:34:17,744 - INFO - [migration-fa29e463] [itsm:205] - Loading: sys_attachment_ContentVersion_AttachmentServiceRequest...
+2026-07-01 12:43:49,419 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 12:43:49,419 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 12:43:49,436 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 12:43:49,436 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 12:45:32,871 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 12:45:32,872 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 12:45:32,876 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 12:45:32,876 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 13:36:08,547 - INFO - [migration-8556dccd] [itsm:28] - Initializing Service now client.
+2026-07-01 13:36:08,548 - INFO - [migration-8556dccd] [itsm:35] - Servicenow base URL: 
+2026-07-01 13:36:08,557 - INFO - [migration-8556dccd] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 13:36:08,557 - INFO - [migration-8556dccd] [itsm:42] - Salesforce base URL: None
+2026-07-01 13:36:08,557 - INFO - [migration-8556dccd] [itsm:68] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-01 13:36:08,557 - INFO - [migration-8556dccd] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-01 13:36:08,586 - INFO - [migration-8556dccd] [itsm:293] - Resolved dependencies — final object list: ['AccountSubscriptionEntitlement']
+2026-07-01 13:36:08,642 - INFO - [ThreadPoolExecutor-1_0] [itsm:43] - Job: 1, Job Table: 1
+2026-07-01 13:36:08,642 - INFO - [ThreadPoolExecutor-1_0] [itsm:44] - Servicenow table 'account_subscription_entitlement' extraction start at 2026-07-01 13:36:08.642902
+2026-07-01 13:36:10,942 - INFO - [ThreadPoolExecutor-1_0] [itsm:54] - Total rows in account_subscription_entitlement is 0
+2026-07-01 13:36:10,968 - INFO - [ThreadPoolExecutor-1_0] [itsm:85] - Servicenow table 'account_subscription_entitlement' extraction ends at 2026-07-01 13:36:10.968774
+2026-07-01 13:36:11,063 - ERROR - [migration-8556dccd] [itsm:37] - Exception occured during transformation:
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\controllers\transformation_controller.py", line 35, in start_trasformation
+    transform_table(job_id, table_mappings)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\services\internal\transformation_service.py", line 47, in transform_table
+    base_path_files = list(base_table.iterdir())
+                           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\pathlib\_local.py", line 575, in iterdir
+    with os.scandir(root_dir) as scandir_it:
+         ~~~~~~~~~~^^^^^^^^^^
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'C:\\Users\\muhammed.shahid\\Documents\\itsm-data-migration-snow-sf\\data\\downloads\\servicenow\\account_subscription_entitlement'
+2026-07-01 13:36:11,091 - ERROR - [migration-8556dccd] [itsm:208] - Migration session 8556dccd-92c3-44c1-94f8-1ebbe658b46e failed: Transformation failed: [WinError 3] The system cannot find the path specified: 'C:\\Users\\muhammed.shahid\\Documents\\itsm-data-migration-snow-sf\\data\\downloads\\servicenow\\account_subscription_entitlement'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\controllers\transformation_controller.py", line 35, in start_trasformation
+    transform_table(job_id, table_mappings)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\services\internal\transformation_service.py", line 47, in transform_table
+    base_path_files = list(base_table.iterdir())
+                           ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\pathlib\_local.py", line 575, in iterdir
+    with os.scandir(root_dir) as scandir_it:
+         ~~~~~~~~~~^^^^^^^^^^
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'C:\\Users\\muhammed.shahid\\Documents\\itsm-data-migration-snow-sf\\data\\downloads\\servicenow\\account_subscription_entitlement'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 206, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 398, in _do_run
+    transformation_controller.start_trasformation(TRANSFORMATION_JOB_NUMBER, group)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\Documents\itsm-data-migration-snow-sf\controllers\transformation_controller.py", line 39, in start_trasformation
+    raise RuntimeError(_build_transformation_error_message(e)) from e
+RuntimeError: Transformation failed: [WinError 3] The system cannot find the path specified: 'C:\\Users\\muhammed.shahid\\Documents\\itsm-data-migration-snow-sf\\data\\downloads\\servicenow\\account_subscription_entitlement'
+2026-07-01 15:19:38,165 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 15:19:38,165 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 15:19:38,171 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 15:19:38,171 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:16:58,297 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:16:58,297 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:16:58,306 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:16:58,306 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:17:02,907 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:17:02,907 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:17:02,911 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:17:02,911 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:17:07,321 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:17:07,321 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:17:07,331 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:17:07,331 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:17:33,433 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:17:33,433 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:17:33,440 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:17:33,440 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:17:51,365 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:17:51,365 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:17:51,371 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:17:51,371 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:41:00,634 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:41:00,635 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:41:00,640 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:41:00,640 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None
+2026-07-01 16:41:22,705 - INFO - [MainThread] [itsm:28] - Initializing Service now client.
+2026-07-01 16:41:22,705 - INFO - [MainThread] [itsm:35] - Servicenow base URL: 
+2026-07-01 16:41:22,711 - INFO - [MainThread] [itsm:41] - Initializing SalesforceClient.
+2026-07-01 16:41:22,711 - INFO - [MainThread] [itsm:42] - Salesforce base URL: None

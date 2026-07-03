@@ -1,0 +1,34 @@
+{
+    "priority": 60,
+    "operation": "insert",
+    "source_type": "jsm",
+    "source_tables": ["attachment_meta"],
+    "source_id_column": "id",
+    "is_attachment_table": true,
+    "joins": [],
+    "filters": [],
+    "destination_object": "ContentVersion",
+    "fields": [
+        {
+            "source_field": "attachment_meta.filename",
+            "destination_field": "Title"
+        },
+        {
+            "source_field": "attachment_meta.filename",
+            "destination_field": "PathOnClient"
+        },
+        {
+            "source_field": "attachment_meta.mimeType",
+            "destination_field": "ContentType__c"
+        },
+        {
+            "source_field": "attachment_meta.created",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "attachment_meta.issue_key",
+            "destination_field": "Description"
+        }
+    ]
+}

@@ -1,0 +1,84 @@
+{
+    "priority": 40,
+    "operation": "upsert",
+    "source_type": "jsm",
+    "source_tables": ["jsm_changes"],
+    "source_id_column": "id",
+    "jql_filter": "issuetype in (Change, \"Change Request\")",
+    "joins": [],
+    "filters": [],
+    "destination_object": "ChangeRequest",
+    "fields": [
+        {
+            "source_field": ["jsm_changes.key", "jsm_changes.summary"],
+            "transformation_function": "populate_jsm_subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "jsm_changes.description",
+            "transformation_function": "convert_adf_to_text",
+            "destination_field": "Description"
+        },
+        {
+            "source_field": "jsm_changes.status",
+            "transformation_function": "look_up_jsm_status",
+            "destination_field": "Status"
+        },
+        {
+            "source_field": "jsm_changes.priority",
+            "transformation_function": "look_up_jsm_priority",
+            "ignore_on_update": true,
+            "destination_field": "Priority"
+        },
+        {
+            "source_field": "jsm_changes.priority",
+            "transformation_function": "look_up_jsm_impact",
+            "destination_field": "Impact"
+        },
+        {
+            "source_field": "jsm_changes.priority",
+            "transformation_function": "look_up_jsm_urgency",
+            "destination_field": "Urgency"
+        },
+        {
+            "source_field": "jsm_changes.issuetype",
+            "transformation_function": "look_up_jsm_category",
+            "destination_field": "Category"
+        },
+        {
+            "source_field": "jsm_changes.created",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "jsm_changes.updated",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "jsm_changes.resolutiondate",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "ClosedDate"
+        },
+        {
+            "source_field": "jsm_changes.resolution",
+            "transformation_function": "look_up_jsm_resolution",
+            "destination_field": "Resolution__c"
+        },
+        {
+            "source_field": "jsm_changes.reporter_accountid",
+            "transformation_function": "look_up_jsm_user",
+            "destination_field": "CreatedById"
+        },
+        {
+            "source_field": "jsm_changes.assignee_accountid",
+            "transformation_function": "look_up_jsm_user",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "jsm_changes.labels",
+            "transformation_function": "jsm_labels_to_text",
+            "destination_field": "Tags__c"
+        }
+    ]
+}

@@ -210,7 +210,9 @@ def load_table(job_id: int, table_mapping: dict):
 
     executer = executer_queue if use_queue else executer_parallel
     if Path(transformation_path).exists():
-        for batch_path in transformation_path.iterdir():
+        batch_dirs = list(transformation_path.iterdir())
+        logger.info(f"Loading: {job_table} | transformation_path={transformation_path} | batches={len(batch_dirs)}")
+        for batch_path in batch_dirs:
             if not is_attachment_table:
                 futures.extend(
                     load_csv_batch(
@@ -237,6 +239,9 @@ def load_table(job_id: int, table_mapping: dict):
                     )
                 )
         
+    else:
+        logger.warning(f"Loading: {job_table} | transformation_path NOT FOUND: {transformation_path}")
+
     for future in tqdm.tqdm(
         as_completed(futures),
         total=len(futures),

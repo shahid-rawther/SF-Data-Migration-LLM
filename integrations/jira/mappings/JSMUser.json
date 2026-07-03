@@ -1,0 +1,42 @@
+{
+    "priority": 1,
+    "operation": "insert",
+    "source_type": "jsm",
+    "source_tables": ["users"],
+    "source_id_column": "accountId",
+    "joins": [],
+    "filters": [
+        {
+            "table": "users",
+            "field": "accountType",
+            "operator": "equals",
+            "value": "atlassian"
+        }
+    ],
+    "destination_object": "Account",
+    "fields": [
+        {
+            "source_field": "users.displayName",
+            "transformation_function": "jsm_extract_first_name",
+            "destination_field": "FirstName"
+        },
+        {
+            "source_field": "users.displayName",
+            "transformation_function": "jsm_extract_last_name",
+            "destination_field": "LastName"
+        },
+        {
+            "use_constant": "RECORDTYPEID",
+            "destination_field": "RecordTypeId"
+        },
+        {
+            "source_field": "users.emailAddress",
+            "transformation_function": "jsm_mask_email",
+            "destination_field": "PersonEmail"
+        },
+        {
+            "source_field": "users.timeZone",
+            "destination_field": "Time_Zone__c"
+        }
+    ]
+}

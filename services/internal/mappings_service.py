@@ -32,15 +32,21 @@ def cfg_destination_object(config: dict) -> str:
 
 
 def _load_mapping_from_json(name: str) -> dict | None:
-    """Load a mapping config from the on-disk JSON file (fallback path)."""
+    """Load a mapping config from the on-disk JSON file (fallback path).
+
+    Searches the ServiceNow mappings directory first, then the JSM directory.
+    """
+    from config.settings import PATH_TO_JSM_MAPPING
+
     file_name = name if name.lower().endswith(".json") else f"{name}.json"
-    path = PATH_TO_MAPPING / file_name
-    if not path.exists():
-        return None
-    try:
-        return read_json_from_file(path)
-    except Exception:
-        return None
+    for mapping_dir in (PATH_TO_MAPPING, PATH_TO_JSM_MAPPING):
+        path = mapping_dir / file_name
+        if path.exists():
+            try:
+                return read_json_from_file(path)
+            except Exception:
+                continue
+    return None
 
 
 def get_mapping_config(name: str) -> dict | None:
@@ -48,19 +54,25 @@ def get_mapping_config(name: str) -> dict | None:
 
     Reads from the mapping_configs DB table first; falls back to the shipped
     JSON file when the DB has no entry (keeps backward compatibility).
+    The ``source_type`` stored in the DB column is always injected into the
+    returned dict so callers can rely on it regardless of whether the JSON
+    blob contained it.
     """
     if name.lower().endswith(".json"):
         name = name[: -len(".json")]
     try:
         row = db_client.fetch_one(
-            "SELECT config FROM mapping_configs WHERE name = ?",
+            "SELECT config, source_type FROM mapping_configs WHERE name = ?",
             (name,),
         )
     except Exception:
         row = None
     if row and row[0]:
         try:
-            return json.loads(row[0])
+            config = json.loads(row[0])
+            if row[1]:
+                config.setdefault("source_type", row[1])
+            return config
         except Exception:
             pass
     return _load_mapping_from_json(name)
@@ -136,12 +148,19 @@ def import_json_mappings(overwrite: bool = False) -> dict:
 
     Used as a one-time/refresh seed. Imported mappings are flagged is_system=1.
     When overwrite is False, existing names are left untouched.
+    Scans both ServiceNow and JSM mapping directories.
     Returns a summary of imported and skipped names.
     """
-    from config.settings import MAPPING_PRIORITY, ATTACHMENT_MAPPING_PRIORITY
+    from config.settings import (
+        MAPPING_PRIORITY, ATTACHMENT_MAPPING_PRIORITY,
+        JSM_MAPPING_PRIORITY, PATH_TO_JSM_MAPPING,
+    )
 
     priority_map: dict[str, int] = {}
     for idx, group in enumerate(MAPPING_PRIORITY + ATTACHMENT_MAPPING_PRIORITY):
+        for nm in group:
+            priority_map.setdefault(nm, idx)
+    for idx, group in enumerate(JSM_MAPPING_PRIORITY):
         for nm in group:
             priority_map.setdefault(nm, idx)
 
@@ -150,26 +169,36 @@ def import_json_mappings(overwrite: bool = False) -> dict:
     skipped: list[str] = []
     now = _now()
     rows = []
-    for json_file in sorted(PATH_TO_MAPPING.glob("*.json")):
-        name = json_file.stem
-        if name in existing and not overwrite:
-            skipped.append(name)
+
+    mapping_dirs: list[tuple[pathlib.Path, str]] = [
+        (PATH_TO_MAPPING, "servicenow"),
+        (PATH_TO_JSM_MAPPING, "jsm"),
+    ]
+
+    for mapping_dir, default_source_type in mapping_dirs:
+        if not mapping_dir.exists():
             continue
-        try:
-            config = read_json_from_file(json_file)
-        except Exception:
-            skipped.append(name)
-            continue
-        priority = priority_map.get(name, config.get("priority", 9999))
-        rows.append({
-            "name": name,
-            "source_type": "servicenow",
-            "config": json.dumps(config),
-            "priority": priority,
-            "is_system": 1,
-            "updated_at": now,
-        })
-        imported.append(name)
+        for json_file in sorted(mapping_dir.glob("*.json")):
+            name = json_file.stem
+            if name in existing and not overwrite:
+                skipped.append(name)
+                continue
+            try:
+                config = read_json_from_file(json_file)
+            except Exception:
+                skipped.append(name)
+                continue
+            source_type = config.get("source_type", default_source_type)
+            priority = priority_map.get(name, config.get("priority", 9999))
+            rows.append({
+                "name": name,
+                "source_type": source_type,
+                "config": json.dumps(config),
+                "priority": priority,
+                "is_system": 1,
+                "updated_at": now,
+            })
+            imported.append(name)
     if rows:
         db_client.bulk_upsert("mapping_configs", rows, ["name"], ignore_cols={"id", "created_at"})
     return {"imported": imported, "skipped": skipped}

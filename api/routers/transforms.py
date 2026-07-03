@@ -80,6 +80,18 @@ GENERIC_TRANSFORMS: list[dict] = [
             "default": {"type": "string", "default": "", "description": "Fallback value if not found"},
         },
     },
+    {
+        "name": "jsm_extract_first_name",
+        "label": "Extract First Name",
+        "description": "Split a display name (e.g. 'Mia Krystof') and return everything except the last word as the first name.",
+        "params_schema": {},
+    },
+    {
+        "name": "jsm_extract_last_name",
+        "label": "Extract Last Name",
+        "description": "Split a display name (e.g. 'Mia Krystof') and return the last word as the last name.",
+        "params_schema": {},
+    },
 ]
 
 
