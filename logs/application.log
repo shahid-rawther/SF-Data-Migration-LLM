@@ -1,0 +1,67 @@
+2026-07-07 15:20:38,937 - INFO - [migration-902ceeca] [itsm:28] - Initializing Service now client.
+2026-07-07 15:20:38,938 - INFO - [migration-902ceeca] [itsm:35] - Servicenow base URL: 
+2026-07-07 15:20:38,965 - INFO - [migration-902ceeca] [itsm:51] - Initializing SalesforceClient.
+2026-07-07 15:20:38,966 - INFO - [migration-902ceeca] [itsm:52] - Salesforce base URL: None
+2026-07-07 15:20:39,037 - INFO - [migration-902ceeca] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-07 15:20:39,037 - INFO - [migration-902ceeca] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-07 15:20:39,043 - INFO - [migration-902ceeca] [itsm:43] - Jira client configured for: https://milestone-team-a63qhc1b.atlassian.net
+2026-07-07 15:20:39,093 - INFO - [migration-902ceeca] [itsm:333] - Resolved dependencies — final object list: ['Users']
+2026-07-07 15:20:39,151 - INFO - [migration-902ceeca] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['Users']
+2026-07-07 15:20:39,177 - INFO - [migration-902ceeca] [itsm:55] - [Extraction] Resolved tables | plugin=JSMProvider | tables=['users']
+2026-07-07 15:20:39,209 - INFO - [ThreadPoolExecutor-1_0] [itsm:125] - JSM extraction: entity=users job_table=44
+2026-07-07 15:20:41,706 - INFO - [migration-902ceeca] [itsm:57] - [Extraction] Completed | job_id=1 | total_extracted=17
+2026-07-07 15:20:41,811 - INFO - [migration-902ceeca] [itsm:94] - Transformation: Table: users_Account_...
+2026-07-07 15:20:41,866 - INFO - [ThreadPoolExecutor-2_0] [itsm:152] - Transformation: Batch Number: 0 Status: Pending
+2026-07-07 15:20:41,891 - INFO - [ThreadPoolExecutor-2_0] [itsm:157] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-07 15:20:42,009 - INFO - [ThreadPoolExecutor-2_0] [itsm:286] - [Transformation] Account | batch=200_0 | rows_after_filter=17 | operation=insert
+2026-07-07 15:20:42,046 - INFO - [ThreadPoolExecutor-2_0] [itsm:428] - [Transformation] Account | batch=200_0 | insert=17, update=0 | skipped: exists=0, date_filter=0, error=0
+2026-07-07 15:20:42,065 - INFO - [ThreadPoolExecutor-2_0] [itsm:222] - Transformation: Batch Number: 0 Status: Success
+2026-07-07 15:20:42,067 - INFO - [migration-902ceeca] [itsm:129] - Transformation: Table: users_Account_...Done
+2026-07-07 15:20:42,075 - INFO - [migration-902ceeca] [itsm:461] - [Migration] Transformation complete for group: ['Users']
+2026-07-07 15:20:42,188 - INFO - [migration-902ceeca] [itsm:240] - Loading: users_Account_...
+2026-07-07 15:20:42,190 - INFO - [migration-902ceeca] [itsm:247] - Loading: users_Account_ | transformation_path=C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\csv\Account | batches=1
+2026-07-07 15:20:42,241 - INFO - [ThreadPoolExecutor-3_0] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Pending
+2026-07-07 15:20:42,268 - INFO - [ThreadPoolExecutor-3_0] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-07 15:20:42,268 - INFO - [ThreadPoolExecutor-3_0] [itsm:81] - Refreshing Salesforce access token...
+2026-07-07 15:20:44,764 - INFO - [ThreadPoolExecutor-3_0] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-07 15:20:50,005 - INFO - [ThreadPoolExecutor-3_0] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-07 15:20:50,046 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077
+2026-07-07 15:20:50,046 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 5dd64082af96bc0efbe55103
+2026-07-07 15:20:50,046 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497
+2026-07-07 15:20:50,046 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5
+2026-07-07 15:20:50,047 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 712020:23249374-b527-4222-929f-3728ae126a6e
+2026-07-07 15:20:50,047 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75
+2026-07-07 15:20:50,047 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0
+2026-07-07 15:20:50,047 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 5d53f3cbc6b9320d9ea5bdc2
+2026-07-07 15:20:50,047 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 60e5a86a471e61006a4c51fd
+2026-07-07 15:20:50,048 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 5b6c7b3afbc68529c6c47967
+2026-07-07 15:20:50,048 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 712020:7480ab94-14ac-49c9-8706-479eba31105b
+2026-07-07 15:20:50,048 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 630db2cd9796033b256bc349
+2026-07-07 15:20:50,048 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 5cf112d31552030f1e3a5905
+2026-07-07 15:20:50,048 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3
+2026-07-07 15:20:50,049 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a
+2026-07-07 15:20:50,049 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 5cb4ae0e4b97ab11a18e00c7
+2026-07-07 15:20:50,049 - WARNING - [ThreadPoolExecutor-3_0] [itsm:233] - Clearing invalid OwnerId before upload: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e
+2026-07-07 15:20:57,842 - INFO - [ThreadPoolExecutor-3_0] [itsm:487] - [Account] State: InProgress, Processed Records: 17, Failed Records:0
+2026-07-07 15:21:03,933 - INFO - [ThreadPoolExecutor-3_0] [itsm:487] - [Account] State: JobComplete, Processed Records: 17, Failed Records:0
+2026-07-07 15:21:06,394 - INFO - [ThreadPoolExecutor-3_0] [itsm:289] - C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\hash\Account\200_0\17_insert_hash.csv
+2026-07-07 15:21:06,405 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077, Hash: f1bbbe64ea0842a2720555644d14f41c
+2026-07-07 15:21:06,405 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 5dd64082af96bc0efbe55103, Hash: 0bf0698593f9347a42478850e799ea21
+2026-07-07 15:21:06,405 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497, Hash: 8585a53f80548b9dcf6a053a99785caf
+2026-07-07 15:21:06,405 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5, Hash: 2a2b2963a1dba7a52799db020c21c160
+2026-07-07 15:21:06,405 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 712020:23249374-b527-4222-929f-3728ae126a6e, Hash: e801b92f9ecba654221168051019c151
+2026-07-07 15:21:06,406 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75, Hash: d96155ca28e5a4cb14e423611a16d30b
+2026-07-07 15:21:06,406 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0, Hash: f56792eab03ae886ea62e2d3b3b8ef62
+2026-07-07 15:21:06,406 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 5d53f3cbc6b9320d9ea5bdc2, Hash: 9ca9fa3d081b0db0b2897c949c8991f2
+2026-07-07 15:21:06,406 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 60e5a86a471e61006a4c51fd, Hash: 1020ec6d8b8c01de0bc04b7ce8260a4c
+2026-07-07 15:21:06,406 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 5b6c7b3afbc68529c6c47967, Hash: 9814b3cb6a1539a4d4d54617cda2edb1
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 712020:7480ab94-14ac-49c9-8706-479eba31105b, Hash: 96c8e859b3991686d988962e4cc89f68
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 630db2cd9796033b256bc349, Hash: ff6f1081ca17363fa4d7183f6884eb7f
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 5cf112d31552030f1e3a5905, Hash: 0f12c028a8210af0fe811d8cb32ae806
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3, Hash: 6401a90c41a949818c953ef212c06721
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a, Hash: 2783d59cc31173009918f6563e51332c
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 5cb4ae0e4b97ab11a18e00c7, Hash: d29245125168ced425538f46bb62cd88
+2026-07-07 15:21:06,407 - ERROR - [ThreadPoolExecutor-3_0] [itsm:310] - No match found for SysId: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e, Hash: 800795a9af4b9436a2d95090b46f8b57
+2026-07-07 15:21:06,412 - INFO - [ThreadPoolExecutor-3_0] [itsm:362] - Inserting ID mappings... for table: users_Account_
+2026-07-07 15:21:06,413 - INFO - [ThreadPoolExecutor-3_0] [itsm:373] - Inserting ID mappings... for table: users_Account_ Done
+2026-07-07 15:21:11,455 - INFO - [ThreadPoolExecutor-3_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Success
