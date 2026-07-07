@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import re
 import sys
 import time
 import requests
@@ -17,6 +18,15 @@ DEFAULT_SALESFORCE_CLIENT_ID = os.getenv("SALESFORCE_CLIENT_ID")
 DEFAULT_SALESFORCE_CLIENT_SECRET = os.getenv("SALESFORCE_CLIENT_SECRET")
 DEFAULT_SALESFORCE_BASE_URL = os.getenv("SALESFORCE_BASE_URL")
 csv.field_size_limit(2**31 - 1)
+
+
+_SF_ID_RE = re.compile(r"^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
+
+
+def _is_valid_salesforce_id(value: str) -> bool:
+    if not value:
+        return False
+    return bool(_SF_ID_RE.fullmatch(str(value).strip()))
 
 
 
@@ -214,6 +224,18 @@ class SalesforceClient:
             for row in reader:
                 for col in remove_columns:
                     row.pop(col, None)
+
+                # Fallback: when OwnerId carries source-system IDs (common in JSM),
+                # Salesforce rejects the row with MALFORMED_ID. Clearing it lets SF
+                # assign the default owner for inserts.
+                owner_id = row.get("OwnerId")
+                if owner_id and not _is_valid_salesforce_id(owner_id):
+                    logger.warning(
+                        "Clearing invalid OwnerId before upload: %s",
+                        owner_id,
+                    )
+                    row["OwnerId"] = ""
+
                 # Blank out invalid restricted picklist values
                 if picklist_values:
                     for field_name, allowed in picklist_values.items():

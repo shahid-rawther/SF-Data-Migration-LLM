@@ -170,25 +170,33 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
             batch_path, table_mappings
         )
 
+        import sys
+        print(f"[TRANSFORM_SAVE] insert={len(transformations['insert'])}, update={len(transformations['update'])}, hashes={len(transformation_hashes)}", flush=True)
+        sys.stdout.flush()
+
         # ================== INSERT ================================================
         if transformations["insert"]:
 
             salesforce_object_transformation_path_insert_batch_path = (
                 salesforce_object_transformation_path
                 / batch_path.stem
-                / f"{len(transformations["insert"])}_insert.csv"
+                / f"{len(transformations['insert'])}_insert.csv"
             )
+            print(f"[TRANSFORM_SAVE] Writing insert CSV to: {salesforce_object_transformation_path_insert_batch_path}", flush=True)
 
             save_as_csv(
                 salesforce_object_transformation_path_insert_batch_path,
                 transformations["insert"],
             )
+        else:
+            print(f"[TRANSFORM_SAVE] NO insert records — skipping CSV write", flush=True)
+
         # ================== UPDATE ================================================
         if transformations["update"]:
             salesforce_object_transformation_path_update_batch_path = (
                 salesforce_object_transformation_path
                 / batch_path.stem
-                / f"{len(transformations["update"])}_update.csv"
+                / f"{len(transformations['update'])}_update.csv"
             )
 
             save_as_csv(
@@ -303,18 +311,18 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             continue
 
         for field in fields:
+            field_values = []
+            destination_field = field.get("destination_field")
 
             # Source fields will support str or list
-            source_fields = field.get("source_field")                 
+            source_fields = field.get("source_field")
             if source_fields:
                 if isinstance(source_fields, str):
                     source_fields = [s.strip() for s in source_fields.split(",")]
 
-                field_values = []
                 for source_field in source_fields:
-                    field_values.append(row[source_field.split(".")[-1]])
+                    field_values.append(row.get(source_field.split(".")[-1], ""))
 
-            destination_field = field.get("destination_field")
             transformation_function = field.get("transformation_function")
             transformation_params = field.get("transformation_params")
             constant = field.get("use_constant")
@@ -341,10 +349,23 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                         skipped_error += 1
                         continue
                 else:
-                    raise ValueError(
-                        f"Function {transformation_function} not found in module"
+                    logger.error(
+                        "Transform function not found for row %s, field=%s: %s",
+                        row[source_id_column],
+                        destination_field,
+                        transformation_function,
                     )
+                    skip_row = True
+                    skipped_error += 1
+                    continue
             else:
+                if not field_values:
+                    logger.debug(
+                        "Skipping unmapped field with no source value for row %s, destination=%s",
+                        row[source_id_column],
+                        destination_field,
+                    )
+                    continue
                 if len(field_values) == 1:
                     try:
                         field_value = (
@@ -357,11 +378,19 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                         logger.error(
                             f"Error processing field {destination_field} with value {field_values[0]}: {e}"
                         )
-                        raise
+                        skip_row = True
+                        skipped_error += 1
+                        continue
                 else:
-                    raise Exception(
-                        f"Not expecting multiple values for source_field: {field['source_field']}"
+                    logger.error(
+                        "Multiple source values found for non-transform field on row %s, destination=%s, source_field=%s",
+                        row[source_id_column],
+                        destination_field,
+                        field.get("source_field"),
                     )
+                    skip_row = True
+                    skipped_error += 1
+                    continue
         if skip_row:
             continue
 

@@ -33,6 +33,7 @@ class ProgressEvent:
     status: str
     message: str = ""
     records_by_object: dict = field(default_factory=dict)
+    load_errors: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +49,7 @@ class ProgressEvent:
             "status": self.status,
             "message": self.message,
             "records_by_object": self.records_by_object,
+            "load_errors": self.load_errors,
         }
 
 
@@ -137,6 +139,7 @@ class MigrationManager:
             "status": db_session.get("status", "pending"),
             "message": "",
             "records_by_object": {},
+            "load_errors": {},
         }
 
     def is_active(self, session_id: str) -> bool:
@@ -227,9 +230,14 @@ class MigrationManager:
     def _run_migration(self, session_id: str, config: dict, state: SessionState) -> None:
         """Main ETL runner executed in a background thread."""
         dotenv.load_dotenv()
+        from pathlib import Path
+        _dbg = Path("_migration_debug.log")
+        _dbg.write_text(f"[{datetime.now(timezone.utc).isoformat()}] Migration started: {session_id}\n", encoding="utf-8")
         try:
             self._do_run(session_id, config, state)
+            with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration completed successfully\n")
         except Exception as exc:
+            with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration FAILED: {exc}\n")
             logger.exception("Migration session %s failed: %s", session_id, exc)
             session_db.mark_session_failed(session_id)
             err_event = ProgressEvent(
@@ -258,6 +266,13 @@ class MigrationManager:
         from tools.cache import execution_cache
 
         execution_cache.clear()
+
+        # Always clear stale job tracking so each run starts fresh
+        from services.external.db_client import db_client
+        db_client.execute("DELETE FROM job_table_batches")
+        db_client.execute("DELETE FROM job_tables")
+        db_client.execute("DELETE FROM jobs")
+        logger.info("Cleared job tracking data for fresh run")
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
@@ -330,6 +345,7 @@ class MigrationManager:
         total_processed = 0
         total_failed = 0
         records_by_object: dict[str, dict[str, int]] = {}
+        load_errors_by_object: dict[str, list[str]] = {}
 
         skip_extraction = config.get("skip_extraction", False)
         flat = [name for group in ordered for name in group]
@@ -442,6 +458,7 @@ class MigrationManager:
             )
 
             transformation_controller.start_trasformation(TRANSFORMATION_JOB_NUMBER, group)
+            logger.info(f"[Migration] Transformation complete for group: {group}")
 
             if token.is_cancelled():
                 return
@@ -491,6 +508,8 @@ class MigrationManager:
             total_failed += load_result.get("records_failed", 0)
             for obj_name, counts in load_result.get("by_object", {}).items():
                 records_by_object[obj_name] = counts
+            for obj_name, errs in load_result.get("errors_by_object", {}).items():
+                load_errors_by_object[obj_name] = errs
 
             self._emit(
                 session_id,
@@ -507,6 +526,7 @@ class MigrationManager:
                     status="running",
                     message=f"Loaded {', '.join(group)} — {total_processed:,} processed, {total_failed:,} failed",
                     records_by_object=records_by_object,
+                    load_errors=load_errors_by_object,
                 ),
             )
 
@@ -536,6 +556,7 @@ class MigrationManager:
                 status="completed",
                 message=final_msg,
                 records_by_object=records_by_object,
+                load_errors=load_errors_by_object,
             ),
         )
 

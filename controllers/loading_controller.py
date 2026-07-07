@@ -36,26 +36,58 @@ from integrations.salesforce import loading as loading_service
 from typing import List, Dict
 
 
+def _summarize_failed_results(failed_csv: str, max_items: int = 8) -> list[str]:
+    """Extract unique Salesforce error messages from failedResults CSV text."""
+    if not failed_csv or not failed_csv.strip():
+        return []
+
+    messages: list[str] = []
+    seen: set[str] = set()
+    try:
+        reader = csv.DictReader(io.StringIO(failed_csv))
+        for row in reader:
+            msg = (row.get("sf__Error") or "").strip()
+            if not msg:
+                continue
+            if msg in seen:
+                continue
+            seen.add(msg)
+            messages.append(msg)
+            if len(messages) >= max_items:
+                break
+    except Exception:
+        return []
+    return messages
+
+
 def start_loading(job_id: int, mappings_file_names: list[str] = []):
     job_id = jobs_service.get_or_create_job(job_id, "loading")
     jobs_service.update_job_status(job_id, "in-progress")
     total_processed = 0
     total_failed = 0
     by_object: dict[str, dict[str, int]] = {}
+    by_object_errors: dict[str, list[str]] = {}
     
     try:
         tables_mappings = get_mappings(mappings_file_names)
         for table_mapping in tables_mappings:
-            processed, failed = load_table(job_id, table_mapping)
+            processed, failed, error_messages = load_table(job_id, table_mapping)
             total_processed += processed
             total_failed += failed
             obj_name = table_mapping.get("transformation_name") or cfg_destination_object(table_mapping)
             by_object[obj_name] = {"processed": processed, "failed": failed}
+            if error_messages:
+                by_object_errors[obj_name] = error_messages
     except Exception as e:
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
-    return {"records_processed": total_processed, "records_failed": total_failed, "by_object": by_object}
+    return {
+        "records_processed": total_processed,
+        "records_failed": total_failed,
+        "by_object": by_object,
+        "errors_by_object": by_object_errors,
+    }
 
 
 def load_csv_batch(
@@ -193,6 +225,7 @@ def load_table(job_id: int, table_mapping: dict):
     futures = []
     total_processed = 0
     total_failed = 0
+    collected_errors: list[str] = []
     transformation_path = (
         PATH_TO_TRANSFORMATION
         / "csv"
@@ -253,6 +286,9 @@ def load_table(job_id: int, table_mapping: dict):
             if isinstance(result, dict):
                 total_processed += result.get("processed", 0)
                 total_failed += result.get("failed", 0)
+                for err in result.get("errors", []):
+                    if err not in collected_errors:
+                        collected_errors.append(err)
         except Exception as e:
             logger.exception("Loading batch failed", exc_info=e)
             jobs_service.update_job_table_status(job_table_id, "failed")
@@ -260,7 +296,7 @@ def load_table(job_id: int, table_mapping: dict):
     jobs_service.update_job_table_status(job_table_id, "success")
     executer_parallel.shutdown(wait=False)
     executer_queue.shutdown(wait=False)
-    return total_processed, total_failed
+    return total_processed, total_failed, collected_errors
 
 
 def load_insert_batch(
@@ -455,10 +491,11 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             break
         time.sleep(POLL_TIME)  # backoff as needed
 
-    batch_result = {"processed": 0, "failed": 0}
+    batch_result = {"processed": 0, "failed": 0, "errors": []}
     if job_satus:
-        processed_records = job_satus.get("numberRecordsProcessed")
-        failed_records = job_satus.get("numberRecordsFailed")
+        processed_records = int(job_satus.get("numberRecordsProcessed") or 0)
+        failed_records = int(job_satus.get("numberRecordsFailed") or 0)
+        succeeded_records = max(processed_records - failed_records, 0)
         unprocessed_records = batch_size - processed_records
         results = {
             "processed_records": processed_records,
@@ -466,7 +503,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             "unprocessed_records": unprocessed_records
         }
         jobs_service.update_job_table_batch_results(table_batch_id, results)
-        batch_result = {"processed": processed_records, "failed": failed_records}
+        batch_result = {"processed": succeeded_records, "failed": failed_records, "errors": []}
 
         
     success_path = (
@@ -511,9 +548,17 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
             / f"{batch_path.stem}_hash.csv"
         )
 
-        id_mappings = map_servicenow_to_salesforce(
-            servicenow_hash_path, salesforce_hash
-        )
+        if not salesforce_hash:
+            logger.warning(
+                "No successful Salesforce inserts for %s batch %s; skipping ID mapping generation",
+                salesforce_object,
+                batch_path.stem,
+            )
+            id_mappings = []
+        else:
+            id_mappings = map_servicenow_to_salesforce(
+                servicenow_hash_path, salesforce_hash
+            )
 
         if not id_mappings and salesforce_hash:
             id_mappings = _match_id_mappings_by_recomputed_hash(
@@ -536,6 +581,7 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
 
     failed = salesforce_client.get_results(job_id, "failedResults")
     save_text_to_file(failed, failed_path)
+    batch_result["errors"] = _summarize_failed_results(failed)
 
     unprocessed = salesforce_client.get_results(job_id, "unprocessedRecords")
     save_text_to_file(unprocessed, unprocessed_path)

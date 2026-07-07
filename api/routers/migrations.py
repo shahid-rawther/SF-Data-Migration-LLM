@@ -132,6 +132,9 @@ def retry_migration(session_id: str):
     if last_phase in ("transformation", "loading"):
         config["skip_extraction"] = True
 
+    # Reset stale job tracking so transformation/loading batches re-run
+    config["reset_jobs"] = True
+
     migration_manager.start_migration(session_id, config)
     return {"session_id": session_id, "status": "running", "skipped_extraction": config.get("skip_extraction", False)}
 
