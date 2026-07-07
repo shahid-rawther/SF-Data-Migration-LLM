@@ -97,6 +97,7 @@ export interface ProgressEvent {
   status: string;
   message: string;
   records_by_object: Record<string, ObjectCounts>;
+  load_errors?: Record<string, string[]>;
 }
 
 export interface CreateMigrationRequest {

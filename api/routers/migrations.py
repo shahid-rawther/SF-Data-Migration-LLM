@@ -110,6 +110,35 @@ def stop_migration(session_id: str):
     return {"session_id": session_id, "status": "stopped"}
 
 
+@router.post("/{session_id}/retry")
+def retry_migration(session_id: str):
+    """Retry a failed/stopped migration, skipping extraction if it already completed."""
+    session = session_db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["status"] == "running":
+        raise HTTPException(status_code=409, detail="Session is already running")
+
+    from services.external.db_client import db_client
+    raw = db_client.fetch_one(
+        "SELECT config FROM migration_sessions WHERE id = ?", (session_id,)
+    )
+    if not raw:
+        raise HTTPException(status_code=404, detail="Session config not found")
+    config = json.loads(raw[0])
+
+    last_phase = session.get("phase", "")
+    # Skip extraction if it already completed (failed during transform/load)
+    if last_phase in ("transformation", "loading"):
+        config["skip_extraction"] = True
+
+    # Reset stale job tracking so transformation/loading batches re-run
+    config["reset_jobs"] = True
+
+    migration_manager.start_migration(session_id, config)
+    return {"session_id": session_id, "status": "running", "skipped_extraction": config.get("skip_extraction", False)}
+
+
 @router.get("/{session_id}/progress")
 async def stream_progress(session_id: str):
     """SSE endpoint — streams real-time progress events to the browser."""

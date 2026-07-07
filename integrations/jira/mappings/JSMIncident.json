@@ -1,0 +1,97 @@
+{
+    "priority": 10,
+    "operation": "upsert",
+    "source_type": "jsm",
+    "source_tables": ["jsm_incidents"],
+    "source_id_column": "id",
+    "jql_filter": "issuetype = Incident",
+    "joins": [],
+    "filters": [],
+    "destination_object": "Case",
+    "fields": [
+        {
+            "source_field": ["jsm_incidents.key", "jsm_incidents.summary"],
+            "transformation_function": "populate_jsm_subject",
+            "destination_field": "Subject"
+        },
+        {
+            "source_field": "jsm_incidents.description",
+            "transformation_function": "convert_adf_to_text",
+            "destination_field": "Description"
+        },
+        {
+            "source_field": "jsm_incidents.status",
+            "transformation_function": "look_up_jsm_status",
+            "destination_field": "Status"
+        },
+        {
+            "source_field": "jsm_incidents.priority",
+            "transformation_function": "look_up_jsm_priority",
+            "ignore_on_update": true,
+            "destination_field": "Priority"
+        },
+        {
+            "source_field": "jsm_incidents.priority",
+            "transformation_function": "look_up_jsm_impact",
+            "destination_field": "Impact__c"
+        },
+        {
+            "source_field": "jsm_incidents.priority",
+            "transformation_function": "look_up_jsm_urgency",
+            "destination_field": "Urgency__c"
+        },
+        {
+            "source_field": "jsm_incidents.issuetype",
+            "transformation_function": "look_up_jsm_category",
+            "destination_field": "Category__c"
+        },
+        {
+            "source_field": "jsm_incidents.created",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "jsm_incidents.updated",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "LastModifiedDate"
+        },
+        {
+            "source_field": "jsm_incidents.resolutiondate",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "ClosedDate"
+        },
+        {
+            "source_field": "jsm_incidents.resolution",
+            "transformation_function": "look_up_jsm_resolution",
+            "destination_field": "Resolution__c"
+        },
+        {
+            "source_field": "jsm_incidents.reporter_accountid",
+            "transformation_function": "look_up_jsm_user",
+            "destination_field": "ContactId"
+        },
+        {
+            "source_field": "jsm_incidents.assignee_accountid",
+            "transformation_function": "look_up_jsm_user",
+            "destination_field": "OwnerId"
+        },
+        {
+            "source_field": "jsm_incidents.project_name",
+            "destination_field": "Origin"
+        },
+        {
+            "source_field": "jsm_incidents.labels",
+            "transformation_function": "jsm_labels_to_text",
+            "destination_field": "Tags__c"
+        },
+        {
+            "source_field": "jsm_incidents.components",
+            "destination_field": "Component__c"
+        },
+        {
+            "source_field": "jsm_incidents.duedate",
+            "transformation_function": "convert_jira_date",
+            "destination_field": "Due_Date__c"
+        }
+    ]
+}

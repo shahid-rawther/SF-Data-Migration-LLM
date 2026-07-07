@@ -28,15 +28,19 @@ export function MigrationDetail() {
     });
   }, [id]);
 
-  // Append progress messages to log
+  // Append each incoming progress message once
   useEffect(() => {
     if (progress?.message) {
       setLogs((prev) => [...prev, `[${progress.phase}] ${progress.message}`]);
     }
+  }, [progress]);
+
+  // Keep local status synced with backend progress state
+  useEffect(() => {
     if (progress?.status && progress.status !== status) {
       setStatus(progress.status);
     }
-  }, [progress, status]);
+  }, [progress?.status, status]);
 
   if (loading) return <div style={pageStyle}><p>Loading…</p></div>;
   if (!session) return <div style={pageStyle}><p>Session not found</p></div>;
@@ -175,6 +179,23 @@ export function MigrationDetail() {
               </tr>
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Salesforce loading errors */}
+      {liveProgress?.load_errors && Object.keys(liveProgress.load_errors).length > 0 && (
+        <div style={{ ...cardStyle, border: '1px solid #fecaca', background: '#fef2f2' }}>
+          <h2 style={{ ...h2, color: '#991b1b' }}>Salesforce Load Errors</h2>
+          {Object.entries(liveProgress.load_errors).map(([objName, messages]) => (
+            <div key={objName} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#7f1d1d', marginBottom: 6 }}>{objName}</div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: '#7f1d1d', fontSize: 12 }}>
+                {messages.map((msg, idx) => (
+                  <li key={`${objName}-${idx}`} style={{ marginBottom: 4 }}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
 

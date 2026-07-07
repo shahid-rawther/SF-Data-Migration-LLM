@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import importlib
 import pandas as pd
 import os
 import tqdm
@@ -30,6 +31,38 @@ from services.internal import extraction_service
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tools.reconciliation import reconciliation_tracker
 
+_TRANSFORM_MODULES: dict[str, object] = {}
+
+
+def _get_transform_module(source_type: str):
+    """Resolve the transformation module for the given source type.
+
+    ServiceNow functions live in ``helpers.transformation_helper`` (a shim to
+    ``integrations.servicenow.transformations``).  JSM functions live in
+    ``integrations.jira.transformations``.  Results are cached per source type.
+    """
+    if source_type in _TRANSFORM_MODULES:
+        return _TRANSFORM_MODULES[source_type]
+
+    if source_type == "jsm":
+        mod = importlib.import_module("integrations.jira.transformations")
+    else:
+        mod = transformation_helper
+
+    _TRANSFORM_MODULES[source_type] = mod
+    return mod
+
+
+def _resolve_transform_func(func_name: str, source_type: str):
+    """Look up a transformation function, checking source-specific module first,
+    then falling back to the ServiceNow module for shared helpers."""
+    mod = _get_transform_module(source_type)
+    if hasattr(mod, func_name):
+        return getattr(mod, func_name)
+    if mod is not transformation_helper and hasattr(transformation_helper, func_name):
+        return getattr(transformation_helper, func_name)
+    return None
+
 
 
 def transform_table(job_id: int, table_mappings: dict):
@@ -44,10 +77,15 @@ def transform_table(job_id: int, table_mappings: dict):
         )
     source_tables = cfg_source_tables(table_mappings)
     base_table = tables_path / source_tables[0]
+    if not base_table.exists():
+        raise FileNotFoundError(
+            f"Extracted data directory not found: {base_table}  "
+            f"(source_type={source_type!r}). Was extraction completed successfully?"
+        )
     base_path_files = list(base_table.iterdir())
     table_name = source_tables[0]  # Driving table
     dest_object = cfg_destination_object(table_mappings)
-    operation = table_mappings["operation"]
+    operation = table_mappings.get("operation", "insert")
     job_table = get_id_mapping_table_name(
         table_name,
         dest_object,
@@ -132,25 +170,33 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
             batch_path, table_mappings
         )
 
+        import sys
+        print(f"[TRANSFORM_SAVE] insert={len(transformations['insert'])}, update={len(transformations['update'])}, hashes={len(transformation_hashes)}", flush=True)
+        sys.stdout.flush()
+
         # ================== INSERT ================================================
         if transformations["insert"]:
 
             salesforce_object_transformation_path_insert_batch_path = (
                 salesforce_object_transformation_path
                 / batch_path.stem
-                / f"{len(transformations["insert"])}_insert.csv"
+                / f"{len(transformations['insert'])}_insert.csv"
             )
+            print(f"[TRANSFORM_SAVE] Writing insert CSV to: {salesforce_object_transformation_path_insert_batch_path}", flush=True)
 
             save_as_csv(
                 salesforce_object_transformation_path_insert_batch_path,
                 transformations["insert"],
             )
+        else:
+            print(f"[TRANSFORM_SAVE] NO insert records — skipping CSV write", flush=True)
+
         # ================== UPDATE ================================================
         if transformations["update"]:
             salesforce_object_transformation_path_update_batch_path = (
                 salesforce_object_transformation_path
                 / batch_path.stem
-                / f"{len(transformations["update"])}_update.csv"
+                / f"{len(transformations['update'])}_update.csv"
             )
 
             save_as_csv(
@@ -208,11 +254,12 @@ def transform_batch(batch_path: Path, table_mappings: dict):
     source_tables = cfg_source_tables(table_mappings)
     salesforce_object_name = cfg_destination_object(table_mappings)
     driving_table = source_tables[0]
-    source_id_column = table_mappings.get("source_id_column", SERVICE_NOW_ID_COLUMN)
-    fields = table_mappings["fields"]
-    joins = table_mappings["joins"]
-    filters = table_mappings["filters"]
-    operation = table_mappings["operation"]
+    _default_id_col = "accountId" if source_type == "jsm" else SERVICE_NOW_ID_COLUMN
+    source_id_column = table_mappings.get("source_id_column", _default_id_col)
+    fields = table_mappings.get("fields", [])
+    joins = table_mappings.get("joins", [])
+    filters = table_mappings.get("filters", [])
+    operation = table_mappings.get("operation", "insert")
     look_up_table_names = table_mappings.get(
         "look_up_table_names", None
     )
@@ -236,12 +283,16 @@ def transform_batch(batch_path: Path, table_mappings: dict):
         source_fields_list, batch_path, join_tables, joins, filters
     )
 
-    logger.debug(
-        f"Batch: {SERVICE_NOW_BATCH_SIZE}, Fetched after Join: {len(source_data)}"
+    logger.info(
+        f"[Transformation] {salesforce_object_name} | batch={batch_path.stem} | "
+        f"rows_after_filter={len(source_data)} | operation={operation}"
     )
 
+    skipped_exists = 0
+    skipped_date = 0
+    skipped_error = 0
+
     for _, row in source_data.iterrows():
-        logger.debug(f"Transform record {row[source_id_column]} started at {datetime.now()}")
         salesforce_object = {}
         skip_row = False
        
@@ -252,24 +303,26 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             if filter_date > sys_created_by:
                 skip_row = True
         if skip_row:
+            skipped_date += 1
             continue
         
         if operation == "insert" and mappings_service.is_exists(id_mapping_table_names, row[source_id_column]):
+            skipped_exists += 1
             continue
 
         for field in fields:
+            field_values = []
+            destination_field = field.get("destination_field")
 
             # Source fields will support str or list
-            source_fields = field.get("source_field")                 
+            source_fields = field.get("source_field")
             if source_fields:
                 if isinstance(source_fields, str):
                     source_fields = [s.strip() for s in source_fields.split(",")]
 
-                field_values = []
                 for source_field in source_fields:
-                    field_values.append(row[source_field.split(".")[-1]])
+                    field_values.append(row.get(source_field.split(".")[-1], ""))
 
-            destination_field = field.get("destination_field")
             transformation_function = field.get("transformation_function")
             transformation_params = field.get("transformation_params")
             constant = field.get("use_constant")
@@ -277,10 +330,10 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             if constant:
                 salesforce_object[destination_field] = os.getenv(constant)
             elif transformation_function:
-                if hasattr(transformation_helper, transformation_function):
-                    func = getattr(transformation_helper, transformation_function)
+                func = _resolve_transform_func(transformation_function, source_type)
+                if func is not None:
                     try:
-                        if transformation_params is not None:
+                        if transformation_params:
                             salesforce_object.update(
                                 func(destination_field, *field_values, params=transformation_params)
                             )
@@ -291,14 +344,28 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                                 skip_row = True
                                 continue
                     except Exception as e:
-                        logger.error("Exception occured dusing transformation of row. Row Skipped", exc_info=e)
+                        logger.error(f"Transform error on row {row[source_id_column]}, field={destination_field}: {e}")
                         skip_row = True
+                        skipped_error += 1
                         continue
                 else:
-                    raise ValueError(
-                        f"Function {transformation_function} not found in module"
+                    logger.error(
+                        "Transform function not found for row %s, field=%s: %s",
+                        row[source_id_column],
+                        destination_field,
+                        transformation_function,
                     )
+                    skip_row = True
+                    skipped_error += 1
+                    continue
             else:
+                if not field_values:
+                    logger.debug(
+                        "Skipping unmapped field with no source value for row %s, destination=%s",
+                        row[source_id_column],
+                        destination_field,
+                    )
+                    continue
                 if len(field_values) == 1:
                     try:
                         field_value = (
@@ -311,11 +378,19 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                         logger.error(
                             f"Error processing field {destination_field} with value {field_values[0]}: {e}"
                         )
-                        raise
+                        skip_row = True
+                        skipped_error += 1
+                        continue
                 else:
-                    raise Exception(
-                        f"Not expecting multiple values for source_field: {field['source_field']}"
+                    logger.error(
+                        "Multiple source values found for non-transform field on row %s, destination=%s, source_field=%s",
+                        row[source_id_column],
+                        destination_field,
+                        field.get("source_field"),
                     )
+                    skip_row = True
+                    skipped_error += 1
+                    continue
         if skip_row:
             continue
 
@@ -349,4 +424,10 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                 transformation_hashes.append(source_hash)
 
         logger.debug(f"Transform record {row[source_id_column]} ends at {datetime.now()}")
+
+    logger.info(
+        f"[Transformation] {salesforce_object_name} | batch={batch_path.stem} | "
+        f"insert={len(transformations['insert'])}, update={len(transformations['update'])} | "
+        f"skipped: exists={skipped_exists}, date_filter={skipped_date}, error={skipped_error}"
+    )
     return transformations, transformation_hashes

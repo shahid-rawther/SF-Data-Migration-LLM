@@ -54,16 +54,24 @@ def fetch_all(
     # Driving table alias (folder name or filename)
     base_source, base_alias = _csv_source(base_table)
 
-    # Validate requested fields against actual CSV columns
-    available_columns = _get_csv_columns(base_table)
+    # Validate requested fields against actual CSV columns (base + joined tables)
+    available_columns_by_table: dict[str, set[str]] = {
+        base_alias: _get_csv_columns(base_table),
+    }
+    for alias, table_path in table_aliases.items():
+        available_columns_by_table[alias] = _get_csv_columns(table_path)
+
     valid_fields = []
     missing_fields = []
     for f in fields:
         # Extract the column name (after the dot for "table.column" format)
         col_name = f.split(".")[-1]
-        table_prefix = f.split(".")[0] if "." in f else None
-        # Only validate fields that belong to the base/driving table
-        if table_prefix is None or table_prefix == base_alias:
+        table_prefix = f.split(".")[0] if "." in f else base_alias
+        available_columns = available_columns_by_table.get(table_prefix)
+
+        # If we can resolve the table alias, validate strictly; otherwise keep it
+        # to preserve existing behavior for unusual/derived aliases.
+        if available_columns is not None:
             if col_name in available_columns:
                 valid_fields.append(f)
             else:
@@ -73,11 +81,13 @@ def fetch_all(
 
     if missing_fields:
         logger.warning(
-            f"Skipping fields not found in '{base_alias}' CSV: {missing_fields}"
+            f"Skipping fields not found in CSV sources: {missing_fields}"
         )
 
     # SELECT clause
     select_clause = ", ".join(quote_identifier(f) for f in valid_fields)
+    if not select_clause:
+        select_clause = "'' AS _noop"
 
     sql = f"""
     SELECT DISTINCT {select_clause}

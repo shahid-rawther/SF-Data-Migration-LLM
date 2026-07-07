@@ -1,8 +1,8 @@
-
 from config.settings import MAX_WORKERS
 from services.internal.mappings_service import get_mappings, validate_mappings, cfg_source_tables
 import services.internal.jobs_service as jobs_service
 from concurrent.futures import ThreadPoolExecutor
+from common.logger import logger
 
 executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
@@ -30,7 +30,9 @@ def extract_full_tables(source_plugin=None):
     all_tables = servicenow_client.get_all_table_list()
     all_tables.remove("sys_attachment_doc")
     all_tables.remove("sys_attachment_doc_v2")
+    logger.info(f"[Extraction] Full table extraction started | tables={len(all_tables)}")
     plugin.extract_tables(job_id, all_tables)
+    logger.info(f"[Extraction] Full table extraction completed | job_id={job_id}")
     jobs_service.update_job_status(job_id, "success")
 
 
@@ -40,6 +42,7 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_pl
     total_extracted = 0
     plugin = _resolve_source_plugin(source_plugin)
     try:
+        logger.info(f"[Extraction] Starting | job_id={job_id} | mappings={mappings_file_names}")
         tables_mappings = get_mappings(mappings_file_names)
         validate_mappings(tables_mappings)
 
@@ -49,8 +52,11 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_pl
             all_tables.extend(cfg_source_tables(table_mapping))
 
         all_tables = list(dict.fromkeys(all_tables))
+        logger.info(f"[Extraction] Resolved tables | plugin={type(plugin).__name__} | tables={all_tables}")
         total_extracted = plugin.extract_tables(job_id, all_tables)
-    except Exception:
+        logger.info(f"[Extraction] Completed | job_id={job_id} | total_extracted={total_extracted}")
+    except Exception as e:
+        logger.error(f"[Extraction] Failed | job_id={job_id} | error={e}")
         jobs_service.update_job_status(job_id, "failed")
         raise
     jobs_service.update_job_status(job_id, "success")
@@ -68,7 +74,9 @@ def start_attachment_table_extraction(job_id: int, mappings_file_names: list[str
     for table_mapping in tables_mappings:
         all_tables.extend(cfg_source_tables(table_mapping))
 
+    logger.info(f"[Extraction] Attachment table extraction started | job_id={job_id} | tables={all_tables}")
     plugin.extract_tables(job_id, all_tables)
+    logger.info(f"[Extraction] Attachment table extraction completed | job_id={job_id}")
     jobs_service.update_job_status(job_id, "success")
 
 
@@ -77,11 +85,13 @@ def start_attachment_file_extraction(job_id: int, mappings_file_names: list[str]
     plugin = _resolve_source_plugin(source_plugin)
     tables_mappings = get_mappings(mappings_file_names)
     validate_mappings(tables_mappings)
+    logger.info(f"[Extraction] Attachment file extraction started | job_id={job_id} | mappings={mappings_file_names}")
     try:
-
         for table_mapping in tables_mappings:
             plugin.extract_attachment_files(job_id, table_mapping)
-    except Exception:
+    except Exception as e:
+        logger.error(f"[Extraction] Attachment file extraction failed | job_id={job_id} | error={e}")
         jobs_service.update_job_status(job_id, "failed")
         raise
+    logger.info(f"[Extraction] Attachment file extraction completed | job_id={job_id}")
     jobs_service.update_job_status(job_id, "success")

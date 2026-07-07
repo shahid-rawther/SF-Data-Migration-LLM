@@ -1,0 +1,30 @@
+{
+    "priority": 50,
+    "operation": "insert",
+    "source_type": "jsm",
+    "source_tables": ["jsm_comments"],
+    "source_id_column": "id",
+    "joins": [],
+    "filters": [],
+    "destination_object": "CaseComment",
+    "fields": [
+        {
+            "source_field": "jsm_comments.body",
+            "transformation_function": "convert_adf_to_text",
+            "destination_field": "CommentBody"
+        },
+        {
+            "source_field": "jsm_comments.created",
+            "transformation_function": "convert_jira_datetime",
+            "destination_field": "CreatedDate"
+        },
+        {
+            "source_field": "jsm_comments.issue_key",
+            "destination_field": "ParentId"
+        },
+        {
+            "source_field": "jsm_comments.is_public",
+            "destination_field": "IsPublished"
+        }
+    ]
+}

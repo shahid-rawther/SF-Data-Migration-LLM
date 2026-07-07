@@ -9,6 +9,9 @@ PATH_TO_RESULTS = Path(__file__).resolve().parent.parent.absolute() / "data/resu
 PATH_TO_MAPPING = (
     Path(__file__).resolve().parent.parent.absolute() / "integrations/servicenow/mappings"
 )
+PATH_TO_JSM_MAPPING = (
+    Path(__file__).resolve().parent.parent.absolute() / "integrations/jira/mappings"
+)
 PATH_TO_PRIORITY_MAPPING = (
     Path(__file__).resolve().parent.parent.absolute() / "data/mappings/priority"
 )
@@ -27,6 +30,9 @@ SERVICE_NOW_NO_OF_BATCH = None
 SERVICE_NOW_BATCH_SIZE = 10000
 SERVICE_NOW_START_DATE = ""
 SERCICE_NOW_END_DATE = ""
+
+# JSM (Jira Service Management) Batch
+JSM_BATCH_SIZE = 100  # Jira search API caps at 100 per request
 
 # Jobs
 EXTRACTION_JOB_NUMBER = 1
@@ -112,6 +118,18 @@ ATTACHMENT_MAPPING_PRIORITY = [
     ["AttachmentProblem"],
     ["AttachmentChangeRequest"],
     ["AttachmentServiceRequest"],
+]
+
+# JSM Mapping Priority
+JSM_MAPPING_PRIORITY = [
+    ["JSMUser"],
+    ["JSMOrganization"],
+    ["JSMIncident"],
+    ["JSMServiceRequest"],
+    ["JSMProblem"],
+    ["JSMChange"],
+    ["JSMComment"],
+    ["JSMAttachment"],
 ]
 
 MAX_FILE_SIZE = 150 * 1024 * 1024

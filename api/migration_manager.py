@@ -33,6 +33,7 @@ class ProgressEvent:
     status: str
     message: str = ""
     records_by_object: dict = field(default_factory=dict)
+    load_errors: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +49,7 @@ class ProgressEvent:
             "status": self.status,
             "message": self.message,
             "records_by_object": self.records_by_object,
+            "load_errors": self.load_errors,
         }
 
 
@@ -137,6 +139,7 @@ class MigrationManager:
             "status": db_session.get("status", "pending"),
             "message": "",
             "records_by_object": {},
+            "load_errors": {},
         }
 
     def is_active(self, session_id: str) -> bool:
@@ -199,12 +202,42 @@ class MigrationManager:
         updated = ProgressEvent(**{**state.progress.__dict__, "status": status})
         self._emit(session_id, updated)
 
+    def _count_extracted_records(self, object_names: list[str], source_type: str) -> int:
+        """Count records in already-extracted CSV files for a retry run."""
+        import csv
+        from config.settings import PATH_TO_DOWNLOADS
+        from services.internal.mappings_service import get_mapping_config, cfg_source_tables
+
+        downloads_path = PATH_TO_DOWNLOADS / source_type
+        total = 0
+        for name in object_names:
+            mcfg = get_mapping_config(name)
+            if not mcfg:
+                continue
+            tables = cfg_source_tables(mcfg)
+            if not tables:
+                continue
+            table_dir = downloads_path / tables[0]
+            if not table_dir.exists():
+                continue
+            for csv_file in table_dir.glob("*.csv"):
+                with open(csv_file, newline="", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    next(reader, None)  # skip header
+                    total += sum(1 for _ in reader)
+        return total
+
     def _run_migration(self, session_id: str, config: dict, state: SessionState) -> None:
         """Main ETL runner executed in a background thread."""
         dotenv.load_dotenv()
+        from pathlib import Path
+        _dbg = Path("_migration_debug.log")
+        _dbg.write_text(f"[{datetime.now(timezone.utc).isoformat()}] Migration started: {session_id}\n", encoding="utf-8")
         try:
             self._do_run(session_id, config, state)
+            with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration completed successfully\n")
         except Exception as exc:
+            with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration FAILED: {exc}\n")
             logger.exception("Migration session %s failed: %s", session_id, exc)
             session_db.mark_session_failed(session_id)
             err_event = ProgressEvent(
@@ -233,6 +266,13 @@ class MigrationManager:
         from tools.cache import execution_cache
 
         execution_cache.clear()
+
+        # Always clear stale job tracking so each run starts fresh
+        from services.external.db_client import db_client
+        db_client.execute("DELETE FROM job_table_batches")
+        db_client.execute("DELETE FROM job_tables")
+        db_client.execute("DELETE FROM jobs")
+        logger.info("Cleared job tracking data for fresh run")
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
@@ -289,7 +329,7 @@ class MigrationManager:
         priority_groups = get_priority_groups(source_type)
 
         # Auto-include dependency objects required by the selected objects
-        selected_objects = _resolve_dependencies(selected_objects, priority_groups)
+        selected_objects = _resolve_dependencies(selected_objects, priority_groups, source_type)
         logger.info("Resolved dependencies — final object list: %s", selected_objects)
 
         ordered: list[list[str]] = []
@@ -305,67 +345,89 @@ class MigrationManager:
         total_processed = 0
         total_failed = 0
         records_by_object: dict[str, dict[str, int]] = {}
+        load_errors_by_object: dict[str, list[str]] = {}
 
-        # ── Phase 1: Extraction ──────────────────────────────────────
-        session_db.update_session_status(session_id, "running", "extraction")
+        skip_extraction = config.get("skip_extraction", False)
         flat = [name for group in ordered for name in group]
 
-        for idx, name in enumerate(flat):
-            if not token.wait_if_paused():
-                return
+        # ── Phase 1: Extraction ──────────────────────────────────────
+        if skip_extraction:
+            logger.info("Retry mode — skipping extraction, counting existing files")
+            total_fetched = self._count_extracted_records(flat, source_type)
             self._emit(
                 session_id,
                 ProgressEvent(
                     session_id=session_id,
                     phase="extraction",
-                    object_name=name,
-                    batch_current=idx,
+                    object_name=", ".join(flat),
+                    batch_current=len(flat),
                     batch_total=len(flat),
                     records_fetched=total_fetched,
                     records_processed=total_processed,
                     records_failed=total_failed,
-                    overall_percent=round(idx / max(len(flat) * 3, 1) * 100, 1),
+                    overall_percent=round(100 / 3, 1),
                     status="running",
-                    message=f"Extracting {name}",
+                    message=f"Extraction skipped (retry) — {total_fetched:,} records from previous run",
                 ),
             )
+        else:
+            session_db.update_session_status(session_id, "running", "extraction")
 
-        # Perform actual extraction (all selected tables at once)
-        total_fetched = extraction_controller.start_extraction(
-            EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin
-        )
+            for idx, name in enumerate(flat):
+                if not token.wait_if_paused():
+                    return
+                self._emit(
+                    session_id,
+                    ProgressEvent(
+                        session_id=session_id,
+                        phase="extraction",
+                        object_name=name,
+                        batch_current=idx,
+                        batch_total=len(flat),
+                        records_fetched=total_fetched,
+                        records_processed=total_processed,
+                        records_failed=total_failed,
+                        overall_percent=round(idx / max(len(flat) * 3, 1) * 100, 1),
+                        status="running",
+                        message=f"Extracting {name}",
+                    ),
+                )
 
-        # Extract individual attachment files for any attachment objects.
-        # Detection is data-driven: a mapping with is_attachment_table=true.
-        from services.internal.mappings_service import get_mapping_config
-        attachment_names = set()
-        for n in flat:
-            mcfg = get_mapping_config(n)
-            if mcfg and mcfg.get("is_attachment_table"):
-                attachment_names.add(n)
-        selected_attachment_names = [n for n in flat if n in attachment_names]
-        if selected_attachment_names:
-            logger.info("Extracting attachment files for: %s", selected_attachment_names)
-            extraction_controller.start_attachment_file_extraction(
-                EXTRACTION_JOB_NUMBER, selected_attachment_names, source_plugin=source_plugin
+            # Perform actual extraction (all selected tables at once)
+            total_fetched = extraction_controller.start_extraction(
+                EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin
             )
 
-        self._emit(
-            session_id,
-            ProgressEvent(
-                session_id=session_id,
-                phase="extraction",
-                object_name=", ".join(flat),
-                batch_current=len(flat),
-                batch_total=len(flat),
-                records_fetched=total_fetched,
-                records_processed=total_processed,
-                records_failed=total_failed,
-                overall_percent=round(100 / 3, 1),
-                status="running",
-                message=f"Extraction complete — {total_fetched:,} records fetched",
-            ),
-        )
+            # Extract individual attachment files for any attachment objects.
+            from services.internal.mappings_service import get_mapping_config
+            attachment_names = set()
+            for n in flat:
+                mcfg = get_mapping_config(n)
+                if mcfg and mcfg.get("is_attachment_table"):
+                    attachment_names.add(n)
+            selected_attachment_names = [n for n in flat if n in attachment_names]
+            if selected_attachment_names:
+                logger.info("Extracting attachment files for: %s", selected_attachment_names)
+                extraction_controller.start_attachment_file_extraction(
+                    EXTRACTION_JOB_NUMBER, selected_attachment_names, source_plugin=source_plugin
+                )
+
+            self._emit(
+                session_id,
+                ProgressEvent(
+                    session_id=session_id,
+                    phase="extraction",
+                    object_name=", ".join(flat),
+                    batch_current=len(flat),
+                    batch_total=len(flat),
+                    records_fetched=total_fetched,
+                    records_processed=total_processed,
+                    records_failed=total_failed,
+                    overall_percent=round(100 / 3, 1),
+                    status="running",
+                    message=f"Extraction complete — {total_fetched:,} records fetched",
+                ),
+            )
 
         if token.is_cancelled():
             return
@@ -396,6 +458,7 @@ class MigrationManager:
             )
 
             transformation_controller.start_trasformation(TRANSFORMATION_JOB_NUMBER, group)
+            logger.info(f"[Migration] Transformation complete for group: {group}")
 
             if token.is_cancelled():
                 return
@@ -445,6 +508,8 @@ class MigrationManager:
             total_failed += load_result.get("records_failed", 0)
             for obj_name, counts in load_result.get("by_object", {}).items():
                 records_by_object[obj_name] = counts
+            for obj_name, errs in load_result.get("errors_by_object", {}).items():
+                load_errors_by_object[obj_name] = errs
 
             self._emit(
                 session_id,
@@ -461,6 +526,7 @@ class MigrationManager:
                     status="running",
                     message=f"Loaded {', '.join(group)} — {total_processed:,} processed, {total_failed:,} failed",
                     records_by_object=records_by_object,
+                    load_errors=load_errors_by_object,
                 ),
             )
 
@@ -490,37 +556,55 @@ class MigrationManager:
                 status="completed",
                 message=final_msg,
                 records_by_object=records_by_object,
+                load_errors=load_errors_by_object,
             ),
         )
 
 
 # ── Dependency resolution ──────────────────────────────────────────────────────
 
-# Map of ServiceNow tables to the object that must be extracted first to
-# provide lookup data for transformations.  The key is the downloaded folder
-# name expected by transformation helpers; the value is the migration object
-# whose extraction produces that folder.
-_TABLE_DEPENDENCY_MAP: dict[str, str] = {
-    "sys_user": "Account",
-    "sys_user_group": "Group",
-    "cmn_location": "ParentLocation",
-    "cmn_department": "Department",
-    "core_company": "Company",
+# Per-source-type dependency maps.  The key is the downloaded folder name
+# expected by transformation helpers; the value is the migration object whose
+# extraction produces that folder.
+
+_TABLE_DEPENDENCY_MAPS: dict[str, dict[str, str]] = {
+    "servicenow": {
+        "sys_user": "Account",
+        "sys_user_group": "Group",
+        "cmn_location": "ParentLocation",
+        "cmn_department": "Department",
+        "core_company": "Company",
+    },
+    "jsm": {
+        "users": "JSMUser",
+        "organizations": "JSMOrganization",
+    },
 }
 
 # Which transformation_function names imply a dependency on which table
-_FUNCTION_DEPENDENCY_MAP: dict[str, str] = {
-    "look_up_user_sys_id": "sys_user",
-    "look_up_user_user_name": "sys_user",
-    "look_up_assignement_group": "sys_user_group",
-    "look_up_location_sys_id": "cmn_location",
-    "look_up_company_sys_id": "core_company",
+_FUNCTION_DEPENDENCY_MAPS: dict[str, dict[str, str]] = {
+    "servicenow": {
+        "look_up_user_sys_id": "sys_user",
+        "look_up_user_user_name": "sys_user",
+        "look_up_assignement_group": "sys_user_group",
+        "look_up_location_sys_id": "cmn_location",
+        "look_up_company_sys_id": "core_company",
+    },
+    "jsm": {
+        "look_up_jsm_user": "users",
+        "look_up_jsm_organization": "organizations",
+    },
 }
+
+# Legacy flat aliases so any external code referencing the old names still works
+_TABLE_DEPENDENCY_MAP = _TABLE_DEPENDENCY_MAPS["servicenow"]
+_FUNCTION_DEPENDENCY_MAP = _FUNCTION_DEPENDENCY_MAPS["servicenow"]
 
 
 def _resolve_dependencies(
     selected_objects: list[str],
     all_priority_groups: list[list[str]],
+    source_type: str = "servicenow",
 ) -> list[str]:
     """Ensure all dependency objects are included and ordered correctly.
 
@@ -531,6 +615,9 @@ def _resolve_dependencies(
     """
     from services.internal.mappings_service import get_mapping_config
 
+    table_dep_map = _TABLE_DEPENDENCY_MAPS.get(source_type, {})
+    func_dep_map = _FUNCTION_DEPENDENCY_MAPS.get(source_type, {})
+
     needed: set[str] = set(selected_objects)
 
     for obj_name in list(selected_objects):
@@ -539,9 +626,9 @@ def _resolve_dependencies(
             continue
         for field_def in mapping.get("fields", []):
             func = field_def.get("transformation_function", "")
-            if func in _FUNCTION_DEPENDENCY_MAP:
-                table = _FUNCTION_DEPENDENCY_MAP[func]
-                dep_object = _TABLE_DEPENDENCY_MAP.get(table)
+            if func in func_dep_map:
+                table = func_dep_map[func]
+                dep_object = table_dep_map.get(table)
                 if dep_object and dep_object not in needed:
                     needed.add(dep_object)
                     logger.info(
