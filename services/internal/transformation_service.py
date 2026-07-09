@@ -23,7 +23,7 @@ from services.internal.mappings_service import (
     cfg_destination_object,
 )
 from tools.csv_manager import read_csv_as_dictionary, save_as_csv, write_csv_split_by_size
-import helpers.transformation_helper as transformation_helper
+from services.transforms.generic import GENERIC_TRANSFORMS
 import services.external.duckdb_client as duckdb_client
 from helpers.hash_helper import create_hash_for_row
 from services.internal import extraction_service
@@ -295,46 +295,54 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                 # Legacy: constant resolved from a global environment variable.
                 salesforce_object[destination_field] = os.getenv(constant)
             elif transformation_function:
-                if hasattr(transformation_helper, transformation_function):
-                    func = getattr(transformation_helper, transformation_function)
-                    try:
-                        if transformation_params is not None:
-                            salesforce_object.update(
-                                func(destination_field, *field_values, params=transformation_params)
-                            )
-                        else:
-                            salesforce_object.update(func(destination_field, *field_values))
-                        # EC-14: a required lookup/reference that resolved empty
-                        # (e.g. parent not loaded) is skipped rather than loaded
-                        # with a blank foreign key — and now recorded.
-                        if skip_if_not_found:
-                            if not salesforce_object[destination_field]:
-                                skip_row = True
-                                skipped_rows.append({
-                                    SERVICE_NOW_ID_COLUMN: row[source_id_column],
-                                    "destination_field": destination_field,
-                                    "reason": "missing_reference",
-                                    "error": (
-                                        f"'{destination_field}' resolved empty via "
-                                        f"'{transformation_function}'; skipped (skip_if_not_found)"
-                                    ),
-                                })
-                                continue
-                    except Exception as e:
-                        # EC-12: don't silently drop the row — capture it for the error CSV.
-                        logger.error("Exception occured during transformation of row. Row Skipped", exc_info=e)
-                        skip_row = True
-                        skipped_rows.append({
-                            SERVICE_NOW_ID_COLUMN: row[source_id_column],
-                            "destination_field": destination_field,
-                            "reason": "transform_error",
-                            "error": str(e),
-                        })
-                        continue
-                else:
+                # Prefer the standalone schema-driven transforms so wizard
+                # mappings never import the legacy hardcoded module.
+                func = GENERIC_TRANSFORMS.get(transformation_function)
+                if func is None:
+                    # Lazy fallback to the legacy hardcoded transforms for
+                    # CLI / shipped-JSON mappings that reference bespoke
+                    # look_up_*/convert_* functions by name.
+                    import helpers.transformation_helper as transformation_helper
+                    if hasattr(transformation_helper, transformation_function):
+                        func = getattr(transformation_helper, transformation_function)
+                if func is None:
                     raise ValueError(
                         f"Function {transformation_function} not found in module"
                     )
+                try:
+                    if transformation_params is not None:
+                        salesforce_object.update(
+                            func(destination_field, *field_values, params=transformation_params)
+                        )
+                    else:
+                        salesforce_object.update(func(destination_field, *field_values))
+                    # EC-14: a required lookup/reference that resolved empty
+                    # (e.g. parent not loaded) is skipped rather than loaded
+                    # with a blank foreign key — and now recorded.
+                    if skip_if_not_found:
+                        if not salesforce_object[destination_field]:
+                            skip_row = True
+                            skipped_rows.append({
+                                SERVICE_NOW_ID_COLUMN: row[source_id_column],
+                                "destination_field": destination_field,
+                                "reason": "missing_reference",
+                                "error": (
+                                    f"'{destination_field}' resolved empty via "
+                                    f"'{transformation_function}'; skipped (skip_if_not_found)"
+                                ),
+                            })
+                            continue
+                except Exception as e:
+                    # EC-12: don't silently drop the row — capture it for the error CSV.
+                    logger.error("Exception occured during transformation of row. Row Skipped", exc_info=e)
+                    skip_row = True
+                    skipped_rows.append({
+                        SERVICE_NOW_ID_COLUMN: row[source_id_column],
+                        "destination_field": destination_field,
+                        "reason": "transform_error",
+                        "error": str(e),
+                    })
+                    continue
             else:
                 if len(field_values) == 1:
                     try:

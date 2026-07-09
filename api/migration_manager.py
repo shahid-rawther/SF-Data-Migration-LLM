@@ -266,14 +266,17 @@ class MigrationManager:
     def _do_run(self, session_id: str, config: dict, state: SessionState) -> None:
         from controllers import extraction_controller, transformation_controller
         from api import sources as plugin_registry
-        from config.settings import (
-            EXTRACTION_JOB_NUMBER,
-            TRANSFORMATION_JOB_NUMBER,
-            LOADING_JOB_NUMBER,
-        )
+        from services.internal import jobs_service
         from tools.cache import execution_cache
 
         execution_cache.clear()
+
+        # Always-fresh wizard runs: allocate brand-new job ids per session so the
+        # extraction/transform/load stages never resume or skip batches from a
+        # prior run. The CLI path keeps using the fixed reserved ids (1/2/3).
+        extraction_job_number = jobs_service.create_new_job("extraction")
+        transformation_job_number = jobs_service.create_new_job("transformation")
+        loading_job_number = jobs_service.create_new_job("loading")
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
@@ -345,6 +348,12 @@ class MigrationManager:
         session_db.update_session_status(session_id, "running", "extraction")
         flat = [name for group in ordered for name in group]
 
+        # Always-fresh wizard runs: clear any stale on-disk working state for the
+        # selected objects so a new run never picks up extracted/transformed
+        # files from a previous run.
+        from services.internal import workspace_service
+        workspace_service.clean_working_state(flat, source_type=source_type)
+
         for idx, name in enumerate(flat):
             if not token.wait_if_paused():
                 return
@@ -370,7 +379,7 @@ class MigrationManager:
         extract_start_date = options.get("start_date", "") or None
         extract_end_date = options.get("end_date", "") or None
         total_fetched = extraction_controller.start_extraction(
-            EXTRACTION_JOB_NUMBER,
+            extraction_job_number,
             flat,
             source_plugin=source_plugin,
             start_date=extract_start_date,
@@ -389,7 +398,7 @@ class MigrationManager:
         if selected_attachment_names:
             logger.info("Extracting attachment files for: %s", selected_attachment_names)
             extraction_controller.start_attachment_file_extraction(
-                EXTRACTION_JOB_NUMBER, selected_attachment_names, source_plugin=source_plugin
+                extraction_job_number, selected_attachment_names, source_plugin=source_plugin
             )
 
         self._emit(
@@ -439,7 +448,7 @@ class MigrationManager:
 
             _run_with_retry(
                 transformation_controller.start_trasformation,
-                TRANSFORMATION_JOB_NUMBER,
+                transformation_job_number,
                 group,
                 what=f"transformation of {', '.join(group)}",
             )
@@ -489,7 +498,7 @@ class MigrationManager:
 
             load_result = _run_with_retry(
                 destination_plugin.start_loading,
-                LOADING_JOB_NUMBER,
+                loading_job_number,
                 group,
                 what=f"loading of {', '.join(group)}",
             )
