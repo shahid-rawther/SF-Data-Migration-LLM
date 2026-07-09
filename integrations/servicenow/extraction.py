@@ -19,7 +19,12 @@ from services.external import duckdb_client
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def extract_servicenow_tables(job_id: int, service_now_tables: list):
+def extract_servicenow_tables(
+    job_id: int,
+    service_now_tables: list,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
     # Run up to 5 tables in parallel — each table still internally parallelises
     # its own batches via MAX_WORKERS, so keep table-level concurrency moderate
     # to avoid overwhelming the ServiceNow instance.
@@ -27,7 +32,9 @@ def extract_servicenow_tables(job_id: int, service_now_tables: list):
     futures = []
     for servicenow_table in service_now_tables:
         futures.append(
-            executer_queue.submit(extract_servicenow_table, job_id, servicenow_table)
+            executer_queue.submit(
+                extract_servicenow_table, job_id, servicenow_table, start_date, end_date
+            )
         )
 
     total_rows = 0
@@ -37,7 +44,12 @@ def extract_servicenow_tables(job_id: int, service_now_tables: list):
     executer_queue.shutdown(wait=True)
     return total_rows
 
-def extract_servicenow_table(job_id: int, servicenow_table: str):
+def extract_servicenow_table(
+    job_id: int,
+    servicenow_table: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
     executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     job_table_id = jobs_service.get_or_create_job_table(job_id, servicenow_table)
     logger.info(f"Job: {job_id}, Job Table: {job_table_id}")
@@ -45,10 +57,13 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
         f"Servicenow table '{servicenow_table}' extraction start at {datetime.now()}"
     )
     row_count = 0
+    had_error = False
     try:
 
-        start_date = SERVICE_NOW_START_DATE
-        end_date = SERCICE_NOW_END_DATE
+        # EC-26: prefer the per-session date window passed from the wizard;
+        # fall back to the module-level settings (CLI/default path unchanged).
+        start_date = start_date if start_date is not None else SERVICE_NOW_START_DATE
+        end_date = end_date if end_date is not None else SERCICE_NOW_END_DATE
 
         row_count = servicenow_client.get_row_count(servicenow_table, start_date, end_date)
         logger.info(f"Total rows in {servicenow_table} is {row_count}")
@@ -86,11 +101,14 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
             f"Servicenow table '{servicenow_table}' extraction ends at {datetime.now()}"
         )
     except Exception as e:
+        had_error = True
         logger.error(
             f"Exception occured during fetching table: Job Table Id: {job_table_id}, Error: {e}"
         )
         jobs_service.update_job_table_status(job_table_id, "failed")
-    jobs_service.update_job_table_status(job_table_id, "success")
+    # EC-19: only report success when extraction actually completed cleanly.
+    if not had_error:
+        jobs_service.update_job_table_status(job_table_id, "success")
     return row_count
 
 def extract_single_batch(

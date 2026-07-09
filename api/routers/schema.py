@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from api import sources as source_registry
 from api import connections_db
-from api.compat_engine import get_destination_fields
+from api.compat_engine import get_destination_fields, get_destination_records
 
 router = APIRouter(prefix="/schema", tags=["schema"])
 
@@ -42,6 +42,15 @@ class SourceFieldsRequest(BaseModel):
     table: str | None = None
 
 
+class SourceValuesRequest(BaseModel):
+    source_type: str = "servicenow"
+    credentials: dict = {}
+    connection_id: str | None = None
+    table: str
+    field: str
+    limit: int = 500
+
+
 class DestinationObjectsRequest(BaseModel):
     destination_type: str = "salesforce"
     credentials: dict = {}
@@ -50,6 +59,14 @@ class DestinationObjectsRequest(BaseModel):
 
 class DestinationFieldsRequest(BaseModel):
     object_name: str
+    credentials: dict = {}
+    connection_id: str | None = None
+
+
+class DestinationRecordsRequest(BaseModel):
+    object_name: str
+    name_field: str = "Name"
+    limit: int = 200
     credentials: dict = {}
     connection_id: str | None = None
 
@@ -95,6 +112,19 @@ def source_fields(body: SourceFieldsRequest):
     }
 
 
+@router.post("/source-values")
+def source_values(body: SourceValuesRequest):
+    """List a source field's known values (e.g. ServiceNow choices) for the value-map editor."""
+    provider = source_registry.get(body.source_type)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Source '{body.source_type}' not found")
+    if not (body.table and body.field):
+        raise HTTPException(status_code=400, detail="Provide both 'table' and 'field'")
+    creds = _resolve_credentials(body.credentials, body.connection_id)
+    values = provider.get_field_values(body.table, body.field, creds, limit=body.limit)
+    return {"source_type": body.source_type, "values": values}
+
+
 @router.post("/destination-objects")
 def destination_objects(body: DestinationObjectsRequest):
     dest = source_registry.get_destination(body.destination_type)
@@ -110,3 +140,13 @@ def destination_fields(body: DestinationFieldsRequest):
     creds = _resolve_credentials(body.credentials, body.connection_id)
     fields = get_destination_fields(body.object_name, creds)
     return {"object_name": body.object_name, "fields": fields}
+
+
+@router.post("/destination-records")
+def destination_records(body: DestinationRecordsRequest):
+    """List records of a destination object (Id + name) for the reference picker."""
+    creds = _resolve_credentials(body.credentials, body.connection_id)
+    records = get_destination_records(
+        body.object_name, creds, name_field=body.name_field, limit=body.limit
+    )
+    return {"object_name": body.object_name, "records": records}

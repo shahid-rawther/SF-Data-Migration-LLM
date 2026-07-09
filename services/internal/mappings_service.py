@@ -31,6 +31,17 @@ def cfg_destination_object(config: dict) -> str:
     return config.get("destination_object") or config.get("salesforce_object", "")
 
 
+def cfg_external_id_field(config: dict) -> str:
+    """Return the Salesforce external-id field configured for upsert-based dedup.
+
+    When set, inserts are performed as Bulk API ``upsert`` keyed on this field so
+    that re-running a migration (even after the local id_mappings DB is reset)
+    updates the existing Salesforce record instead of creating a duplicate.
+    Empty string means no external-id strategy is configured (default behaviour).
+    """
+    return config.get("external_id_field") or config.get("external_id") or ""
+
+
 def _load_mapping_from_json(name: str) -> dict | None:
     """Load a mapping config from the on-disk JSON file (fallback path)."""
     file_name = name if name.lower().endswith(".json") else f"{name}.json"

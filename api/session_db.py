@@ -72,10 +72,13 @@ def mark_session_started(session_id: str) -> None:
     )
 
 
-def mark_session_completed(session_id: str) -> None:
+def mark_session_completed(session_id: str, had_errors: bool = False) -> None:
+    # When some records failed to load, distinguish the session from a clean run
+    # so the UI/reporting doesn't show a misleading "success".
+    status = "completed_with_errors" if had_errors else "completed"
     db_client.execute(
-        "UPDATE migration_sessions SET status='completed', completed_at=?, updated_at=? WHERE id=?",
-        (_now(), _now(), session_id),
+        "UPDATE migration_sessions SET status=?, completed_at=?, updated_at=? WHERE id=?",
+        (status, _now(), _now(), session_id),
     )
 
 

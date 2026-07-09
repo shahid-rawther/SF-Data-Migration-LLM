@@ -34,7 +34,13 @@ def extract_full_tables(source_plugin=None):
     jobs_service.update_job_status(job_id, "success")
 
 
-def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_plugin=None):
+def start_extraction(
+    job_id: int,
+    mappings_file_names: list[str] = [],
+    source_plugin=None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
     job_id = jobs_service.get_or_create_job(job_id, "extraction")
     jobs_service.update_job_status(job_id, "in-progress")
     total_extracted = 0
@@ -49,7 +55,9 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_pl
             all_tables.extend(cfg_source_tables(table_mapping))
 
         all_tables = list(dict.fromkeys(all_tables))
-        total_extracted = plugin.extract_tables(job_id, all_tables)
+        total_extracted = plugin.extract_tables(
+            job_id, all_tables, start_date=start_date, end_date=end_date
+        )
     except Exception:
         jobs_service.update_job_status(job_id, "failed")
         raise

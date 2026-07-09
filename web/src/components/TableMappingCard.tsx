@@ -334,6 +334,9 @@ export function TableMappingCard({
               destFields={state.destFields}
               sfObject={state.sfObject}
               destCreds={destCreds}
+              sourceType={sourceType}
+              sourceCreds={sourceCreds}
+              sourceTable={state.sourceTable}
               onDestFieldsChange={(df) => patch({ destFields: df })}
               onChange={(f) => patch({ fields: f })}
             />

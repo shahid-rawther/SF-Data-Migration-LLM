@@ -7,16 +7,57 @@ SSE clients can subscribe to via asyncio queues.
 import asyncio
 import json
 import threading
+import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import dotenv
+import requests
 
 from api.cancellation_token import CancellationToken
 from api import session_db
 from common.logger import logger
+
+
+# ── Transient-failure retry (EC-05) ─────────────────────────────────────────
+_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY = 2.0  # seconds; doubled each attempt
+_TRANSIENT_HTTP_STATUS = {429, 500, 502, 503, 504}
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    """Best-effort classification of retryable transient failures.
+
+    Network blips and server-side 429/5xx responses are worth retrying; other
+    errors (bad config, validation, auth misconfig) are fatal and re-raised.
+    """
+    if isinstance(exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return True
+    if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
+        return exc.response.status_code in _TRANSIENT_HTTP_STATUS
+    return False
+
+
+def _run_with_retry(fn, *args, what: str = "operation", **kwargs):
+    """Run ``fn`` with bounded retry + exponential backoff on transient errors."""
+    last_exc: Exception | None = None
+    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if attempt >= _RETRY_ATTEMPTS or not _is_transient_error(exc):
+                raise
+            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            logger.warning(
+                "Transient failure during %s (attempt %d/%d): %s — retrying in %.1fs",
+                what, attempt, _RETRY_ATTEMPTS, exc, delay,
+            )
+            time.sleep(delay)
+    if last_exc:
+        raise last_exc
 
 
 @dataclass
@@ -280,23 +321,17 @@ class MigrationManager:
                     "ProductId/Item__c may be blank: %s", _sync_err,
                 )
 
-        # Build an ordered priority list containing only selected objects.
-        # Priority groups are derived from the mapping_configs DB table so that
-        # user-created mappings (added via the Mapping Editor) participate in
-        # ordering; falls back to the hardcoded settings groups when empty.
-        from services.internal.mappings_service import get_priority_groups
-
-        priority_groups = get_priority_groups(source_type)
-
-        # Auto-include dependency objects required by the selected objects
-        selected_objects = _resolve_dependencies(selected_objects, priority_groups)
-        logger.info("Resolved dependencies — final object list: %s", selected_objects)
-
-        ordered: list[list[str]] = []
-        for group in priority_groups:
-            filtered = [name for name in group if name in selected_objects]
-            if filtered:
-                ordered.append(filtered)
+        # Build execution order from Salesforce schema dependencies.
+        # Falls back to wizard card order (selected_objects) when schema
+        # resolution fails or detects a cycle.
+        ordered = _build_schema_ordered_groups(
+            selected_objects, destination_credentials,
+        )
+        logger.info(
+            "Execution order resolved — %d group(s): %s",
+            len(ordered),
+            [g[0] for g in ordered],
+        )
 
         total_groups = len(ordered)
 
@@ -330,9 +365,16 @@ class MigrationManager:
                 ),
             )
 
-        # Perform actual extraction (all selected tables at once)
+        # Perform actual extraction (all selected tables at once).
+        # EC-26: pass the session's date range so extraction is actually scoped.
+        extract_start_date = options.get("start_date", "") or None
+        extract_end_date = options.get("end_date", "") or None
         total_fetched = extraction_controller.start_extraction(
-            EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin
+            EXTRACTION_JOB_NUMBER,
+            flat,
+            source_plugin=source_plugin,
+            start_date=extract_start_date,
+            end_date=extract_end_date,
         )
 
         # Extract individual attachment files for any attachment objects.
@@ -395,7 +437,12 @@ class MigrationManager:
                 ),
             )
 
-            transformation_controller.start_trasformation(TRANSFORMATION_JOB_NUMBER, group)
+            _run_with_retry(
+                transformation_controller.start_trasformation,
+                TRANSFORMATION_JOB_NUMBER,
+                group,
+                what=f"transformation of {', '.join(group)}",
+            )
 
             if token.is_cancelled():
                 return
@@ -440,7 +487,12 @@ class MigrationManager:
                 ),
             )
 
-            load_result = destination_plugin.start_loading(LOADING_JOB_NUMBER, group)
+            load_result = _run_with_retry(
+                destination_plugin.start_loading,
+                LOADING_JOB_NUMBER,
+                group,
+                what=f"loading of {', '.join(group)}",
+            )
             total_processed += load_result.get("records_processed", 0)
             total_failed += load_result.get("records_failed", 0)
             for obj_name, counts in load_result.get("by_object", {}).items():
@@ -467,14 +519,17 @@ class MigrationManager:
             if token.is_cancelled():
                 return
 
+        had_errors = (not dry_run) and total_failed > 0
         final_msg = (
             f"Dry run completed — {total_fetched:,} fetched, {total_processed:,} transformed"
             if dry_run
             else f"Migration completed — {total_fetched:,} fetched, {total_processed:,} processed, {total_failed:,} failed"
         )
+        if had_errors:
+            final_msg += " (completed with errors)"
         final_phase = "dry_run" if dry_run else "loading"
 
-        session_db.mark_session_completed(session_id)
+        session_db.mark_session_completed(session_id, had_errors=had_errors)
         self._emit(
             session_id,
             ProgressEvent(
@@ -487,75 +542,55 @@ class MigrationManager:
                 records_processed=total_processed,
                 records_failed=total_failed,
                 overall_percent=100.0,
-                status="completed",
+                status="completed_with_errors" if had_errors else "completed",
                 message=final_msg,
                 records_by_object=records_by_object,
             ),
         )
 
 
-# ── Dependency resolution ──────────────────────────────────────────────────────
+# ── Schema-based ordering ──────────────────────────────────────────────────────
 
-# Map of ServiceNow tables to the object that must be extracted first to
-# provide lookup data for transformations.  The key is the downloaded folder
-# name expected by transformation helpers; the value is the migration object
-# whose extraction produces that folder.
-_TABLE_DEPENDENCY_MAP: dict[str, str] = {
-    "sys_user": "Account",
-    "sys_user_group": "Group",
-    "cmn_location": "ParentLocation",
-    "cmn_department": "Department",
-    "core_company": "Company",
-}
-
-# Which transformation_function names imply a dependency on which table
-_FUNCTION_DEPENDENCY_MAP: dict[str, str] = {
-    "look_up_user_sys_id": "sys_user",
-    "look_up_user_user_name": "sys_user",
-    "look_up_assignement_group": "sys_user_group",
-    "look_up_location_sys_id": "cmn_location",
-    "look_up_company_sys_id": "core_company",
-}
-
-
-def _resolve_dependencies(
+def _build_schema_ordered_groups(
     selected_objects: list[str],
-    all_priority_groups: list[list[str]],
-) -> list[str]:
-    """Ensure all dependency objects are included and ordered correctly.
+    destination_credentials: dict,
+) -> list[list[str]]:
+    """Determine execution order from live Salesforce reference-field metadata.
 
-    Scans each selected object's mapping config (from DB first, JSON fallback)
-    for transformation functions that require lookup tables from other objects.
-    If those prerequisite objects are not already selected, they are
-    automatically added.
+    Uses ``resolve_dependency_order`` to topologically sort the selected
+    mappings based on their destination object relationships.  Falls back
+    to the wizard card order (``selected_objects``) when the schema
+    resolution fails, detects a cycle, or returns an empty result.
     """
-    from services.internal.mappings_service import get_mapping_config
+    try:
+        from api.compat_engine import resolve_dependency_order
 
-    needed: set[str] = set(selected_objects)
+        dep_result = resolve_dependency_order(
+            selected_objects, destination_credentials,
+        )
+        if not dep_result.get("has_cycle", False) and dep_result.get("order"):
+            topo_order: list[str] = dep_result["order"]
+            logger.info(
+                "SF dependency order resolved: %s (edges: %d, warnings: %d)",
+                topo_order,
+                len(dep_result.get("edges", [])),
+                len(dep_result.get("warnings", [])),
+            )
+            return [[name] for name in topo_order]
 
-    for obj_name in list(selected_objects):
-        mapping = get_mapping_config(obj_name)
-        if not mapping:
-            continue
-        for field_def in mapping.get("fields", []):
-            func = field_def.get("transformation_function", "")
-            if func in _FUNCTION_DEPENDENCY_MAP:
-                table = _FUNCTION_DEPENDENCY_MAP[func]
-                dep_object = _TABLE_DEPENDENCY_MAP.get(table)
-                if dep_object and dep_object not in needed:
-                    needed.add(dep_object)
-                    logger.info(
-                        "Auto-including '%s' as dependency for '%s' (requires %s)",
-                        dep_object, obj_name, table,
-                    )
+        if dep_result.get("has_cycle"):
+            logger.warning(
+                "Circular SF dependency detected — falling back to "
+                "wizard card order"
+            )
+    except Exception as exc:
+        logger.warning(
+            "SF dependency resolution failed (non-blocking) — using "
+            "wizard card order: %s",
+            exc,
+        )
 
-    # Return in priority order
-    all_flat = [name for group in all_priority_groups for name in group]
-    ordered = [name for name in all_flat if name in needed]
-    for name in needed:
-        if name not in ordered:
-            ordered.append(name)
-    return ordered
+    return [[name] for name in selected_objects]
 
 
 # Module-level singleton
