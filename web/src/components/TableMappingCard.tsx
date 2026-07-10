@@ -1,7 +1,38 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import type { MappingFieldDef, SourceFieldInfo, DestinationFieldInfo } from '../api/client';
 import { FieldMapper } from './FieldMapper';
+import { SearchableSelect } from './SearchableSelect';
+import type { SelectOption } from './SearchableSelect';
+
+export type JoinType = 'left' | 'right' | 'inner' | 'full';
+
+export interface JoinDef {
+  left_table: string;
+  left_key: string;
+  right_table: string;
+  right_key: string;
+  type: JoinType;
+}
+
+export type FilterOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'in'
+  | 'not_in'
+  | 'is_null'
+  | 'is_not_null'
+  | 'count';
+
+export interface FilterDef {
+  table: string;
+  field: string;
+  operator: FilterOperator;
+  // string for equals/not_equals; string[] for in/not_in; unused for null ops.
+  value?: string | string[];
+  // used only by the 'count' (limit rows) operator.
+  count?: number;
+}
 
 export interface TableMappingState {
   id: string;
@@ -14,6 +45,11 @@ export interface TableMappingState {
   sourceFields: SourceFieldInfo[];
   destFields: DestinationFieldInfo[];
   fieldsLoaded: boolean;
+  // Extra tables joined to the driving table (sourceTable) and the join conditions.
+  joinTables: string[];
+  joins: JoinDef[];
+  // Row filters: only source rows matching all filters are migrated.
+  filters: FilterDef[];
 }
 
 interface Props {
@@ -64,6 +100,149 @@ export function TableMappingCard({
     [state, onChange],
   );
 
+  // Per-table raw field options (unprefixed names) used to populate the join
+  // key dropdowns. Fetched lazily and cached; loadedTablesRef guards re-fetches.
+  const [tableFields, setTableFields] = useState<Record<string, SelectOption[]>>({});
+  const loadedTablesRef = useRef<Set<string>>(new Set());
+
+  const fetchTableFields = useCallback(
+    async (table: string) => {
+      if (!table || loadedTablesRef.current.has(table)) return;
+      loadedTablesRef.current.add(table);
+      try {
+        const res = await api.schema.sourceFields(sourceType, sourceCreds, { table });
+        const opts: SelectOption[] = res.fields.map((f) => {
+          const short = f.name.includes('.') ? f.name.split('.').pop()! : f.name;
+          return { value: short, label: `${f.label} (${short})` };
+        });
+        setTableFields((prev) => ({ ...prev, [table]: opts }));
+      } catch (err) {
+        loadedTablesRef.current.delete(table);
+        console.error('Failed to load fields for join table', table, err);
+      }
+    },
+    [sourceType, sourceCreds],
+  );
+
+  // Keep field options loaded for the driving table and any join tables.
+  useEffect(() => {
+    fetchTableFields(state.sourceTable);
+    for (const t of state.joinTables) fetchTableFields(t);
+  }, [state.sourceTable, state.joinTables, fetchTableFields]);
+
+  // Fetch the driving-table fields, then merge each join table's fields in with
+  // a table-prefixed name (e.g. "core_company.name") so mappings can reference
+  // joined columns. Driving-table fields keep their plain names.
+  const buildMergedSourceFields = useCallback(
+    async (drivingFields: SourceFieldInfo[]): Promise<SourceFieldInfo[]> => {
+      const extra: SourceFieldInfo[] = [];
+      for (const jt of state.joinTables) {
+        try {
+          const res = await api.schema.sourceFields(sourceType, sourceCreds, { table: jt });
+          for (const f of res.fields) {
+            const short = f.name.includes('.') ? f.name.split('.').pop()! : f.name;
+            extra.push({ ...f, name: `${jt}.${short}` });
+          }
+        } catch (err) {
+          console.error('Failed to merge fields for join table', jt, err);
+        }
+      }
+      return [...drivingFields, ...extra];
+    },
+    [state.joinTables, sourceType, sourceCreds],
+  );
+
+  const availableJoinTables = useMemo(
+    () =>
+      selectedTables
+        .filter((t) => t !== state.sourceTable && !state.joinTables.includes(t))
+        .map((t) => ({ value: t, label: t })),
+    [selectedTables, state.sourceTable, state.joinTables],
+  );
+
+  const joinTableOptions = useMemo<SelectOption[]>(
+    () => [state.sourceTable, ...state.joinTables].map((t) => ({ value: t, label: t })),
+    [state.sourceTable, state.joinTables],
+  );
+
+  const addJoinTable = (table: string) => {
+    if (!table || state.joinTables.includes(table)) return;
+    fetchTableFields(table);
+    fetchTableFields(state.sourceTable);
+    patch({
+      joinTables: [...state.joinTables, table],
+      joins: [
+        ...state.joins,
+        {
+          left_table: state.sourceTable,
+          left_key: '',
+          right_table: table,
+          right_key: '',
+          type: 'left',
+        },
+      ],
+    });
+  };
+
+  const removeJoin = (index: number) => {
+    const removed = state.joins[index];
+    const nextJoins = state.joins.filter((_, i) => i !== index);
+    // Drop the join table only if no remaining join still references it.
+    const stillUsed = nextJoins.some(
+      (j) => j.right_table === removed.right_table || j.left_table === removed.right_table,
+    );
+    patch({
+      joins: nextJoins,
+      joinTables: stillUsed
+        ? state.joinTables
+        : state.joinTables.filter((t) => t !== removed.right_table),
+    });
+  };
+
+  const updateJoin = (index: number, p: Partial<JoinDef>) => {
+    patch({ joins: state.joins.map((j, i) => (i === index ? { ...j, ...p } : j)) });
+  };
+
+  // Distinct source values for the filter value picker, cached per "table.field".
+  const [filterValueOptions, setFilterValueOptions] = useState<Record<string, SelectOption[]>>({});
+  const [loadingValuesKey, setLoadingValuesKey] = useState<string | null>(null);
+
+  const loadFilterValues = useCallback(
+    async (table: string, field: string) => {
+      if (!table || !field) return;
+      const key = `${table}.${field}`;
+      setLoadingValuesKey(key);
+      try {
+        const res = await api.schema.sourceValues(sourceType, sourceCreds, { table, field, limit: 200 });
+        const opts: SelectOption[] = res.values.map((v) => ({ value: v.value, label: v.label }));
+        setFilterValueOptions((prev) => ({ ...prev, [key]: opts }));
+      } catch (err) {
+        console.error('Failed to load values for', table, field, err);
+      } finally {
+        setLoadingValuesKey(null);
+      }
+    },
+    [sourceType, sourceCreds],
+  );
+
+  const addFilter = () => {
+    fetchTableFields(state.sourceTable);
+    patch({
+      filters: [
+        ...state.filters,
+        { table: state.sourceTable, field: '', operator: 'equals' as FilterOperator, value: '' },
+      ],
+    });
+  };
+
+  const removeFilter = (index: number) => {
+    patch({ filters: state.filters.filter((_, i) => i !== index) });
+  };
+
+  const updateFilter = (index: number, p: Partial<FilterDef>) => {
+    patch({ filters: state.filters.map((f, i) => (i === index ? { ...f, ...p } : f)) });
+  };
+
   // Detect reference fields that point to tables not in the current selection
   const missingRefTables = useMemo(() => {
     if (!state.fieldsLoaded || state.sourceFields.length === 0) return new Map<string, string[]>();
@@ -88,8 +267,9 @@ export function TableMappingCard({
         api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }),
         api.schema.destinationFields(state.sfObject, destCreds),
       ]);
+      const merged = await buildMergedSourceFields(srcRes.fields);
       patch({
-        sourceFields: srcRes.fields,
+        sourceFields: merged,
         destFields: dstRes.fields,
         fieldsLoaded: true,
       });
@@ -116,8 +296,10 @@ export function TableMappingCard({
       const srcFields =
         state.sourceFields.length > 0
           ? state.sourceFields
-          : (await api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }))
-              .fields;
+          : await buildMergedSourceFields(
+              (await api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }))
+                .fields,
+            );
       patch({
         fields: result.fields ?? [],
         sourceFields: srcFields,
@@ -306,6 +488,264 @@ export function TableMappingCard({
             </div>
           </div>
 
+          {/* Related tables / Joins */}
+          {state.sfObject && (
+            <div style={joinBoxStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Related tables / Joins</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Pull fields from related tables. Use columns whose names differ from the main table.
+                  </div>
+                </div>
+                <div style={{ minWidth: 220 }}>
+                  <SearchableSelect
+                    value=""
+                    options={availableJoinTables}
+                    placeholder="+ add related table"
+                    onChange={addJoinTable}
+                  />
+                </div>
+              </div>
+
+              {state.joins.length === 0 && (
+                <div style={{ fontSize: 12, color: '#94a3b8', padding: '4px 0' }}>
+                  No joins. The mapping uses only <strong>{state.sourceTable}</strong>.
+                </div>
+              )}
+
+              {state.joins.map((join, i) => (
+                <div key={i} style={joinRowStyle}>
+                  <select
+                    value={join.left_table}
+                    onChange={(e) => updateJoin(i, { left_table: e.target.value, left_key: '' })}
+                    style={joinSelect}
+                    title="Left table"
+                  >
+                    {joinTableOptions
+                      .filter((o) => o.value !== join.right_table)
+                      .map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                  </select>
+                  <div style={{ flex: '1 1 130px', minWidth: 120 }}>
+                    <SearchableSelect
+                      value={join.left_key}
+                      options={tableFields[join.left_table] ?? []}
+                      placeholder="left key"
+                      onChange={(v) => updateJoin(i, { left_key: v })}
+                    />
+                  </div>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>=</span>
+                  <span style={{ ...joinTableChip }} title="Right table">{join.right_table}</span>
+                  <div style={{ flex: '1 1 130px', minWidth: 120 }}>
+                    <SearchableSelect
+                      value={join.right_key}
+                      options={tableFields[join.right_table] ?? []}
+                      placeholder="right key"
+                      onChange={(v) => updateJoin(i, { right_key: v })}
+                    />
+                  </div>
+                  <select
+                    value={join.type}
+                    onChange={(e) => updateJoin(i, { type: e.target.value as JoinType })}
+                    style={{ ...joinSelect, flex: '0 0 80px' }}
+                    title="Join type"
+                  >
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                    <option value="inner">Inner</option>
+                    <option value="full">Full</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => removeJoin(i)}
+                    style={removeJoinBtn}
+                    title="Remove this join"
+                  >
+                    &#10005;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Row filters */}
+          {state.sfObject && (
+            <div style={joinBoxStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Row filters</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Only rows matching all filters are migrated.
+                  </div>
+                </div>
+                <button type="button" onClick={addFilter} style={{ ...actionBtn, padding: '5px 12px' }}>
+                  + Add filter
+                </button>
+              </div>
+
+              {state.filters.length === 0 && (
+                <div style={{ fontSize: 12, color: '#94a3b8', padding: '4px 0' }}>
+                  No filters. All rows from <strong>{state.sourceTable}</strong> are migrated.
+                </div>
+              )}
+
+              {state.filters.map((filter, i) => {
+                const needsField = filter.operator !== 'count';
+                const isNullOp = filter.operator === 'is_null' || filter.operator === 'is_not_null';
+                const isListOp = filter.operator === 'in' || filter.operator === 'not_in';
+                const isCount = filter.operator === 'count';
+                const valueKey = `${filter.table}.${filter.field}`;
+                const pickerOptions = filterValueOptions[valueKey] ?? [];
+                const listText = Array.isArray(filter.value) ? filter.value.join(', ') : '';
+                return (
+                  <div key={i} style={joinRowStyle}>
+                    <select
+                      value={filter.table}
+                      onChange={(e) => updateFilter(i, { table: e.target.value, field: '' })}
+                      style={joinSelect}
+                      title="Table"
+                    >
+                      {joinTableOptions.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+
+                    {needsField ? (
+                      <div style={{ flex: '1 1 130px', minWidth: 120 }}>
+                        <SearchableSelect
+                          value={filter.field}
+                          options={tableFields[filter.table] ?? []}
+                          placeholder="field"
+                          onChange={(v) => updateFilter(i, { field: v })}
+                        />
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#94a3b8', flex: '1 1 130px' }}>
+                        (applies to whole result)
+                      </span>
+                    )}
+
+                    <select
+                      value={filter.operator}
+                      onChange={(e) => {
+                        const nextOp = e.target.value as FilterOperator;
+                        // Reset value to the right shape for the new operator.
+                        const nextValue =
+                          nextOp === 'in' || nextOp === 'not_in'
+                            ? []
+                            : nextOp === 'equals' || nextOp === 'not_equals'
+                              ? ''
+                              : undefined;
+                        updateFilter(i, {
+                          operator: nextOp,
+                          value: nextValue,
+                          count: nextOp === 'count' ? (filter.count ?? 10) : undefined,
+                        });
+                      }}
+                      style={{ ...joinSelect, flex: '0 0 110px' }}
+                      title="Operator"
+                    >
+                      <option value="equals">Equals</option>
+                      <option value="not_equals">Not equals</option>
+                      <option value="in">In</option>
+                      <option value="not_in">Not in</option>
+                      <option value="is_null">Is null</option>
+                      <option value="is_not_null">Is not null</option>
+                      <option value="count">Limit rows</option>
+                    </select>
+
+                    {/* Value entry */}
+                    {isNullOp ? (
+                      <span style={{ fontSize: 12, color: '#94a3b8', flex: '1 1 120px' }}>(no value)</span>
+                    ) : isCount ? (
+                      <input
+                        type="number"
+                        min={1}
+                        value={filter.count ?? ''}
+                        placeholder="max rows"
+                        onChange={(e) =>
+                          updateFilter(i, { count: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : undefined })
+                        }
+                        style={{ ...inputStyle, flex: '0 0 100px', fontSize: 12, padding: '5px 8px' }}
+                      />
+                    ) : isListOp ? (
+                      <div style={{ display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 200, alignItems: 'center' }}>
+                        <input
+                          value={listText}
+                          placeholder="value1, value2 (or paste ids)"
+                          onChange={(e) =>
+                            updateFilter(i, {
+                              value: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                            })
+                          }
+                          style={{ ...inputStyle, flex: 1, fontSize: 12, padding: '5px 8px' }}
+                          title="Comma-separated values"
+                        />
+                        <div style={{ flex: '0 0 130px' }}>
+                          <SearchableSelect
+                            value=""
+                            options={pickerOptions}
+                            placeholder={loadingValuesKey === valueKey ? 'loading...' : '+ pick'}
+                            onChange={(v) => {
+                              const current = Array.isArray(filter.value) ? filter.value : [];
+                              if (v && !current.includes(v)) updateFilter(i, { value: [...current, v] });
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => loadFilterValues(filter.table, filter.field)}
+                          disabled={!filter.field || loadingValuesKey === valueKey}
+                          style={{ ...smallGhostBtn }}
+                          title="Load distinct values from the source"
+                        >
+                          Load values
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 200, alignItems: 'center' }}>
+                        <input
+                          value={typeof filter.value === 'string' ? filter.value : ''}
+                          placeholder="value"
+                          onChange={(e) => updateFilter(i, { value: e.target.value })}
+                          style={{ ...inputStyle, flex: 1, fontSize: 12, padding: '5px 8px' }}
+                        />
+                        <div style={{ flex: '0 0 130px' }}>
+                          <SearchableSelect
+                            value={typeof filter.value === 'string' ? filter.value : ''}
+                            options={pickerOptions}
+                            placeholder={loadingValuesKey === valueKey ? 'loading...' : '+ pick'}
+                            onChange={(v) => updateFilter(i, { value: v })}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => loadFilterValues(filter.table, filter.field)}
+                          disabled={!filter.field || loadingValuesKey === valueKey}
+                          style={{ ...smallGhostBtn }}
+                          title="Load distinct values from the source"
+                        >
+                          Load values
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => removeFilter(i)}
+                      style={removeJoinBtn}
+                      title="Remove this filter"
+                    >
+                      &#10005;
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <button
@@ -457,4 +897,62 @@ const refBannerStyle: React.CSSProperties = {
   borderRadius: 8,
   background: '#fffbeb',
   border: '1px solid #fcd34d',
+};
+
+const joinBoxStyle: React.CSSProperties = {
+  padding: 12,
+  marginBottom: 14,
+  borderRadius: 8,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+};
+
+const joinRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flexWrap: 'wrap',
+  padding: '6px 0',
+  borderTop: '1px solid #eef2f7',
+};
+
+const joinSelect: React.CSSProperties = {
+  ...inputStyle,
+  width: 'auto',
+  flex: '0 0 120px',
+  background: '#fff',
+  fontSize: 12,
+  padding: '5px 8px',
+};
+
+const joinTableChip: React.CSSProperties = {
+  fontFamily: 'monospace',
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#334155',
+  background: '#e2e8f0',
+  borderRadius: 4,
+  padding: '4px 8px',
+};
+
+const removeJoinBtn: React.CSSProperties = {
+  ...reorderBtn,
+  fontSize: 11,
+  color: '#dc2626',
+  border: '1px solid #fecaca',
+  background: '#fef2f2',
+  marginLeft: 'auto',
+};
+
+const smallGhostBtn: React.CSSProperties = {
+  flex: '0 0 auto',
+  padding: '5px 10px',
+  borderRadius: 6,
+  border: '1px solid #cbd5e1',
+  background: '#fff',
+  color: '#475569',
+  cursor: 'pointer',
+  fontSize: 11,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
 };

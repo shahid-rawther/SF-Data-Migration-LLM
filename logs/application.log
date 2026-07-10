@@ -80,3 +80,39 @@
 2026-07-09 17:58:39,686 - INFO - [MainThread] [itsm:35] - Servicenow base URL: https://dev302529.service-now.com
 2026-07-09 17:58:39,693 - INFO - [MainThread] [itsm:56] - Initializing SalesforceClient.
 2026-07-09 17:58:39,693 - INFO - [MainThread] [itsm:57] - Salesforce base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 18:23:41,019 - INFO - [migration-f66b1fae] [itsm:28] - Initializing Service now client.
+2026-07-09 18:23:41,019 - INFO - [migration-f66b1fae] [itsm:35] - Servicenow base URL: https://dev302529.service-now.com
+2026-07-09 18:23:41,025 - INFO - [migration-f66b1fae] [itsm:56] - Initializing SalesforceClient.
+2026-07-09 18:23:41,025 - INFO - [migration-f66b1fae] [itsm:57] - Salesforce base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 18:23:41,029 - INFO - [migration-f66b1fae] [itsm:83] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 18:23:41,029 - INFO - [migration-f66b1fae] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 18:23:44,534 - INFO - [migration-f66b1fae] [itsm:582] - SF dependency order resolved: ['ProblemTest'] (edges: 0, warnings: 0)
+2026-07-09 18:23:44,535 - INFO - [migration-f66b1fae] [itsm:333] - Execution order resolved — 1 group(s): ['ProblemTest']
+2026-07-09 18:23:44,563 - INFO - [migration-f66b1fae] [itsm:56] - Cleared working directory for fresh run: C:\ITSM migration tool\itsm-data-migration-snow-sf\data\downloads\servicenow\problem
+2026-07-09 18:23:44,565 - INFO - [migration-f66b1fae] [itsm:56] - Cleared working directory for fresh run: C:\ITSM migration tool\itsm-data-migration-snow-sf\data\transformations\csv\Problem
+2026-07-09 18:23:44,566 - INFO - [migration-f66b1fae] [itsm:56] - Cleared working directory for fresh run: C:\ITSM migration tool\itsm-data-migration-snow-sf\data\transformations\hash\Problem
+2026-07-09 18:23:44,616 - INFO - [ThreadPoolExecutor-1_0] [itsm:55] - Job: 1001, Job Table: 693
+2026-07-09 18:23:44,616 - INFO - [ThreadPoolExecutor-1_0] [itsm:56] - Servicenow table 'problem' extraction start at 2026-07-09 18:23:44.616877
+2026-07-09 18:23:46,456 - INFO - [ThreadPoolExecutor-1_0] [itsm:69] - Total rows in problem is 28
+2026-07-09 18:23:46,485 - INFO - [ThreadPoolExecutor-2_0] [itsm:128] - Start: 2026-07-09 18:23:46.485270 Table: problem, Batch: 0, Job Batch Id: 766
+2026-07-09 18:23:48,329 - INFO - [ThreadPoolExecutor-2_0] [itsm:155] - End: 2026-07-09 18:23:48.328949 Table: problem, Batch: 0, Job Batch Id: 766
+2026-07-09 18:23:48,331 - INFO - [ThreadPoolExecutor-1_0] [itsm:100] - Servicenow table 'problem' extraction ends at 2026-07-09 18:23:48.330995
+2026-07-09 18:23:48,390 - INFO - [migration-f66b1fae] [itsm:56] - Transformation: Table: problem_Problem_...
+2026-07-09 18:23:48,414 - INFO - [ThreadPoolExecutor-3_0] [itsm:114] - Transformation: Batch Number: 0 Status: Pending
+2026-07-09 18:23:48,427 - INFO - [ThreadPoolExecutor-3_0] [itsm:119] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-09 18:23:48,535 - INFO - [ThreadPoolExecutor-3_0] [itsm:186] - Transformation: Batch Number: 0 Status: Success
+2026-07-09 18:23:48,536 - INFO - [migration-f66b1fae] [itsm:91] - Transformation: Table: problem_Problem_...Done
+2026-07-09 18:23:48,579 - INFO - [migration-f66b1fae] [itsm:208] - Loading: problem_Problem_...
+2026-07-09 18:23:48,604 - INFO - [ThreadPoolExecutor-4_0] [itsm:273] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10000, Status: Pending
+2026-07-09 18:23:48,615 - INFO - [ThreadPoolExecutor-4_0] [itsm:39] - Salesforce token missing or expired. Refreshing access token.
+2026-07-09 18:23:48,615 - INFO - [ThreadPoolExecutor-4_0] [itsm:86] - Refreshing Salesforce access token...
+2026-07-09 18:23:50,279 - INFO - [ThreadPoolExecutor-4_0] [itsm:120] - Salesforce access token refreshed successfully.
+2026-07-09 18:23:53,689 - INFO - [ThreadPoolExecutor-4_0] [itsm:215] - Described 'Problem': 39 createable fields found, 3 restricted picklists
+2026-07-09 18:23:59,361 - INFO - [ThreadPoolExecutor-4_0] [itsm:486] - [Problem] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 18:24:04,034 - INFO - [ThreadPoolExecutor-4_0] [itsm:486] - [Problem] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 18:24:08,737 - INFO - [ThreadPoolExecutor-4_0] [itsm:486] - [Problem] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 18:24:13,395 - INFO - [ThreadPoolExecutor-4_0] [itsm:486] - [Problem] State: JobComplete, Processed Records: 4, Failed Records:0
+2026-07-09 18:24:14,859 - INFO - [ThreadPoolExecutor-4_0] [itsm:271] - C:\ITSM migration tool\itsm-data-migration-snow-sf\data\transformations\hash\Problem\10000_0\4_insert_hash.csv
+2026-07-09 18:24:14,865 - INFO - [ThreadPoolExecutor-4_0] [itsm:344] - Inserting ID mappings... for table: problem_Problem_
+2026-07-09 18:24:14,876 - INFO - [ThreadPoolExecutor-4_0] [itsm:355] - Inserting ID mappings... for table: problem_Problem_ Done
+2026-07-09 18:24:18,070 - INFO - [ThreadPoolExecutor-4_0] [itsm:288] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10000, Status: Success

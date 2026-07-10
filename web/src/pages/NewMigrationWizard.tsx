@@ -243,6 +243,9 @@ export function NewMigrationWizard() {
             sourceFields: [],
             destFields: [],
             fieldsLoaded: false,
+            joinTables: [],
+            joins: [],
+            filters: [],
           });
         }
       }
@@ -279,6 +282,9 @@ export function NewMigrationWizard() {
         sourceFields: [],
         destFields: [],
         fieldsLoaded: false,
+        joinTables: [],
+        joins: [],
+        filters: [],
       }));
       const next = [...prev];
       next.splice(requestingIdx, 0, ...newCards);
@@ -301,6 +307,9 @@ export function NewMigrationWizard() {
         sourceFields: source.sourceFields,
         destFields: [],
         fieldsLoaded: false,
+        joinTables: [...source.joinTables],
+        joins: source.joins.map((j) => ({ ...j })),
+        filters: source.filters.map((f) => ({ ...f })),
       };
       const next = [...prev];
       next.splice(idx + 1, 0, newCard);
@@ -339,9 +348,34 @@ export function NewMigrationWizard() {
       for (let i = 0; i < tableMappings.length; i++) {
         const m = tableMappings[i];
         if (!m.sfObject || !m.mappingName) continue;
+        // Emit only complete filters in the exact shape the DuckDB engine reads
+        // (table/field always present; count carries its own key).
+        const filters = m.filters
+          .map((f) => {
+            if (f.operator === 'count') {
+              if (!f.count || f.count <= 0) return null;
+              return { table: m.sourceTable, field: '', operator: 'count', count: f.count };
+            }
+            if (!f.field) return null;
+            if (f.operator === 'is_null' || f.operator === 'is_not_null') {
+              return { table: f.table, field: f.field, operator: f.operator };
+            }
+            if (f.operator === 'in' || f.operator === 'not_in') {
+              const list = Array.isArray(f.value) ? f.value.filter(Boolean) : [];
+              if (list.length === 0) return null;
+              return { table: f.table, field: f.field, operator: f.operator, value: list };
+            }
+            // equals / not_equals
+            const val = typeof f.value === 'string' ? f.value : '';
+            if (val === '') return null;
+            return { table: f.table, field: f.field, operator: f.operator, value: val };
+          })
+          .filter((f): f is NonNullable<typeof f> => f !== null);
         const config = {
           destination_object: m.sfObject,
-          source_tables: [m.sourceTable],
+          source_tables: [m.sourceTable, ...m.joinTables],
+          joins: m.joins,
+          filters,
           operation: m.operation,
           priority: i + 1,
           fields: m.fields,

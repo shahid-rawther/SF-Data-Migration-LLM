@@ -126,6 +126,14 @@ function FieldRow({
   const [paramsError, setParamsError] = useState(false);
   const [typeWarning, setTypeWarning] = useState<TypeCheckResponse | null>(null);
 
+  // Raw text buffer for the multi-field (comma-separated) input. This holds
+  // exactly what the user types (commas/spaces included) while a cleaned array
+  // is persisted separately, so typing a comma is no longer erased on re-render.
+  const [multiText, setMultiText] = useState(isMultiSource ? sourceValue : '');
+  useEffect(() => {
+    if (isMultiSource) setMultiText((field.source_field as string[]).join(', '));
+  }, [isMultiSource, field.source_field]);
+
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newApiName, setNewApiName] = useState('');
@@ -224,24 +232,53 @@ function FieldRow({
     }
   }, [valueSource, isReference, referenceObject, destCreds]);
 
-  const handleValueSourceChange = (mode: 'field' | 'constant' | 'lookup') => {
+  const handleValueSourceChange = (mode: 'field' | 'constant' | 'lookup' | 'multi') => {
     const wasLookup = field.transformation_function === 'generic_lookup';
+    if (mode === 'multi') {
+      const seed = sourceValue
+        ? sourceValue.split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
+      const concatParams =
+        field.transformation_function === 'generic_concat' && field.transformation_params
+          ? field.transformation_params
+          : { separator: ' - ', skip_empty: true };
+      onUpdate({
+        value_source: 'field',
+        constant_value: undefined,
+        source_field: seed,
+        transformation_function: 'generic_concat',
+        transformation_params: concatParams,
+        skip_if_not_found: undefined,
+      });
+      setParamsText(JSON.stringify(concatParams));
+      setParamsError(false);
+      setTypeWarning(null);
+      return;
+    }
+    // Leaving multi mode: collapse an array source back to a single value so the
+    // single-select picker works again.
+    const collapsedSource = Array.isArray(field.source_field)
+      ? (field.source_field[0] ?? '')
+      : field.source_field;
+    const wasConcat = field.transformation_function === 'generic_concat' && Array.isArray(field.source_field);
     if (mode === 'constant') {
+      const clearTransform = wasLookup || wasConcat;
       onUpdate({
         value_source: 'constant',
         source_field: '',
-        transformation_function: wasLookup ? undefined : field.transformation_function,
-        transformation_params: wasLookup ? undefined : field.transformation_params,
-        skip_if_not_found: wasLookup ? undefined : field.skip_if_not_found,
+        transformation_function: clearTransform ? undefined : field.transformation_function,
+        transformation_params: clearTransform ? undefined : field.transformation_params,
+        skip_if_not_found: clearTransform ? undefined : field.skip_if_not_found,
         constant_value: field.constant_value ?? '',
       });
       setTypeWarning(null);
-      if (wasLookup) { setParamsText(''); setParamsError(false); }
+      if (clearTransform) { setParamsText(''); setParamsError(false); }
     } else if (mode === 'lookup') {
       const params = { lookup_tables: [referenceObject], default: '' };
       onUpdate({
         value_source: 'lookup',
         constant_value: undefined,
+        source_field: collapsedSource,
         transformation_function: 'generic_lookup',
         transformation_params: params,
         skip_if_not_found: true,
@@ -250,14 +287,16 @@ function FieldRow({
       setParamsError(false);
       setTypeWarning(null);
     } else {
+      const clearTransform = wasLookup || wasConcat;
       onUpdate({
         value_source: 'field',
         constant_value: undefined,
-        transformation_function: wasLookup ? undefined : field.transformation_function,
-        transformation_params: wasLookup ? undefined : field.transformation_params,
-        skip_if_not_found: wasLookup ? undefined : field.skip_if_not_found,
+        source_field: collapsedSource,
+        transformation_function: clearTransform ? undefined : field.transformation_function,
+        transformation_params: clearTransform ? undefined : field.transformation_params,
+        skip_if_not_found: clearTransform ? undefined : field.skip_if_not_found,
       });
-      if (wasLookup) { setParamsText(''); setParamsError(false); }
+      if (clearTransform) { setParamsText(''); setParamsError(false); }
     }
   };
 
@@ -373,11 +412,17 @@ function FieldRow({
       opts.push({ value: sourceValue, label: sourceValue });
     }
     for (const sf of sourceFields) {
-      const shortName = sf.name.includes('.') ? sf.name.split('.').pop()! : sf.name;
-      opts.push({ value: sf.name, label: `${sf.label} (${shortName}) [${sf.field_type}]` });
+      const hasPrefix = sf.name.includes('.');
+      const table = hasPrefix ? sf.name.split('.')[0] : sourceTable;
+      const shortName = hasPrefix ? sf.name.split('.').pop()! : sf.name;
+      const tablePrefix = table ? `${table}.` : '';
+      opts.push({
+        value: sf.name,
+        label: `${tablePrefix}${shortName} — ${sf.label} [${sf.field_type}]`,
+      });
     }
     return opts;
-  }, [sourceFields, sourceNotInList, sourceValue]);
+  }, [sourceFields, sourceNotInList, sourceValue, sourceTable]);
 
   const destOptions: SelectOption[] = useMemo(() => {
     const opts: SelectOption[] = [];
@@ -565,12 +610,13 @@ function FieldRow({
         <td style={td}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
             <select
-              value={valueSource}
-              onChange={(e) => handleValueSourceChange(e.target.value as 'field' | 'constant' | 'lookup')}
+              value={isMultiSource ? 'multi' : valueSource}
+              onChange={(e) => handleValueSourceChange(e.target.value as 'field' | 'constant' | 'lookup' | 'multi')}
               style={{ ...selectStyle, fontSize: 11, padding: '3px 6px', minWidth: 0 }}
               title="How this destination field gets its value"
             >
               <option value="field">Source field</option>
+              <option value="multi">Multiple fields (concat)</option>
               <option value="constant">Constant value</option>
               {isReference && <option value="lookup">Lookup (resolve id)</option>}
             </select>
@@ -578,14 +624,23 @@ function FieldRow({
             {(valueSource === 'field' || valueSource === 'lookup') && (
               isMultiSource ? (
                 <input
-                  value={sourceValue}
-                  placeholder="table.field1, table.field2"
+                  value={multiText}
+                  placeholder={
+                    sourceFields.length >= 2
+                      ? `${sourceFields[0].name}, ${sourceFields[1].name}`
+                      : 'field1, field2'
+                  }
                   onChange={(e) => {
-                    const v = e.target.value;
-                    onUpdate({ source_field: v.includes(',') ? v.split(',').map((s) => s.trim()) : v });
+                    setMultiText(e.target.value);
+                    onUpdate({
+                      source_field: e.target.value
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    });
                   }}
                   style={inputStyle}
-                  title="Multi-field source (comma-separated)"
+                  title="Multi-field source (comma-separated) — joined via the Concatenate transform"
                 />
               ) : (
                 <SearchableSelect
