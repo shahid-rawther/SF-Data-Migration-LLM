@@ -97,12 +97,12 @@ def _adf_to_text(adf: object) -> str:
 # ── Public extraction functions ────────────────────────────────────────
 
 
-def extract_jsm_tables(job_id: int, tables: list[str]) -> int:
-    _debug_log(f"[JSM_EXTRACT] extract_jsm_tables called: job_id={job_id}, tables={tables}")
+def extract_jsm_tables(job_id: int, tables: list[str], record_limit: int | None = None) -> int:
+    _debug_log(f"[JSM_EXTRACT] extract_jsm_tables called: job_id={job_id}, tables={tables}, record_limit={record_limit}")
     executor = ThreadPoolExecutor(max_workers=min(5, len(tables) or 1))
     futures = []
     for table in tables:
-        futures.append(executor.submit(extract_jsm_table, job_id, table))
+        futures.append(executor.submit(extract_jsm_table, job_id, table, record_limit=record_limit))
 
     total_rows = 0
     for future in as_completed(futures):
@@ -120,15 +120,16 @@ def extract_jsm_table(
     project_key: str = "",
     start_date: str = "",
     end_date: str = "",
+    record_limit: int | None = None,
 ) -> int:
     job_table_id = jobs_service.get_or_create_job_table(job_id, entity_name)
-    logger.info("JSM extraction: entity=%s job_table=%d", entity_name, job_table_id)
+    logger.info("JSM extraction: entity=%s job_table=%d record_limit=%s", entity_name, job_table_id, record_limit)
 
     try:
         if entity_name == "users":
-            return _extract_users(job_table_id)
+            return _extract_users(job_table_id, record_limit=record_limit)
         if entity_name == "organizations":
-            return _extract_organizations(job_table_id)
+            return _extract_organizations(job_table_id, record_limit=record_limit)
 
         jql = jql_filter or ""
         if project_key:
@@ -144,15 +145,32 @@ def extract_jsm_table(
         row_count = jira_client.get_issue_count(jql or "order by created")
         logger.info("JSM extraction: %s has %d issues (jql=%s)", entity_name, row_count, jql)
 
+        already_migrated_offset = 0
+        if record_limit and record_limit > 0:
+            from services.internal.mappings_service import count_migrated_for_source_table
+            already_migrated_offset = count_migrated_for_source_table(entity_name)
+            effective_total = min(row_count - already_migrated_offset, record_limit)
+            if effective_total <= 0:
+                logger.info("All issues from %s already migrated (%d in id_mappings)", entity_name, already_migrated_offset)
+                jobs_service.update_job_table_status(job_table_id, "success")
+                return 0
+            row_count = already_migrated_offset + effective_total
+            logger.info(
+                "Record limit active: extracting %d issues from %s (offset=%d, already_migrated=%d)",
+                effective_total, entity_name, already_migrated_offset, already_migrated_offset,
+            )
+
+        batch_size = min(JSM_BATCH_SIZE, row_count) if row_count > 0 else JSM_BATCH_SIZE
         executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
         futures = []
         batch_no = 0
-        while batch_no * JSM_BATCH_SIZE < row_count:
+        while already_migrated_offset + (batch_no * batch_size) < row_count:
             futures.append(
                 executor.submit(
                     _extract_issue_batch,
                     job_table_id, batch_no, entity_name, jql,
-                    batch_no * JSM_BATCH_SIZE,
+                    already_migrated_offset + (batch_no * batch_size),
+                    batch_size,
                 )
             )
             batch_no += 1
@@ -179,23 +197,25 @@ def _extract_issue_batch(
     entity_name: str,
     jql: str,
     start_at: int,
+    batch_size: int = JSM_BATCH_SIZE,
 ) -> None:
     job_table_batch_id = jobs_service.get_or_create_job_table_batch(
-        job_table_id, JSM_BATCH_SIZE, batch_no, "extraction",
+        job_table_id, batch_size, batch_no, "extraction",
     )
-    csv_path = PATH_TO_DOWNLOADS / "jsm" / entity_name / f"{JSM_BATCH_SIZE}_{batch_no}.csv"
+    csv_path = PATH_TO_DOWNLOADS / "jsm" / entity_name / f"{batch_size}_{batch_no}.csv"
     if jobs_service.is_job_table_batch_success(job_table_batch_id) and csv_path.exists():
         return
 
     logger.info("JSM ext batch start: entity=%s batch=%d startAt=%d", entity_name, batch_no, start_at)
     try:
+        api_limit = min(batch_size, JSM_BATCH_SIZE)
         data = jira_client.fetch_issues(
             jql=jql,
             fields="summary,description,status,priority,issuetype,created,updated,"
                    "reporter,assignee,creator,resolutiondate,resolution,project,"
                    "labels,components,duedate",
             start_at=start_at,
-            max_results=JSM_BATCH_SIZE,
+            max_results=api_limit,
         )
         issues = data.get("issues", [])
         if not issues:
@@ -205,7 +225,7 @@ def _extract_issue_batch(
         records = [_flatten_issue(i) for i in issues]
         path_csv = (
             PATH_TO_DOWNLOADS / "jsm" / entity_name
-            / f"{JSM_BATCH_SIZE}_{batch_no}.csv"
+            / f"{batch_size}_{batch_no}.csv"
         )
         save_as_csv(path_csv, records)
         jobs_service.update_job_table_batch_status(job_table_batch_id, "success")
@@ -222,12 +242,19 @@ def _debug_log(msg: str) -> None:
     sys.stderr.flush()
 
 
-def _extract_users(job_table_id: int) -> int:
+def _extract_users(job_table_id: int, record_limit: int | None = None) -> int:
     batch_no = 0
     total = 0
     batch_size = 200
-    _debug_log(f"[JSM_EXTRACT] _extract_users called, job_table_id={job_table_id}")
+    already_migrated_offset = 0
+    if record_limit and record_limit > 0:
+        from services.internal.mappings_service import count_migrated_for_source_table
+        already_migrated_offset = count_migrated_for_source_table("users")
+        batch_size = min(batch_size, record_limit)
+    _debug_log(f"[JSM_EXTRACT] _extract_users called, job_table_id={job_table_id}, record_limit={record_limit}, offset={already_migrated_offset}")
     while True:
+        if record_limit and record_limit > 0 and total >= record_limit:
+            break
         job_table_batch_id = jobs_service.get_or_create_job_table_batch(
             job_table_id, batch_size, batch_no, "extraction",
         )
@@ -240,9 +267,9 @@ def _extract_users(job_table_id: int) -> int:
             total += batch_size
             continue
         try:
-            _debug_log(f"[JSM_EXTRACT] Fetching batch {batch_no}, startAt={batch_no * batch_size}")
+            _debug_log(f"[JSM_EXTRACT] Fetching batch {batch_no}, startAt={already_migrated_offset + batch_no * batch_size}")
             users = jira_client.fetch_users(
-                start_at=batch_no * batch_size, max_results=batch_size,
+                start_at=already_migrated_offset + batch_no * batch_size, max_results=batch_size,
             )
             _debug_log(f"[JSM_EXTRACT] Got {len(users)} users")
             if not users:
@@ -272,11 +299,18 @@ def _extract_users(job_table_id: int) -> int:
     return total
 
 
-def _extract_organizations(job_table_id: int) -> int:
+def _extract_organizations(job_table_id: int, record_limit: int | None = None) -> int:
     batch_no = 0
     total = 0
     batch_size = 50
+    already_migrated_offset = 0
+    if record_limit and record_limit > 0:
+        from services.internal.mappings_service import count_migrated_for_source_table
+        already_migrated_offset = count_migrated_for_source_table("organizations")
+        batch_size = min(batch_size, record_limit)
     while True:
+        if record_limit and record_limit > 0 and total >= record_limit:
+            break
         job_table_batch_id = jobs_service.get_or_create_job_table_batch(
             job_table_id, batch_size, batch_no, "extraction",
         )
@@ -287,7 +321,7 @@ def _extract_organizations(job_table_id: int) -> int:
             continue
         try:
             data = jira_client.fetch_organizations(
-                start=batch_no * batch_size, limit=batch_size,
+                start=already_migrated_offset + batch_no * batch_size, limit=batch_size,
             )
             orgs = data.get("values", [])
             if not orgs:

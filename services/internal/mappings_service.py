@@ -467,6 +467,21 @@ def get_id_mappings():
     return db_client.fetch_all(select_query)
 
 
+def count_migrated_for_source_table(source_table: str) -> int:
+    """Count distinct source IDs already migrated for a given source table.
+
+    The ``id_mappings.table_name`` column follows the format
+    ``{source_table}_{sf_object}_{mapping_name}``.  We match rows whose
+    table_name starts with ``{source_table}_`` so that all mapping objects
+    sharing this source table are counted.
+    """
+    row = db_client.fetch_one(
+        "SELECT COUNT(DISTINCT servicenow_id) FROM id_mappings WHERE table_name LIKE ?",
+        (f"{source_table}_%",),
+    )
+    return row[0] if row else 0
+
+
 def sync_product_id_mappings(
     sn_base: str,
     sn_user: str,

@@ -11,7 +11,7 @@ export function MigrationControls({ sessionId, status, onStatusChange }: Migrati
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const act = async (action: 'start' | 'pause' | 'resume' | 'stop') => {
+  const act = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'retry') => {
     setLoading(true);
     setError(null);
     try {
@@ -50,6 +50,11 @@ export function MigrationControls({ sessionId, status, onStatusChange }: Migrati
             ⏹ Stop
           </button>
         </>
+      )}
+      {(status === 'failed' || status === 'stopped') && (
+        <button onClick={() => act('retry')} disabled={loading} style={btnStyle('#2563eb')}>
+          ↻ Restart Migration
+        </button>
       )}
       {loading && <span style={{ fontSize: 13, color: '#6b7280' }}>…</span>}
       {error && <span style={{ fontSize: 13, color: '#dc2626' }}>{error}</span>}

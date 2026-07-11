@@ -70,7 +70,10 @@ export function MigrationDetail() {
             <span style={{ fontSize: 12, color: '#9ca3af' }}>ID: {session.id}</span>
           </div>
         </div>
-        <MigrationControls sessionId={session.id} status={status} onStatusChange={setStatus} />
+        <MigrationControls sessionId={session.id} status={status} onStatusChange={(s) => {
+          setStatus(s);
+          if (s === 'running') setLogs([]);
+        }} />
       </div>
 
       {/* Overall progress */}

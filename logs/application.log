@@ -65,3 +65,494 @@
 2026-07-07 15:21:06,412 - INFO - [ThreadPoolExecutor-3_0] [itsm:362] - Inserting ID mappings... for table: users_Account_
 2026-07-07 15:21:06,413 - INFO - [ThreadPoolExecutor-3_0] [itsm:373] - Inserting ID mappings... for table: users_Account_ Done
 2026-07-07 15:21:11,455 - INFO - [ThreadPoolExecutor-3_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Success
+2026-07-09 16:12:18,955 - INFO - [migration-f3662f9d] [itsm:28] - Initializing Service now client.
+2026-07-09 16:12:18,956 - INFO - [migration-f3662f9d] [itsm:35] - Servicenow base URL: 
+2026-07-09 16:12:18,986 - INFO - [migration-f3662f9d] [itsm:51] - Initializing SalesforceClient.
+2026-07-09 16:12:18,987 - INFO - [migration-f3662f9d] [itsm:52] - Salesforce base URL: None
+2026-07-09 16:12:19,051 - INFO - [migration-f3662f9d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:12:19,051 - INFO - [migration-f3662f9d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:12:19,052 - INFO - [migration-f3662f9d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:12:19,094 - INFO - [migration-f3662f9d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:12:19,141 - INFO - [migration-f3662f9d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:12:19,166 - INFO - [migration-f3662f9d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:12:19,166 - ERROR - [migration-f3662f9d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:12:19,172 - ERROR - [migration-f3662f9d] [itsm:241] - Migration session f3662f9d-feb5-461f-88ba-54f69fee6717 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:33,913 - INFO - [migration-f3662f9d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:25:33,914 - INFO - [migration-f3662f9d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:25:33,914 - INFO - [migration-f3662f9d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:25:33,973 - INFO - [migration-f3662f9d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:25:34,026 - INFO - [migration-f3662f9d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:25:34,051 - INFO - [migration-f3662f9d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:25:34,051 - ERROR - [migration-f3662f9d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:34,056 - ERROR - [migration-f3662f9d] [itsm:241] - Migration session f3662f9d-feb5-461f-88ba-54f69fee6717 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:35,486 - INFO - [migration-f3662f9d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:25:35,487 - INFO - [migration-f3662f9d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:25:35,487 - INFO - [migration-f3662f9d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:25:35,545 - INFO - [migration-f3662f9d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:25:35,602 - INFO - [migration-f3662f9d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:25:35,632 - INFO - [migration-f3662f9d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:25:35,633 - ERROR - [migration-f3662f9d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:35,637 - ERROR - [migration-f3662f9d] [itsm:241] - Migration session f3662f9d-feb5-461f-88ba-54f69fee6717 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:57,557 - INFO - [migration-f3662f9d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:25:57,557 - INFO - [migration-f3662f9d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:25:57,557 - INFO - [migration-f3662f9d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:25:57,613 - INFO - [migration-f3662f9d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:25:57,665 - INFO - [migration-f3662f9d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:25:57,691 - INFO - [migration-f3662f9d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:25:57,691 - ERROR - [migration-f3662f9d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:25:57,696 - ERROR - [migration-f3662f9d] [itsm:241] - Migration session f3662f9d-feb5-461f-88ba-54f69fee6717 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:26:07,216 - INFO - [migration-f3662f9d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:26:07,217 - INFO - [migration-f3662f9d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:26:07,217 - INFO - [migration-f3662f9d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:26:07,274 - INFO - [migration-f3662f9d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:26:07,330 - INFO - [migration-f3662f9d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:26:07,359 - INFO - [migration-f3662f9d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:26:07,360 - ERROR - [migration-f3662f9d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:26:07,365 - ERROR - [migration-f3662f9d] [itsm:241] - Migration session f3662f9d-feb5-461f-88ba-54f69fee6717 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:29:14,505 - INFO - [migration-12986b6d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:29:14,505 - INFO - [migration-12986b6d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:29:14,506 - INFO - [migration-12986b6d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:29:14,560 - INFO - [migration-12986b6d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:29:14,620 - INFO - [migration-12986b6d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:29:14,650 - INFO - [migration-12986b6d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:29:14,650 - ERROR - [migration-12986b6d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:29:14,656 - ERROR - [migration-12986b6d] [itsm:241] - Migration session 12986b6d-317e-4ab5-b85b-f279910f0cc6 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:38:18,359 - INFO - [migration-12986b6d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:38:18,360 - INFO - [migration-12986b6d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:38:18,360 - INFO - [migration-12986b6d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:38:18,423 - INFO - [migration-12986b6d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:38:18,478 - INFO - [migration-12986b6d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:38:18,512 - INFO - [migration-12986b6d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:38:18,513 - ERROR - [migration-12986b6d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:38:18,520 - ERROR - [migration-12986b6d] [itsm:241] - Migration session 12986b6d-317e-4ab5-b85b-f279910f0cc6 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:38:30,379 - INFO - [migration-12986b6d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:38:30,379 - INFO - [migration-12986b6d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:38:30,379 - INFO - [migration-12986b6d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:38:30,438 - INFO - [migration-12986b6d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:38:30,490 - INFO - [migration-12986b6d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:38:30,517 - INFO - [migration-12986b6d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:38:30,519 - ERROR - [migration-12986b6d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:38:30,523 - ERROR - [migration-12986b6d] [itsm:241] - Migration session 12986b6d-317e-4ab5-b85b-f279910f0cc6 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:47:06,905 - INFO - [migration-12986b6d] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:47:06,906 - INFO - [migration-12986b6d] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:47:06,907 - INFO - [migration-12986b6d] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:47:06,962 - INFO - [migration-12986b6d] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:47:07,014 - INFO - [migration-12986b6d] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:47:07,037 - INFO - [migration-12986b6d] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:47:07,037 - ERROR - [migration-12986b6d] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:47:07,040 - ERROR - [migration-12986b6d] [itsm:241] - Migration session 12986b6d-317e-4ab5-b85b-f279910f0cc6 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:49:29,630 - INFO - [migration-34f08cda] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:49:29,630 - INFO - [migration-34f08cda] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:49:29,631 - INFO - [migration-34f08cda] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:49:29,681 - INFO - [migration-34f08cda] [itsm:333] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:49:29,740 - INFO - [migration-34f08cda] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=None
+2026-07-09 16:49:29,767 - INFO - [migration-34f08cda] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:49:29,767 - ERROR - [migration-34f08cda] [itsm:59] - [Extraction] Failed | job_id=1 | error=ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:49:29,771 - ERROR - [migration-34f08cda] [itsm:241] - Migration session 34f08cda-22a0-4c3f-b214-1d3635851a56 failed: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+Traceback (most recent call last):
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 237, in _run_migration
+    self._do_run(session_id, config, state)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\api\migration_manager.py", line 397, in _do_run
+    # Perform actual extraction (all selected tables at once)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    total_fetched = extraction_controller.start_extraction(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+    
+  File "C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\controllers\extraction_controller.py", line 56, in start_extraction
+    total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+TypeError: ServiceNowProvider.extract_tables() got an unexpected keyword argument 'record_limit'
+2026-07-09 16:57:40,183 - INFO - [migration-34f08cda] [itsm:28] - Initializing Service now client.
+2026-07-09 16:57:40,183 - INFO - [migration-34f08cda] [itsm:35] - Servicenow base URL: 
+2026-07-09 16:57:40,192 - INFO - [migration-34f08cda] [itsm:51] - Initializing SalesforceClient.
+2026-07-09 16:57:40,192 - INFO - [migration-34f08cda] [itsm:52] - Salesforce base URL: None
+2026-07-09 16:57:40,316 - INFO - [migration-34f08cda] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 16:57:40,317 - INFO - [migration-34f08cda] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 16:57:40,317 - INFO - [migration-34f08cda] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 16:57:40,527 - INFO - [migration-34f08cda] [itsm:334] - Resolved dependencies — final object list: ['User']
+2026-07-09 16:57:40,647 - INFO - [migration-34f08cda] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=10
+2026-07-09 16:57:40,699 - INFO - [migration-34f08cda] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 16:57:40,904 - INFO - [ThreadPoolExecutor-1_0] [itsm:40] - Job: 1, Job Table: 47
+2026-07-09 16:57:40,904 - INFO - [ThreadPoolExecutor-1_0] [itsm:41] - Servicenow table 'sys_user' extraction start at 2026-07-09 16:57:40.904681
+2026-07-09 16:57:45,174 - INFO - [ThreadPoolExecutor-1_0] [itsm:51] - Total rows in sys_user is 772
+2026-07-09 16:57:45,200 - INFO - [ThreadPoolExecutor-1_0] [itsm:68] - Record limit active: extracting 10 rows from sys_user (offset=0, already_migrated=0)
+2026-07-09 16:57:45,250 - INFO - [ThreadPoolExecutor-2_0] [itsm:129] - Start: 2026-07-09 16:57:45.250782 Table: sys_user, Batch: 0, Job Batch Id: 37
+2026-07-09 16:57:48,365 - INFO - [ThreadPoolExecutor-2_0] [itsm:156] - End: 2026-07-09 16:57:48.364961 Table: sys_user, Batch: 0, Job Batch Id: 37
+2026-07-09 16:57:48,367 - INFO - [ThreadPoolExecutor-1_0] [itsm:103] - Servicenow table 'sys_user' extraction ends at 2026-07-09 16:57:48.366961
+2026-07-09 16:57:48,372 - INFO - [migration-34f08cda] [itsm:57] - [Extraction] Completed | job_id=1 | total_extracted=10
+2026-07-09 16:57:48,495 - INFO - [migration-34f08cda] [itsm:94] - Transformation: Table: sys_user_Account_...
+2026-07-09 16:57:48,551 - INFO - [ThreadPoolExecutor-3_0] [itsm:152] - Transformation: Batch Number: 0 Status: Pending
+2026-07-09 16:57:48,579 - INFO - [ThreadPoolExecutor-3_0] [itsm:157] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-09 16:57:48,587 - WARNING - [ThreadPoolExecutor-3_0] [itsm:83] - Skipping fields not found in CSV sources: ['sys_user.hashed_user_id']
+2026-07-09 16:57:48,722 - INFO - [ThreadPoolExecutor-3_0] [itsm:286] - [Transformation] Account | batch=10_0 | rows_after_filter=10 | operation=insert
+2026-07-09 16:57:48,754 - INFO - [ThreadPoolExecutor-3_0] [itsm:428] - [Transformation] Account | batch=10_0 | insert=10, update=0 | skipped: exists=0, date_filter=0, error=0
+2026-07-09 16:57:48,766 - INFO - [ThreadPoolExecutor-3_0] [itsm:222] - Transformation: Batch Number: 0 Status: Success
+2026-07-09 16:57:48,768 - INFO - [migration-34f08cda] [itsm:129] - Transformation: Table: sys_user_Account_...Done
+2026-07-09 16:57:48,777 - INFO - [migration-34f08cda] [itsm:463] - [Migration] Transformation complete for group: ['User']
+2026-07-09 16:57:48,895 - INFO - [migration-34f08cda] [itsm:240] - Loading: sys_user_Account_...
+2026-07-09 16:57:48,897 - INFO - [migration-34f08cda] [itsm:247] - Loading: sys_user_Account_ | transformation_path=C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\csv\Account | batches=2
+2026-07-09 16:57:48,959 - INFO - [ThreadPoolExecutor-4_0] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Pending
+2026-07-09 16:57:48,985 - INFO - [ThreadPoolExecutor-4_0] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 16:57:48,986 - INFO - [ThreadPoolExecutor-4_1] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Pending
+2026-07-09 16:57:48,987 - INFO - [ThreadPoolExecutor-4_0] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 16:57:49,012 - INFO - [ThreadPoolExecutor-4_1] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 16:57:49,012 - INFO - [ThreadPoolExecutor-4_1] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 16:57:51,635 - INFO - [ThreadPoolExecutor-4_1] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 16:57:51,682 - INFO - [ThreadPoolExecutor-4_0] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 16:57:57,224 - INFO - [ThreadPoolExecutor-4_1] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 16:57:57,259 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077
+2026-07-09 16:57:57,260 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 5dd64082af96bc0efbe55103
+2026-07-09 16:57:57,260 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497
+2026-07-09 16:57:57,261 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5
+2026-07-09 16:57:57,261 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:23249374-b527-4222-929f-3728ae126a6e
+2026-07-09 16:57:57,261 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75
+2026-07-09 16:57:57,261 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0
+2026-07-09 16:57:57,262 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 5d53f3cbc6b9320d9ea5bdc2
+2026-07-09 16:57:57,262 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 60e5a86a471e61006a4c51fd
+2026-07-09 16:57:57,262 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 5b6c7b3afbc68529c6c47967
+2026-07-09 16:57:57,263 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:7480ab94-14ac-49c9-8706-479eba31105b
+2026-07-09 16:57:57,263 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 630db2cd9796033b256bc349
+2026-07-09 16:57:57,263 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 5cf112d31552030f1e3a5905
+2026-07-09 16:57:57,263 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3
+2026-07-09 16:57:57,264 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a
+2026-07-09 16:57:57,265 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 5cb4ae0e4b97ab11a18e00c7
+2026-07-09 16:57:57,265 - WARNING - [ThreadPoolExecutor-4_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e
+2026-07-09 16:57:57,277 - INFO - [ThreadPoolExecutor-4_0] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 16:58:05,993 - INFO - [ThreadPoolExecutor-4_1] [itsm:487] - [Account] State: InProgress, Processed Records: 17, Failed Records:0
+2026-07-09 16:58:06,000 - INFO - [ThreadPoolExecutor-4_0] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 16:58:11,888 - INFO - [ThreadPoolExecutor-4_0] [itsm:487] - [Account] State: JobComplete, Processed Records: 10, Failed Records:10
+2026-07-09 16:58:11,901 - INFO - [ThreadPoolExecutor-4_1] [itsm:487] - [Account] State: JobComplete, Processed Records: 17, Failed Records:0
+2026-07-09 16:58:14,634 - INFO - [ThreadPoolExecutor-4_1] [itsm:289] - C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\hash\Account\200_0\17_insert_hash.csv
+2026-07-09 16:58:14,647 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077, Hash: f1bbbe64ea0842a2720555644d14f41c
+2026-07-09 16:58:14,647 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 5dd64082af96bc0efbe55103, Hash: 0bf0698593f9347a42478850e799ea21
+2026-07-09 16:58:14,648 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497, Hash: 8585a53f80548b9dcf6a053a99785caf
+2026-07-09 16:58:14,648 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5, Hash: 2a2b2963a1dba7a52799db020c21c160
+2026-07-09 16:58:14,648 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 712020:23249374-b527-4222-929f-3728ae126a6e, Hash: e801b92f9ecba654221168051019c151
+2026-07-09 16:58:14,648 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75, Hash: d96155ca28e5a4cb14e423611a16d30b
+2026-07-09 16:58:14,648 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0, Hash: f56792eab03ae886ea62e2d3b3b8ef62
+2026-07-09 16:58:14,649 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 5d53f3cbc6b9320d9ea5bdc2, Hash: 9ca9fa3d081b0db0b2897c949c8991f2
+2026-07-09 16:58:14,649 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 60e5a86a471e61006a4c51fd, Hash: 1020ec6d8b8c01de0bc04b7ce8260a4c
+2026-07-09 16:58:14,649 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 5b6c7b3afbc68529c6c47967, Hash: 9814b3cb6a1539a4d4d54617cda2edb1
+2026-07-09 16:58:14,649 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 712020:7480ab94-14ac-49c9-8706-479eba31105b, Hash: 96c8e859b3991686d988962e4cc89f68
+2026-07-09 16:58:14,649 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 630db2cd9796033b256bc349, Hash: ff6f1081ca17363fa4d7183f6884eb7f
+2026-07-09 16:58:14,650 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 5cf112d31552030f1e3a5905, Hash: 0f12c028a8210af0fe811d8cb32ae806
+2026-07-09 16:58:14,650 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3, Hash: 6401a90c41a949818c953ef212c06721
+2026-07-09 16:58:14,650 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a, Hash: 2783d59cc31173009918f6563e51332c
+2026-07-09 16:58:14,650 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 5cb4ae0e4b97ab11a18e00c7, Hash: d29245125168ced425538f46bb62cd88
+2026-07-09 16:58:14,650 - ERROR - [ThreadPoolExecutor-4_1] [itsm:310] - No match found for SysId: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e, Hash: 800795a9af4b9436a2d95090b46f8b57
+2026-07-09 16:58:14,659 - INFO - [ThreadPoolExecutor-4_1] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 16:58:14,659 - INFO - [ThreadPoolExecutor-4_1] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 16:58:15,137 - WARNING - [ThreadPoolExecutor-4_0] [itsm:552] - No successful Salesforce inserts for Account batch 10_insert; skipping ID mapping generation
+2026-07-09 16:58:15,137 - INFO - [ThreadPoolExecutor-4_0] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 16:58:15,137 - INFO - [ThreadPoolExecutor-4_0] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 16:58:20,028 - INFO - [ThreadPoolExecutor-4_1] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Success
+2026-07-09 16:58:20,504 - INFO - [ThreadPoolExecutor-4_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Success
+2026-07-09 17:33:02,319 - INFO - [migration-1718db15] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 17:33:02,320 - INFO - [migration-1718db15] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 17:33:02,321 - INFO - [migration-1718db15] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 17:33:02,398 - INFO - [migration-1718db15] [itsm:334] - Resolved dependencies — final object list: ['User']
+2026-07-09 17:33:02,466 - INFO - [migration-1718db15] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=10
+2026-07-09 17:33:02,500 - INFO - [migration-1718db15] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 17:33:02,538 - INFO - [ThreadPoolExecutor-6_0] [itsm:40] - Job: 1, Job Table: 50
+2026-07-09 17:33:02,538 - INFO - [ThreadPoolExecutor-6_0] [itsm:41] - Servicenow table 'sys_user' extraction start at 2026-07-09 17:33:02.538540
+2026-07-09 17:33:06,811 - INFO - [ThreadPoolExecutor-6_0] [itsm:51] - Total rows in sys_user is 772
+2026-07-09 17:33:06,850 - INFO - [ThreadPoolExecutor-6_0] [itsm:68] - Record limit active: extracting 10 rows from sys_user (offset=0, already_migrated=0)
+2026-07-09 17:33:06,915 - INFO - [ThreadPoolExecutor-7_0] [itsm:129] - Start: 2026-07-09 17:33:06.915016 Table: sys_user, Batch: 0, Job Batch Id: 40
+2026-07-09 17:33:10,198 - INFO - [ThreadPoolExecutor-7_0] [itsm:156] - End: 2026-07-09 17:33:10.198488 Table: sys_user, Batch: 0, Job Batch Id: 40
+2026-07-09 17:33:10,201 - INFO - [ThreadPoolExecutor-6_0] [itsm:103] - Servicenow table 'sys_user' extraction ends at 2026-07-09 17:33:10.200993
+2026-07-09 17:33:10,210 - INFO - [migration-1718db15] [itsm:57] - [Extraction] Completed | job_id=1 | total_extracted=10
+2026-07-09 17:33:10,396 - INFO - [migration-1718db15] [itsm:94] - Transformation: Table: sys_user_Account_...
+2026-07-09 17:33:10,467 - INFO - [ThreadPoolExecutor-8_0] [itsm:152] - Transformation: Batch Number: 0 Status: Pending
+2026-07-09 17:33:10,508 - INFO - [ThreadPoolExecutor-8_0] [itsm:157] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-09 17:33:10,513 - WARNING - [ThreadPoolExecutor-8_0] [itsm:83] - Skipping fields not found in CSV sources: ['sys_user.hashed_user_id']
+2026-07-09 17:33:10,731 - INFO - [ThreadPoolExecutor-8_0] [itsm:286] - [Transformation] Account | batch=10_0 | rows_after_filter=10 | operation=insert
+2026-07-09 17:33:10,768 - INFO - [ThreadPoolExecutor-8_0] [itsm:428] - [Transformation] Account | batch=10_0 | insert=10, update=0 | skipped: exists=0, date_filter=0, error=0
+2026-07-09 17:33:10,791 - INFO - [ThreadPoolExecutor-8_0] [itsm:222] - Transformation: Batch Number: 0 Status: Success
+2026-07-09 17:33:10,793 - INFO - [migration-1718db15] [itsm:129] - Transformation: Table: sys_user_Account_...Done
+2026-07-09 17:33:10,802 - INFO - [migration-1718db15] [itsm:463] - [Migration] Transformation complete for group: ['User']
+2026-07-09 17:33:10,926 - INFO - [migration-1718db15] [itsm:240] - Loading: sys_user_Account_...
+2026-07-09 17:33:10,930 - INFO - [migration-1718db15] [itsm:247] - Loading: sys_user_Account_ | transformation_path=C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\csv\Account | batches=2
+2026-07-09 17:33:11,009 - INFO - [ThreadPoolExecutor-9_0] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Pending
+2026-07-09 17:33:11,056 - INFO - [ThreadPoolExecutor-9_0] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 17:33:11,057 - INFO - [ThreadPoolExecutor-9_0] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 17:33:11,060 - INFO - [ThreadPoolExecutor-9_1] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Pending
+2026-07-09 17:33:11,102 - INFO - [ThreadPoolExecutor-9_1] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 17:33:11,107 - INFO - [ThreadPoolExecutor-9_1] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 17:33:14,006 - INFO - [ThreadPoolExecutor-9_1] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 17:33:14,145 - INFO - [ThreadPoolExecutor-9_0] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 17:33:19,851 - INFO - [ThreadPoolExecutor-9_1] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 17:33:19,866 - INFO - [ThreadPoolExecutor-9_0] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 17:33:19,879 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077
+2026-07-09 17:33:19,880 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 5dd64082af96bc0efbe55103
+2026-07-09 17:33:19,881 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497
+2026-07-09 17:33:19,881 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5
+2026-07-09 17:33:19,882 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:23249374-b527-4222-929f-3728ae126a6e
+2026-07-09 17:33:19,882 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75
+2026-07-09 17:33:19,882 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0
+2026-07-09 17:33:19,882 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 5d53f3cbc6b9320d9ea5bdc2
+2026-07-09 17:33:19,883 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 60e5a86a471e61006a4c51fd
+2026-07-09 17:33:19,884 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 5b6c7b3afbc68529c6c47967
+2026-07-09 17:33:19,884 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:7480ab94-14ac-49c9-8706-479eba31105b
+2026-07-09 17:33:19,885 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 630db2cd9796033b256bc349
+2026-07-09 17:33:19,885 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 5cf112d31552030f1e3a5905
+2026-07-09 17:33:19,886 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3
+2026-07-09 17:33:19,887 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a
+2026-07-09 17:33:19,887 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 5cb4ae0e4b97ab11a18e00c7
+2026-07-09 17:33:19,887 - WARNING - [ThreadPoolExecutor-9_1] [itsm:233] - Clearing invalid OwnerId before upload: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e
+2026-07-09 17:33:28,856 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:29,099 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:34,615 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:34,801 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:40,265 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:40,377 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:45,867 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:46,306 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:51,842 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:52,452 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:57,720 - INFO - [ThreadPoolExecutor-9_1] [itsm:487] - [Account] State: JobComplete, Processed Records: 17, Failed Records:0
+2026-07-09 17:33:58,494 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:33:59,921 - INFO - [ThreadPoolExecutor-9_1] [itsm:289] - C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\hash\Account\200_0\17_insert_hash.csv
+2026-07-09 17:33:59,927 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 557058:f58131cb-b67d-43c7-b30d-6b58d40bd077, Hash: f1bbbe64ea0842a2720555644d14f41c
+2026-07-09 17:33:59,927 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 5dd64082af96bc0efbe55103, Hash: 0bf0698593f9347a42478850e799ea21
+2026-07-09 17:33:59,928 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 712020:f86bffc3-d3e0-45d5-a1d7-2365ccca9497, Hash: 8585a53f80548b9dcf6a053a99785caf
+2026-07-09 17:33:59,928 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 712020:c6376325-6e9f-4bdc-b6f7-d30f09f1b1c5, Hash: 2a2b2963a1dba7a52799db020c21c160
+2026-07-09 17:33:59,928 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 712020:23249374-b527-4222-929f-3728ae126a6e, Hash: e801b92f9ecba654221168051019c151
+2026-07-09 17:33:59,928 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 557058:950f9f5b-3d6d-4e1d-954a-21367ae9ac75, Hash: d96155ca28e5a4cb14e423611a16d30b
+2026-07-09 17:33:59,928 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6d0328e5-402e-458a-9298-99b824edd5b0, Hash: f56792eab03ae886ea62e2d3b3b8ef62
+2026-07-09 17:33:59,929 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 5d53f3cbc6b9320d9ea5bdc2, Hash: 9ca9fa3d081b0db0b2897c949c8991f2
+2026-07-09 17:33:59,929 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 60e5a86a471e61006a4c51fd, Hash: 1020ec6d8b8c01de0bc04b7ce8260a4c
+2026-07-09 17:33:59,930 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 5b6c7b3afbc68529c6c47967, Hash: 9814b3cb6a1539a4d4d54617cda2edb1
+2026-07-09 17:33:59,930 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 712020:7480ab94-14ac-49c9-8706-479eba31105b, Hash: 96c8e859b3991686d988962e4cc89f68
+2026-07-09 17:33:59,930 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 630db2cd9796033b256bc349, Hash: ff6f1081ca17363fa4d7183f6884eb7f
+2026-07-09 17:33:59,930 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 5cf112d31552030f1e3a5905, Hash: 0f12c028a8210af0fe811d8cb32ae806
+2026-07-09 17:33:59,931 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: qm:2d256930-dbe0-487d-95c1-d3bc1d7cb623:6b1b0a8e-6616-412e-aa48-edc8d445fcf3, Hash: 6401a90c41a949818c953ef212c06721
+2026-07-09 17:33:59,931 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 712020:6cd21abf-01db-4ae7-bf4c-b2c6a74f058a, Hash: 2783d59cc31173009918f6563e51332c
+2026-07-09 17:33:59,931 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 5cb4ae0e4b97ab11a18e00c7, Hash: d29245125168ced425538f46bb62cd88
+2026-07-09 17:33:59,932 - ERROR - [ThreadPoolExecutor-9_1] [itsm:310] - No match found for SysId: 557058:0867a421-a9ee-4659-801a-bc0ee4a4487e, Hash: 800795a9af4b9436a2d95090b46f8b57
+2026-07-09 17:33:59,939 - INFO - [ThreadPoolExecutor-9_1] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 17:33:59,940 - INFO - [ThreadPoolExecutor-9_1] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 17:34:03,104 - INFO - [ThreadPoolExecutor-9_0] [itsm:487] - [Account] State: JobComplete, Processed Records: 10, Failed Records:10
+2026-07-09 17:34:04,795 - INFO - [ThreadPoolExecutor-9_1] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 200, Status: Success
+2026-07-09 17:34:05,589 - WARNING - [ThreadPoolExecutor-9_0] [itsm:552] - No successful Salesforce inserts for Account batch 10_insert; skipping ID mapping generation
+2026-07-09 17:34:05,589 - INFO - [ThreadPoolExecutor-9_0] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 17:34:05,589 - INFO - [ThreadPoolExecutor-9_0] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 17:34:10,222 - INFO - [ThreadPoolExecutor-9_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Success
+2026-07-09 17:50:04,095 - INFO - [migration-95bdc815] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 17:50:04,096 - INFO - [migration-95bdc815] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 17:50:04,096 - INFO - [migration-95bdc815] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 17:50:04,160 - INFO - [migration-95bdc815] [itsm:334] - Resolved dependencies — final object list: ['User']
+2026-07-09 17:50:04,221 - INFO - [migration-95bdc815] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=10
+2026-07-09 17:50:04,253 - INFO - [migration-95bdc815] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 17:50:04,285 - INFO - [ThreadPoolExecutor-11_0] [itsm:40] - Job: 1, Job Table: 53
+2026-07-09 17:50:04,285 - INFO - [ThreadPoolExecutor-11_0] [itsm:41] - Servicenow table 'sys_user' extraction start at 2026-07-09 17:50:04.285745
+2026-07-09 17:50:18,375 - INFO - [ThreadPoolExecutor-11_0] [itsm:51] - Total rows in sys_user is 772
+2026-07-09 17:50:18,405 - INFO - [ThreadPoolExecutor-11_0] [itsm:68] - Record limit active: extracting 10 rows from sys_user (offset=0, already_migrated=0)
+2026-07-09 17:50:18,476 - INFO - [ThreadPoolExecutor-12_0] [itsm:129] - Start: 2026-07-09 17:50:18.476033 Table: sys_user, Batch: 0, Job Batch Id: 43
+2026-07-09 17:50:21,382 - INFO - [ThreadPoolExecutor-12_0] [itsm:156] - End: 2026-07-09 17:50:21.382264 Table: sys_user, Batch: 0, Job Batch Id: 43
+2026-07-09 17:50:21,383 - INFO - [ThreadPoolExecutor-11_0] [itsm:103] - Servicenow table 'sys_user' extraction ends at 2026-07-09 17:50:21.383783
+2026-07-09 17:50:21,391 - INFO - [migration-95bdc815] [itsm:57] - [Extraction] Completed | job_id=1 | total_extracted=10
+2026-07-09 17:50:21,537 - INFO - [migration-95bdc815] [itsm:94] - Transformation: Table: sys_user_Account_...
+2026-07-09 17:50:21,590 - INFO - [ThreadPoolExecutor-13_0] [itsm:152] - Transformation: Batch Number: 0 Status: Pending
+2026-07-09 17:50:21,622 - INFO - [ThreadPoolExecutor-13_0] [itsm:157] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-09 17:50:21,752 - INFO - [ThreadPoolExecutor-13_0] [itsm:286] - [Transformation] Account | batch=10_0 | rows_after_filter=10 | operation=insert
+2026-07-09 17:50:21,784 - INFO - [ThreadPoolExecutor-13_0] [itsm:428] - [Transformation] Account | batch=10_0 | insert=10, update=0 | skipped: exists=0, date_filter=0, error=0
+2026-07-09 17:50:21,799 - INFO - [ThreadPoolExecutor-13_0] [itsm:222] - Transformation: Batch Number: 0 Status: Success
+2026-07-09 17:50:21,801 - INFO - [migration-95bdc815] [itsm:129] - Transformation: Table: sys_user_Account_...Done
+2026-07-09 17:50:21,810 - INFO - [migration-95bdc815] [itsm:463] - [Migration] Transformation complete for group: ['User']
+2026-07-09 17:50:21,890 - INFO - [migration-95bdc815] [itsm:240] - Loading: sys_user_Account_...
+2026-07-09 17:50:21,892 - INFO - [migration-95bdc815] [itsm:247] - Loading: sys_user_Account_ | transformation_path=C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\csv\Account | batches=1
+2026-07-09 17:50:21,947 - INFO - [ThreadPoolExecutor-14_0] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Pending
+2026-07-09 17:50:21,984 - INFO - [ThreadPoolExecutor-14_0] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 17:50:21,985 - INFO - [ThreadPoolExecutor-14_0] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 17:50:24,155 - INFO - [ThreadPoolExecutor-14_0] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 17:50:28,823 - INFO - [ThreadPoolExecutor-14_0] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 17:50:36,502 - INFO - [ThreadPoolExecutor-14_0] [itsm:487] - [Account] State: UploadComplete, Processed Records: 0, Failed Records:0
+2026-07-09 17:50:41,716 - INFO - [ThreadPoolExecutor-14_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:50:46,870 - INFO - [ThreadPoolExecutor-14_0] [itsm:487] - [Account] State: InProgress, Processed Records: 0, Failed Records:0
+2026-07-09 17:50:52,574 - INFO - [ThreadPoolExecutor-14_0] [itsm:487] - [Account] State: JobComplete, Processed Records: 10, Failed Records:10
+2026-07-09 17:50:55,770 - WARNING - [ThreadPoolExecutor-14_0] [itsm:552] - No successful Salesforce inserts for Account batch 10_insert; skipping ID mapping generation
+2026-07-09 17:50:55,771 - INFO - [ThreadPoolExecutor-14_0] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 17:50:55,771 - INFO - [ThreadPoolExecutor-14_0] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 17:51:01,083 - INFO - [ThreadPoolExecutor-14_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Success
+2026-07-09 18:12:39,054 - INFO - [migration-336d7b77] [itsm:275] - Cleared job tracking data for fresh run
+2026-07-09 18:12:39,055 - INFO - [migration-336d7b77] [itsm:78] - Salesforce client configured for base URL: https://milestoneitsm--mtiitsmai.sandbox.my.salesforce.com
+2026-07-09 18:12:39,055 - INFO - [migration-336d7b77] [itsm:52] - ServiceNow client configured for: https://dev302529.service-now.com
+2026-07-09 18:12:39,106 - INFO - [migration-336d7b77] [itsm:334] - Resolved dependencies — final object list: ['User']
+2026-07-09 18:12:39,155 - INFO - [migration-336d7b77] [itsm:45] - [Extraction] Starting | job_id=1 | mappings=['User'] | record_limit=10
+2026-07-09 18:12:39,178 - INFO - [migration-336d7b77] [itsm:55] - [Extraction] Resolved tables | plugin=ServiceNowProvider | tables=['sys_user']
+2026-07-09 18:12:39,209 - INFO - [ThreadPoolExecutor-16_0] [itsm:40] - Job: 1, Job Table: 56
+2026-07-09 18:12:39,210 - INFO - [ThreadPoolExecutor-16_0] [itsm:41] - Servicenow table 'sys_user' extraction start at 2026-07-09 18:12:39.210051
+2026-07-09 18:12:42,429 - INFO - [ThreadPoolExecutor-16_0] [itsm:51] - Total rows in sys_user is 772
+2026-07-09 18:12:42,454 - INFO - [ThreadPoolExecutor-16_0] [itsm:68] - Record limit active: extracting 10 rows from sys_user (offset=0, already_migrated=0)
+2026-07-09 18:12:42,499 - INFO - [ThreadPoolExecutor-17_0] [itsm:129] - Start: 2026-07-09 18:12:42.499167 Table: sys_user, Batch: 0, Job Batch Id: 46
+2026-07-09 18:12:44,931 - INFO - [ThreadPoolExecutor-17_0] [itsm:156] - End: 2026-07-09 18:12:44.931818 Table: sys_user, Batch: 0, Job Batch Id: 46
+2026-07-09 18:12:44,933 - INFO - [ThreadPoolExecutor-16_0] [itsm:103] - Servicenow table 'sys_user' extraction ends at 2026-07-09 18:12:44.933334
+2026-07-09 18:12:44,939 - INFO - [migration-336d7b77] [itsm:57] - [Extraction] Completed | job_id=1 | total_extracted=10
+2026-07-09 18:12:45,078 - INFO - [migration-336d7b77] [itsm:94] - Transformation: Table: sys_user_Account_...
+2026-07-09 18:12:45,137 - INFO - [ThreadPoolExecutor-18_0] [itsm:152] - Transformation: Batch Number: 0 Status: Pending
+2026-07-09 18:12:45,165 - INFO - [ThreadPoolExecutor-18_0] [itsm:157] - Transformation: Batch Number: 0 Status: In Progress
+2026-07-09 18:12:45,260 - INFO - [ThreadPoolExecutor-18_0] [itsm:286] - [Transformation] Account | batch=10_0 | rows_after_filter=10 | operation=insert
+2026-07-09 18:12:45,289 - INFO - [ThreadPoolExecutor-18_0] [itsm:428] - [Transformation] Account | batch=10_0 | insert=10, update=0 | skipped: exists=0, date_filter=0, error=0
+2026-07-09 18:12:45,305 - INFO - [ThreadPoolExecutor-18_0] [itsm:222] - Transformation: Batch Number: 0 Status: Success
+2026-07-09 18:12:45,307 - INFO - [migration-336d7b77] [itsm:129] - Transformation: Table: sys_user_Account_...Done
+2026-07-09 18:12:45,314 - INFO - [migration-336d7b77] [itsm:463] - [Migration] Transformation complete for group: ['User']
+2026-07-09 18:12:45,384 - INFO - [migration-336d7b77] [itsm:240] - Loading: sys_user_Account_...
+2026-07-09 18:12:45,386 - INFO - [migration-336d7b77] [itsm:247] - Loading: sys_user_Account_ | transformation_path=C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\csv\Account | batches=1
+2026-07-09 18:12:45,433 - INFO - [ThreadPoolExecutor-19_0] [itsm:313] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Pending
+2026-07-09 18:12:45,466 - INFO - [ThreadPoolExecutor-19_0] [itsm:42] - Salesforce token missing. Refreshing access token.
+2026-07-09 18:12:45,466 - INFO - [ThreadPoolExecutor-19_0] [itsm:81] - Refreshing Salesforce access token...
+2026-07-09 18:12:47,371 - INFO - [ThreadPoolExecutor-19_0] [itsm:106] - Salesforce access token refreshed successfully.
+2026-07-09 18:12:51,274 - INFO - [ThreadPoolExecutor-19_0] [itsm:169] - Described 'Account': 54 createable fields found, 3 restricted picklists
+2026-07-09 18:12:51,317 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d55
+2026-07-09 18:12:51,317 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d64
+2026-07-09 18:12:51,317 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d5e
+2026-07-09 18:12:51,318 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d6d
+2026-07-09 18:12:51,318 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 005d500b536073005e0addeeff7b12f4
+2026-07-09 18:12:51,318 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d88
+2026-07-09 18:12:51,318 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d91
+2026-07-09 18:12:51,318 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d76
+2026-07-09 18:12:51,319 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d3f
+2026-07-09 18:12:51,319 - WARNING - [ThreadPoolExecutor-19_0] [itsm:233] - Clearing invalid OwnerId before upload: 02826bf03710200044e0bfc8bcbe5d7f
+2026-07-09 18:12:55,783 - INFO - [ThreadPoolExecutor-19_0] [itsm:487] - [Account] State: InProgress, Processed Records: 10, Failed Records:0
+2026-07-09 18:13:00,577 - INFO - [ThreadPoolExecutor-19_0] [itsm:487] - [Account] State: JobComplete, Processed Records: 10, Failed Records:0
+2026-07-09 18:13:02,579 - INFO - [ThreadPoolExecutor-19_0] [itsm:289] - C:\Users\muhammed.shahid\OneDrive - Milestone Technologies Inc\Documents\itsm-data-migration-snow-sf\data\transformations\hash\Account\10_0\10_insert_hash.csv
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d55, Hash: 2ff84421c94b5a18299c08f6b59c2d61
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d64, Hash: 21f1e31c2ac3571c62f47abd68572fd9
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d5e, Hash: 1afd3f7099474c62a35cd3cc41abd4bf
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d6d, Hash: 670856b5d393cf6285900514b3a35298
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 005d500b536073005e0addeeff7b12f4, Hash: bb7153c4971f1e8539e81f3bd1d98f35
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d88, Hash: 54fde6eb566c655972ce461b83bbd0bd
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d91, Hash: 124eb26a2ebd3514b60eef430bca6d30
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d76, Hash: 0fdd2ebb49d2f957ea5abab0a33a21af
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d3f, Hash: fa8365ba8b5ae0a92a7ca34205b3104d
+2026-07-09 18:13:02,582 - ERROR - [ThreadPoolExecutor-19_0] [itsm:310] - No match found for SysId: 02826bf03710200044e0bfc8bcbe5d7f, Hash: c6a01bc990456ec030f3e39139d40068
+2026-07-09 18:13:02,588 - INFO - [ThreadPoolExecutor-19_0] [itsm:362] - Inserting ID mappings... for table: sys_user_Account_
+2026-07-09 18:13:02,589 - INFO - [ThreadPoolExecutor-19_0] [itsm:373] - Inserting ID mappings... for table: sys_user_Account_ Done
+2026-07-09 18:13:06,751 - INFO - [ThreadPoolExecutor-19_0] [itsm:326] - Loading: Insert: Batch Number: 0, Insert Batch Size: 10, Status: Success

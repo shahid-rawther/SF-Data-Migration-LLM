@@ -281,6 +281,7 @@ class MigrationManager:
         source_credentials: dict = config.get("source_credentials", {})
         destination_credentials: dict = config.get("destination_credentials", {})
         dry_run: bool = bool(options.get("disable_load", False))
+        record_limit: int | None = options.get("service_now_batch_size") or None
         token = state.token
 
         # Resolve the source and destination plugins from the integration registry.
@@ -395,7 +396,8 @@ class MigrationManager:
 
             # Perform actual extraction (all selected tables at once)
             total_fetched = extraction_controller.start_extraction(
-                EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin
+                EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
+                record_limit=record_limit,
             )
 
             # Extract individual attachment files for any attachment objects.
@@ -510,6 +512,10 @@ class MigrationManager:
                 records_by_object[obj_name] = counts
             for obj_name, errs in load_result.get("errors_by_object", {}).items():
                 load_errors_by_object[obj_name] = errs
+
+            # Invalidate cached id_mappings so subsequent priority groups
+            # see the records that were just loaded into Salesforce.
+            execution_cache.clear()
 
             self._emit(
                 session_id,

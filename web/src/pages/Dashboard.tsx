@@ -21,8 +21,6 @@ export function Dashboard() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
   }, []);
 
   const completed = sessions.filter((s) => s.status === 'completed').length;

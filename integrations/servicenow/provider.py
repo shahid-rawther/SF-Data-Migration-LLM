@@ -417,10 +417,12 @@ class ServiceNowProvider(SourcePlugin):
             password=credentials.get("password"),
         )
 
-    def extract_tables(self, job_id: int, tables: list[str]) -> int:
+    def extract_tables(  # noqa: override
+        self, job_id: int, tables: list[str], record_limit: int | None = None,
+    ) -> int:
         from integrations.servicenow.extraction import extract_servicenow_tables
 
-        return extract_servicenow_tables(job_id, tables)
+        return extract_servicenow_tables(job_id, tables, record_limit=record_limit)
 
     def extract_attachment_files(self, job_id: int, table_mapping: dict) -> None:
         from integrations.servicenow.extraction import extract_servicenow_files

@@ -181,8 +181,12 @@ class SourcePlugin(SourceProvider):
         from config.settings import PATH_TO_DOWNLOADS
         return PATH_TO_DOWNLOADS / self.source_id
 
-    def extract_tables(self, job_id: int, tables: list[str]) -> int:
-        """Bulk-extract the given raw tables into CSV. Return rows extracted."""
+    def extract_tables(self, job_id: int, tables: list[str], record_limit: int | None = None) -> int:
+        """Bulk-extract the given raw tables into CSV. Return rows extracted.
+
+        *record_limit*: when set, caps the number of records extracted **per
+        table** to this value.  ``None`` (default) means extract everything.
+        """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not implement extract_tables()"
         )

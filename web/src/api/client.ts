@@ -321,6 +321,8 @@ export const api = {
       request(`/migrations/${id}/resume`, { method: 'POST' }),
     stop: (id: string): Promise<{ session_id: string; status: string }> =>
       request(`/migrations/${id}/stop`, { method: 'POST' }),
+    retry: (id: string): Promise<{ session_id: string; status: string }> =>
+      request(`/migrations/${id}/retry`, { method: 'POST' }),
   },
 
   connections: {

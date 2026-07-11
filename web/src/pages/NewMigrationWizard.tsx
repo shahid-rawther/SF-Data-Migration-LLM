@@ -1305,9 +1305,10 @@ export function NewMigrationWizard() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Source Batch Size</label>
+                <label style={labelStyle}>Records Per Table (extraction limit)</label>
                 <input
                   type="number"
+                  min={1}
                   value={options.source_batch_size}
                   onChange={(e) => setOptions((o) => ({ ...o, source_batch_size: +e.target.value }))}
                   style={inputStyle}

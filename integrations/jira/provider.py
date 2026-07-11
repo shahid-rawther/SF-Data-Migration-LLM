@@ -259,9 +259,9 @@ class JSMProvider(SourcePlugin):
         from config.settings import PATH_TO_DOWNLOADS
         return PATH_TO_DOWNLOADS / "jsm"
 
-    def extract_tables(self, job_id: int, tables: list[str]) -> int:
+    def extract_tables(self, job_id: int, tables: list[str], record_limit: int | None = None) -> int:
         from integrations.jira.extraction import extract_jsm_tables
-        return extract_jsm_tables(job_id, tables)
+        return extract_jsm_tables(job_id, tables, record_limit=record_limit)
 
     def extract_attachment_files(self, job_id: int, table_mapping: dict) -> None:
         from integrations.jira.extraction import extract_jsm_attachment_files

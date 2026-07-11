@@ -19,15 +19,12 @@ from services.external import duckdb_client
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def extract_servicenow_tables(job_id: int, service_now_tables: list):
-    # Run up to 5 tables in parallel — each table still internally parallelises
-    # its own batches via MAX_WORKERS, so keep table-level concurrency moderate
-    # to avoid overwhelming the ServiceNow instance.
+def extract_servicenow_tables(job_id: int, service_now_tables: list, record_limit: int | None = None):
     executer_queue = ThreadPoolExecutor(max_workers=5)
     futures = []
     for servicenow_table in service_now_tables:
         futures.append(
-            executer_queue.submit(extract_servicenow_table, job_id, servicenow_table)
+            executer_queue.submit(extract_servicenow_table, job_id, servicenow_table, record_limit=record_limit)
         )
 
     total_rows = 0
@@ -37,7 +34,7 @@ def extract_servicenow_tables(job_id: int, service_now_tables: list):
     executer_queue.shutdown(wait=True)
     return total_rows
 
-def extract_servicenow_table(job_id: int, servicenow_table: str):
+def extract_servicenow_table(job_id: int, servicenow_table: str, record_limit: int | None = None):
     executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     job_table_id = jobs_service.get_or_create_job_table(job_id, servicenow_table)
     logger.info(f"Job: {job_id}, Job Table: {job_table_id}")
@@ -53,12 +50,32 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
         row_count = servicenow_client.get_row_count(servicenow_table, start_date, end_date)
         logger.info(f"Total rows in {servicenow_table} is {row_count}")
 
+        batch_size = SERVICE_NOW_BATCH_SIZE
+        max_batches = SERVICE_NOW_NO_OF_BATCH
+        already_migrated_offset = 0
+
+        if record_limit and record_limit > 0:
+            from services.internal.mappings_service import count_migrated_for_source_table
+            already_migrated_offset = count_migrated_for_source_table(servicenow_table)
+            effective_total = min(row_count - already_migrated_offset, record_limit)
+            if effective_total <= 0:
+                logger.info(f"All records from {servicenow_table} already migrated ({already_migrated_offset} in id_mappings)")
+                jobs_service.update_job_table_status(job_table_id, "success")
+                return 0
+            row_count = already_migrated_offset + effective_total
+            batch_size = record_limit
+            max_batches = 1
+            logger.info(
+                f"Record limit active: extracting {effective_total} rows from {servicenow_table} "
+                f"(offset={already_migrated_offset}, already_migrated={already_migrated_offset})"
+            )
+
         futures = []
 
         batch_no = 0
         while True:
 
-            offset = batch_no * SERVICE_NOW_BATCH_SIZE
+            offset = already_migrated_offset + (batch_no * batch_size)
 
             if offset >= row_count:
                 break
@@ -71,12 +88,13 @@ def extract_servicenow_table(job_id: int, servicenow_table: str):
                     servicenow_table,
                     offset,
                     start_date,
-                    end_date
+                    end_date,
+                    batch_size,
                 )
             )
 
             batch_no += 1
-            if SERVICE_NOW_NO_OF_BATCH and batch_no >= SERVICE_NOW_NO_OF_BATCH:
+            if max_batches and batch_no >= max_batches:
                 break
         
         for future in tqdm.tqdm(as_completed(futures), total=len(futures), desc=f"Ext: {servicenow_table}", ncols=120):
@@ -99,11 +117,12 @@ def extract_single_batch(
         servicenow_table: str,
         offset: int,
         start_date:str = "",
-        end_date:str = ""
+        end_date:str = "",
+        batch_size: int = SERVICE_NOW_BATCH_SIZE,
 
     ):
     job_table_batch_id = jobs_service.get_or_create_job_table_batch(
-        job_table_id, SERVICE_NOW_BATCH_SIZE, batch_no, "extraction"
+        job_table_id, batch_size, batch_no, "extraction"
     )
 
     try:
@@ -117,7 +136,7 @@ def extract_single_batch(
                 PATH_TO_DOWNLOADS
                 / "servicenow"
                 / f"{servicenow_table}"
-                / f"{SERVICE_NOW_BATCH_SIZE}_{batch_no}.csv"
+                / f"{batch_size}_{batch_no}.csv"
             )
 
             batch = servicenow_client.fetch_table(
@@ -125,7 +144,7 @@ def extract_single_batch(
                 start_date,
                 end_date,
                 offset,
-                SERVICE_NOW_BATCH_SIZE,
+                batch_size,
             )
             if not batch:
                 return
