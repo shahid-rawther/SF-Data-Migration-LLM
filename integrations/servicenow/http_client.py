@@ -209,9 +209,14 @@ class ServiceNowClient:
     ):
         session = self._session()
         url = self.instance_url + f"/api/now/table/{table_name}"
+        # EC-18: offset pagination needs a stable, deterministic sort or rows can
+        # be duplicated/missed across pages. sys_id is unique and immutable, so
+        # ordering by it guarantees a consistent window per offset.
+        base_query = _create_query(start_date=start_date, end_date=end_date)
+        ordered_query = f"{base_query}^ORDERBYsys_id" if base_query else "ORDERBYsys_id"
         params = {
             "sysparm_no_count": "true",
-            "sysparm_query": _create_query(start_date=start_date, end_date=end_date),
+            "sysparm_query": ordered_query,
             "sysparm_limit": batch_size,
             "sysparm_offset": offset,
             "sysparm_display_value": "false",

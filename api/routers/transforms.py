@@ -33,9 +33,30 @@ GENERIC_TRANSFORMS: list[dict] = [
     {
         "name": "generic_concat",
         "label": "Concatenate",
-        "description": "Join multiple source field values with a separator.",
+        "description": "Join multiple source field values with a separator; optionally pad to a minimum length and cap at a maximum length.",
         "params_schema": {
             "separator": {"type": "string", "default": " ", "description": "String to place between field values"},
+            "min_length": {"type": "integer", "default": 0, "description": "Pad the result up to this length (0 = no padding)"},
+            "pad_with": {"type": "string", "default": "", "description": "Filler text appended to reach min_length"},
+            "max_length": {"type": "integer", "default": 0, "description": "Truncate the result to this length (0 = no limit)"},
+        },
+    },
+    {
+        "name": "generic_strip_html",
+        "label": "Strip HTML",
+        "description": "Remove HTML tags from the value, returning plain text.",
+        "params_schema": {
+            "default": {"type": "string", "default": "", "description": "Value to use when the result is empty"},
+        },
+    },
+    {
+        "name": "generic_length_guard",
+        "label": "Length Guard",
+        "description": "Enforce a minimum and/or maximum character length on the value.",
+        "params_schema": {
+            "min_length": {"type": "integer", "default": 0, "description": "Pad up to this length (0 = no padding)"},
+            "pad_with": {"type": "string", "default": "", "description": "Filler text appended to reach min_length"},
+            "max_length": {"type": "integer", "default": 0, "description": "Truncate to this length (0 = no limit)"},
         },
     },
     {

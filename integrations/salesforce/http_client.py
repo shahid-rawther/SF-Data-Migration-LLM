@@ -19,6 +19,12 @@ DEFAULT_SALESFORCE_CLIENT_SECRET = os.getenv("SALESFORCE_CLIENT_SECRET")
 DEFAULT_SALESFORCE_BASE_URL = os.getenv("SALESFORCE_BASE_URL")
 csv.field_size_limit(2**31 - 1)
 
+# ── Rate-limit / transient retry (EC-06) ────────────────────────────────────
+_SF_RETRY_ATTEMPTS = 5
+_SF_RETRY_BASE_DELAY = 2.0  # seconds; doubled each attempt (capped)
+_SF_RETRY_MAX_DELAY = 60.0
+_SF_TRANSIENT_STATUS = {429, 500, 502, 503, 504}
+
 
 _SF_ID_RE = re.compile(r"^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
 
@@ -38,10 +44,19 @@ def ensure_token(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self: "SalesforceClient", *args: Any, **kwargs: Any) -> Any:
-        if not self.access_token:
-            logger.info("Salesforce token missing. Refreshing access token.")
+        # Refresh when missing, or proactively just before a known expiry.
+        if not self.access_token or (self.token_expiry and time.time() >= self.token_expiry):
+            logger.info("Salesforce token missing or expired. Refreshing access token.")
             self.refresh_access_token()
-        return func(self, *args, **kwargs)
+        try:
+            return func(self, *args, **kwargs)
+        except requests.exceptions.HTTPError as exc:
+            # Token may have been revoked/expired server-side: refresh once and retry.
+            if exc.response is not None and exc.response.status_code == 401:
+                logger.info("Salesforce returned 401 — refreshing token and retrying once.")
+                self.refresh_access_token()
+                return func(self, *args, **kwargs)
+            raise
 
     return wrapper
 
@@ -103,6 +118,15 @@ class SalesforceClient:
 
         self.access_token = response_data["access_token"]
 
+        # Record expiry so ensure_token can refresh proactively. Salesforce
+        # client_credentials responses may omit expires_in; when absent we leave
+        # token_expiry at 0.0 and rely on 401-triggered refresh instead.
+        expires_in = response_data.get("expires_in")
+        try:
+            self.token_expiry = time.time() + float(expires_in) - 60 if expires_in else 0.0
+        except (TypeError, ValueError):
+            self.token_expiry = 0.0
+
         logger.info("Salesforce access token refreshed successfully.")
 
     def _headers(self) -> Dict[str, str]:
@@ -135,6 +159,38 @@ class SalesforceClient:
         except ValueError:
             pass
         return response.text[:500]
+
+    def _send_with_retry(
+        self, do_request: Callable[[], requests.Response], what: str = "request"
+    ) -> requests.Response:
+        """Execute an HTTP call, retrying on 429/5xx with exponential backoff.
+
+        Honors the ``Retry-After`` header when Salesforce provides it. Returns
+        the final response (caller still calls ``raise_for_status``); on a hard
+        rate-limit that never clears, the last response is returned so the
+        existing error handling reports it.
+        """
+        delay = _SF_RETRY_BASE_DELAY
+        response: Optional[requests.Response] = None
+        for attempt in range(1, _SF_RETRY_ATTEMPTS + 1):
+            response = do_request()
+            if response.status_code not in _SF_TRANSIENT_STATUS:
+                return response
+            if attempt >= _SF_RETRY_ATTEMPTS:
+                return response
+            retry_after = response.headers.get("Retry-After")
+            try:
+                wait = float(retry_after) if retry_after else delay
+            except (TypeError, ValueError):
+                wait = delay
+            wait = min(wait, _SF_RETRY_MAX_DELAY)
+            logger.warning(
+                "Salesforce %s returned HTTP %d (attempt %d/%d) — backing off %.1fs",
+                what, response.status_code, attempt, _SF_RETRY_ATTEMPTS, wait,
+            )
+            time.sleep(wait)
+            delay = min(delay * 2, _SF_RETRY_MAX_DELAY)
+        return response
 
     @ensure_token
     def describe_object(self, object_api_name: str) -> set:
@@ -177,7 +233,11 @@ class SalesforceClient:
 
     @ensure_token
     def create_job(
-        self, object_api_name: str, operation: str = "insert", line_ending: str = "CRLF"
+        self,
+        object_api_name: str,
+        operation: str = "insert",
+        line_ending: str = "CRLF",
+        external_id_field: str = None,
     ):
         url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest"
         session = self._session()
@@ -187,7 +247,16 @@ class SalesforceClient:
             "contentType": "CSV",
             "lineEnding": line_ending,  # "LF" or "CRLF" - must match your CSV
         }
-        response = session.post(url=url, json=body)
+        if operation == "upsert":
+            if not external_id_field:
+                raise ValueError(
+                    "Salesforce upsert requires an external_id_field to key on"
+                )
+            # Bulk API needs the external-id field name to dedup/match records.
+            body["externalIdFieldName"] = external_id_field
+        response = self._send_with_retry(
+            lambda: session.post(url=url, json=body), what="create_job"
+        )
         response.raise_for_status()
         return response.json()
 
@@ -221,6 +290,11 @@ class SalesforceClient:
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
 
+            # Track how many values we blank per picklist field so the operator
+            # gets a warning summary instead of silent data loss (EC-08).
+            blanked_counts: Dict[str, int] = {}
+            blanked_samples: Dict[str, set] = {}
+
             for row in reader:
                 for col in remove_columns:
                     row.pop(col, None)
@@ -240,6 +314,10 @@ class SalesforceClient:
                 if picklist_values:
                     for field_name, allowed in picklist_values.items():
                         if field_name in row and row[field_name] and row[field_name] not in allowed:
+                            blanked_counts[field_name] = blanked_counts.get(field_name, 0) + 1
+                            samples = blanked_samples.setdefault(field_name, set())
+                            if len(samples) < 10:
+                                samples.add(row[field_name])
                             row[field_name] = ""
                 # Override forced values (e.g. Status="New" for insert)
                 if force_values:
@@ -248,9 +326,20 @@ class SalesforceClient:
                             row[field_name] = forced_val
                 writer.writerow(row)
 
+            if blanked_counts:
+                for field_name, count in blanked_counts.items():
+                    logger.warning(
+                        "Blanked %d invalid restricted-picklist value(s) for field '%s' "
+                        "before upload (rejected values e.g. %s). Map these in the wizard "
+                        "to avoid data loss.",
+                        count, field_name, sorted(blanked_samples.get(field_name, set())),
+                    )
+
         csv_bytes = output.getvalue().encode("utf-8")
 
-        r = session.put(url=url, data=csv_bytes)
+        r = self._send_with_retry(
+            lambda: session.put(url=url, data=csv_bytes), what="upload_csv"
+        )
         r.raise_for_status()
 
         return r.status_code == 201  # created
@@ -272,7 +361,9 @@ class SalesforceClient:
         body = {"state": "UploadComplete"}
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
-        r = session.patch(url=url, json=body)
+        r = self._send_with_retry(
+            lambda: session.patch(url=url, json=body), what="mark_upload_complete"
+        )
         r.raise_for_status()
         return r.json()
 
@@ -281,7 +372,7 @@ class SalesforceClient:
         url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}"
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
-        r = session.get(url)
+        r = self._send_with_retry(lambda: session.get(url), what="get_job")
         r.raise_for_status()
         return r.json()
 
@@ -293,7 +384,7 @@ class SalesforceClient:
         url = f"{self.instance_url}/services/data/{self.api_version}/jobs/ingest/{job_id}/{kind}"
         session = self._session()
         session.headers.update({"Content-Type": "application/json"})
-        response = session.get(url)
+        response = self._send_with_retry(lambda: session.get(url), what="get_results")
         response.raise_for_status()
         content = response.text
         return content
@@ -360,6 +451,30 @@ class SalesforceClient:
             detail = self._extract_salesforce_error(response)
             raise RuntimeError(f"Salesforce query failed for '{object_name}': {detail}")
         return response.json()
+
+    @ensure_token
+    def query_records(
+        self, object_api_name: str, name_field: str = "Name", limit: int = 200
+    ) -> list[dict]:
+        """Return up to ``limit`` records of an object as ``[{id, name}]``.
+
+        Used by the wizard's reference picker so a user can choose an org record
+        (e.g. a Profile) by name and store its Id as a per-field constant.
+        """
+        safe_limit = max(1, min(int(limit), 2000))
+        query = f"SELECT Id, {name_field} FROM {object_api_name} ORDER BY {name_field} LIMIT {safe_limit}"
+        url = f"{self.instance_url}/services/data/{self.api_version}/query?q={query}"
+        session = self._session()
+        session.headers.update({"Content-Type": "application/json"})
+        response = self._send_with_retry(lambda: session.get(url), what="query_records")
+        if not response.ok:
+            detail = self._extract_salesforce_error(response)
+            raise RuntimeError(f"Salesforce query failed for '{object_api_name}': {detail}")
+        records = response.json().get("records", [])
+        return [
+            {"id": r.get("Id", ""), "name": r.get(name_field, "")}
+            for r in records
+        ]
 
     @ensure_token
     def get_row_count(

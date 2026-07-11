@@ -37,6 +37,42 @@ def get_or_create_job(
     result = future.result()
     return result["lastrowid"]
 
+# Fixed job ids 1-8 are reserved by the CLI / attachment pipelines
+# (see config.settings). Fresh per-run ids are allocated strictly above this
+# floor so they can never collide with those reserved ids.
+RESERVED_JOB_ID_FLOOR = 1000
+
+
+def create_new_job(
+    job_type: str,
+    status: str = PENDING,
+) -> int:
+    """Allocate a brand-new job row with a unique id above the reserved range.
+
+    Unlike ``get_or_create_job`` (which reuses a fixed id and enables resume),
+    this always inserts a fresh row so the caller gets a unique, previously
+    unused job id. Used by the wizard runtime to make every migration a
+    fresh, non-resumable run.
+
+    The id is computed as ``MAX(id) + 1`` within the reserved-floor space so it
+    stays clear of the fixed ids (1-8) used by the CLI/attachment paths. The
+    ``INSERT ... SELECT`` runs on the single-threaded writer connection, so the
+    max-and-insert is atomic with respect to other writes.
+    """
+    insert_query = """
+        INSERT INTO jobs (id, job_type, status)
+        SELECT COALESCE(MAX(id), ?) + 1, ?, ?
+        FROM jobs
+        WHERE id >= ?
+    """
+    future = writer.execute(
+        insert_query,
+        (RESERVED_JOB_ID_FLOOR, job_type, status, RESERVED_JOB_ID_FLOOR),
+    )
+    result = future.result()
+    return result["lastrowid"]
+
+
 def create_job_table(
         job_id: int,
         table_name: str,

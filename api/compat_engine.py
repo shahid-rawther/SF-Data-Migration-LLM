@@ -49,6 +49,82 @@ def _norm_sf_type(sf_type: str) -> str:
     return _SF_TYPE_MAP.get((sf_type or "").lower(), "string")
 
 
+# ── Type coercion engine ───────────────────────────────────────────────────────
+# Maps (normalised_source_type, normalised_dest_type) → (transform_fn, params)
+# or None when the pair is truly incompatible and no auto-fix is possible.
+
+TYPE_COERCION_MAP: dict[tuple[str, str], tuple[str, dict] | None] = {
+    ("integer", "string"):   ("generic_truncate", {"max_length": 255}),
+    ("number", "string"):    ("generic_truncate", {"max_length": 255}),
+    ("boolean", "string"):   ("generic_value_map", {"map": {"true": "true", "false": "false"}, "default": ""}),
+    ("date", "datetime"):    ("generic_format_datetime", {"input_format": "%Y-%m-%d", "output_format": "%Y-%m-%dT00:00:00.000+0000"}),
+    ("datetime", "date"):    ("generic_format_datetime", {"input_format": "%Y-%m-%d %H:%M:%S", "output_format": "%Y-%m-%d"}),
+    ("string", "boolean"):   ("generic_value_map", {"map": {"true": "true", "1": "true"}, "default": "false"}),
+    ("integer", "boolean"):  ("generic_value_map", {"map": {"1": "true", "0": "false"}, "default": "false"}),
+    ("reference", "string"): ("generic_truncate", {"max_length": 255}),
+    ("string", "integer"):   None,
+    ("string", "number"):    None,
+    ("string", "date"):      None,
+    ("string", "datetime"):  None,
+    ("boolean", "integer"):  None,
+    ("boolean", "number"):   None,
+    ("boolean", "date"):     None,
+    ("boolean", "datetime"): None,
+}
+
+
+def get_type_coercion(source_type: str, destination_type: str) -> dict:
+    """Check type compatibility and return coercion info.
+
+    Returns a dict with:
+      - ``compatible: True`` when types match or dest is flexible.
+      - ``compatible: False, coercible: True, transform, params, warning``
+        when an automatic coercion exists.
+      - ``compatible: False, coercible: False, warning`` when no auto-fix
+        is possible.
+    """
+    src_norm = _norm_source_type(source_type)
+    dest_norm = _norm_sf_type(destination_type)
+
+    if src_norm == dest_norm or dest_norm in FLEXIBLE_TYPES:
+        return {"compatible": True}
+
+    coercion = TYPE_COERCION_MAP.get((src_norm, dest_norm))
+    if coercion is not None:
+        transform_fn, params = coercion
+        return {
+            "compatible": False,
+            "coercible": True,
+            "transform": transform_fn,
+            "params": params,
+            "warning": (
+                f"Type mismatch: source '{source_type}' ({src_norm}) → "
+                f"destination '{destination_type}' ({dest_norm}). "
+                f"Auto-applying '{transform_fn}' to coerce."
+            ),
+        }
+
+    if (src_norm, dest_norm) in TYPE_COERCION_MAP:
+        return {
+            "compatible": False,
+            "coercible": False,
+            "warning": (
+                f"Incompatible types: source '{source_type}' ({src_norm}) cannot be "
+                f"automatically converted to destination '{destination_type}' ({dest_norm})."
+            ),
+        }
+
+    return {
+        "compatible": False,
+        "coercible": False,
+        "warning": (
+            f"Incompatible types: source '{source_type}' ({src_norm}) → "
+            f"destination '{destination_type}' ({dest_norm}). "
+            "No automatic coercion available."
+        ),
+    }
+
+
 # ── Data classes ────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -78,11 +154,37 @@ class ObjectCompatibility:
 
 
 @dataclass
+class DependencyEdge:
+    from_mapping: str
+    to_mapping: str
+    field: str
+    required: bool
+
+
+@dataclass
+class DependencyWarning:
+    mapping: str
+    field: str
+    references: str
+    reason: str
+
+
+@dataclass
 class CompatibilityReport:
     source_type: str
     overall_pct: float
     objects: list[ObjectCompatibility] = field(default_factory=list)
     summary: str = ""
+    dependency_order: list[str] = field(default_factory=list)
+    dependency_edges: list[DependencyEdge] = field(default_factory=list)
+    dependency_warnings: list[DependencyWarning] = field(default_factory=list)
+    dependency_missing_parents: list[DependencyWarning] = field(default_factory=list)
+    dependency_has_cycle: bool = False
+    # Hard blockers that must be resolved before launch: required destination
+    # fields with no value, and reference fields mapped as raw source copies.
+    blocking_required_fields: list[dict] = field(default_factory=list)
+    # Non-blocking warnings: picklist destinations with no/partial value map.
+    picklist_mapping_warnings: list[dict] = field(default_factory=list)
 
 
 # ── Salesforce schema helpers ──────────────────────────────────────────────────
@@ -202,6 +304,63 @@ def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
             ],
         })
     return sorted(fields, key=lambda x: x["name"])
+
+
+def get_destination_records(
+    sf_object: str, sf_credentials: dict, name_field: str = "Name", limit: int = 200
+) -> list[dict]:
+    """Return up to ``limit`` records of a Salesforce object as ``[{id, name}]``.
+
+    Powers the wizard reference picker (e.g. choose a Profile by name and store
+    its Id as a per-field constant). Returns [] on any error so the UI degrades
+    gracefully. Mirrors the self-contained token+request flow of ``_sf_describe``.
+    """
+    try:
+        import requests
+
+        base_url = (sf_credentials.get("base_url") or "").rstrip("/")
+        client_id = sf_credentials.get("client_id", "")
+        client_secret = sf_credentials.get("client_secret", "")
+        api_version = sf_credentials.get("api_version", "v60.0")
+
+        if not (base_url and client_id and client_secret):
+            return []
+
+        token_resp = requests.post(
+            f"{base_url}/services/oauth2/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=12,
+        )
+        if token_resp.status_code != 200:
+            return []
+        access_token = token_resp.json().get("access_token", "")
+        instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
+
+        safe_limit = max(1, min(int(limit), 2000))
+        safe_name = "".join(c for c in name_field if c.isalnum() or c == "_") or "Name"
+        query = (
+            f"SELECT Id, {safe_name} FROM {sf_object} "
+            f"ORDER BY {safe_name} LIMIT {safe_limit}"
+        )
+        query_resp = requests.get(
+            f"{instance_url}/services/data/{api_version}/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"q": query},
+            timeout=20,
+        )
+        if query_resp.status_code != 200:
+            return []
+        records = query_resp.json().get("records", [])
+        return [
+            {"id": r.get("Id", ""), "name": r.get(safe_name, "")}
+            for r in records
+        ]
+    except Exception:
+        return []
 
 
 # ── Auto-suggest mapping ────────────────────────────────────────────────────────
@@ -387,8 +546,21 @@ def auto_suggest_mapping(
             confidence = round(confidence * 0.8, 2)
             match_reason += "; picklist — fill value map"
         else:
-            confidence = round(confidence * 0.7, 2)
-            match_reason += "; type may need coercion"
+            coercion = get_type_coercion(src_field.field_type, dest.get("type", ""))
+            if coercion.get("coercible"):
+                transformation_function = coercion["transform"]
+                transformation_params = coercion["params"]
+                confidence = round(confidence * 0.8, 2)
+                match_reason += "; auto-coerced type"
+            else:
+                confidence = round(confidence * 0.7, 2)
+                match_reason += "; type may need coercion"
+
+        type_warning = ""
+        if src_norm_type != dest_norm_type and dest_norm_type not in ("", "string"):
+            coercion_info = get_type_coercion(src_field.field_type, dest.get("type", ""))
+            if not coercion_info.get("compatible"):
+                type_warning = coercion_info.get("warning", "")
 
         field_entry = {
             "source_field": matched_source,
@@ -400,6 +572,8 @@ def auto_suggest_mapping(
             field_entry["transformation_function"] = transformation_function
         if transformation_params is not None:
             field_entry["transformation_params"] = transformation_params
+        if type_warning:
+            field_entry["type_warning"] = type_warning
         suggested_fields.append(field_entry)
 
     suggested_fields.sort(key=lambda f: f["confidence"], reverse=True)
@@ -466,6 +640,8 @@ def check_compatibility(
     import services.internal.mappings_service as mappings_service
 
     results: list[ObjectCompatibility] = []
+    blocking_required: list[dict] = []
+    picklist_warnings: list[dict] = []
 
     for obj_name in selected_objects:
         config = mappings_service.get_mapping_config(obj_name)
@@ -488,19 +664,33 @@ def check_compatibility(
         missing_in_source = 0
 
         if explicit_mappings:
-            # Use declared mappings for analysis
+            # Load source field type info for type-mismatch detection
+            src_field_types: dict[str, str] = {}
+            try:
+                from api import sources as source_registry
+                provider = source_registry.get(source_type)
+                if provider and source_tables:
+                    src_field_types = {
+                        f.name: f.field_type
+                        for f in provider.get_table_fields(source_tables[0], source_credentials)
+                    }
+            except Exception:
+                pass
+
             for fm in explicit_mappings:
                 dest = fm.get("destination_field", "")
                 src = fm.get("source_field", "")
                 transform_fn = fm.get("transformation_function", "")
                 if isinstance(src, list):
+                    src_type_raw = src_field_types.get(src[0], "")
                     src = ", ".join(src)
+                else:
+                    src_type_raw = src_field_types.get(src, "") if src else ""
 
                 dest_type = sf_fields.get(dest, "")
                 has_dest = bool(dest_type or dest in sf_fields)
 
-                if not src and fm.get("use_constant"):
-                    # Constant injection – always mapped
+                if not src and (fm.get("constant_value") is not None or fm.get("use_constant")):
                     status = "mapped"
                     suggestion = "Constant value injected."
                     mapped += 1
@@ -509,10 +699,6 @@ def check_compatibility(
                 elif not has_dest:
                     status = "no_mapping"
                     if not dest.endswith("__c"):
-                        # Standard Salesforce field (e.g. ProductId, OwnerId, ContactId).
-                        # These already exist in Salesforce — never suggest creating a
-                        # custom duplicate. A missing standard field means a permissions
-                        # or org configuration issue, not a missing custom field.
                         suggested_name = ""
                         inferred_type = "Text"
                         suggestion = (
@@ -521,7 +707,6 @@ def check_compatibility(
                             "do not create a custom field for this."
                         )
                     else:
-                        # Genuine custom field that needs to be created.
                         suggested_name = _suggest_custom_field_api_name(dest)
                         inferred_type = _infer_field_type(dest, transform_fn)
                         suggestion = (
@@ -530,17 +715,33 @@ def check_compatibility(
                         )
                     missing_in_source += 1
                 else:
-                    status = "mapped"
-                    suggestion = ""
-                    mapped += 1
-                    suggested_name = ""
-                    inferred_type = "Text"
+                    # Type-mismatch check (skip if a transform is already set)
+                    if src_type_raw and dest_type and not transform_fn:
+                        coercion = get_type_coercion(src_type_raw, dest_type)
+                        if not coercion.get("compatible"):
+                            status = "type_mismatch"
+                            suggestion = coercion.get("warning", "Type mismatch detected.")
+                            mismatches += 1
+                            suggested_name = ""
+                            inferred_type = "Text"
+                        else:
+                            status = "mapped"
+                            suggestion = ""
+                            mapped += 1
+                            suggested_name = ""
+                            inferred_type = "Text"
+                    else:
+                        status = "mapped"
+                        suggestion = ""
+                        mapped += 1
+                        suggested_name = ""
+                        inferred_type = "Text"
 
                 field_results.append(FieldResult(
                     source_field=src,
                     destination_field=dest,
                     status=status,
-                    source_type="",
+                    source_type=src_type_raw,
                     destination_type=dest_type,
                     suggestion=suggestion,
                     suggested_custom_field=suggested_name if status == "no_mapping" else "",
@@ -627,6 +828,111 @@ def check_compatibility(
                 "Check Salesforce credentials and object permissions."
             )
 
+        # ── Launch-blocking gate ────────────────────────────────────────────────
+        # Only meaningful for wizard mappings (explicit field list) and when the
+        # describe succeeded (empty dest_meta → degrade gracefully, no blocking).
+        if explicit_mappings:
+            dest_meta = {
+                f["name"]: f
+                for f in get_destination_fields(sf_object, destination_credentials)
+            }
+
+            def _has_value(fm: dict) -> bool:
+                return (
+                    bool(fm.get("source_field"))
+                    or fm.get("constant_value") is not None
+                    or bool(fm.get("use_constant"))
+                )
+
+            covered = {
+                fm.get("destination_field", "")
+                for fm in explicit_mappings
+                if _has_value(fm)
+            }
+
+            # 1) Required + createable destination fields with no value at all.
+            for dest_name, meta in dest_meta.items():
+                if meta.get("required") and meta.get("createable") and dest_name not in covered:
+                    blocking_required.append({
+                        "mapping": obj_name,
+                        "field": dest_name,
+                        "reason": (
+                            f"Required field '{dest_name}' on {sf_object} has no source, "
+                            "constant, or lookup value. Set it before launching."
+                        ),
+                    })
+
+            # 2) Reference/lookup destinations mapped as a raw source copy
+            #    (no transform, no constant) → guaranteed MALFORMED_ID.
+            for fm in explicit_mappings:
+                dest_name = fm.get("destination_field", "")
+                meta = dest_meta.get(dest_name)
+                if not meta or not meta.get("reference_to"):
+                    continue
+                raw_copy = (
+                    bool(fm.get("source_field"))
+                    and not fm.get("transformation_function")
+                    and fm.get("constant_value") is None
+                    and not fm.get("use_constant")
+                )
+                if raw_copy:
+                    blocking_required.append({
+                        "mapping": obj_name,
+                        "field": dest_name,
+                        "reason": (
+                            f"Reference field '{dest_name}' is mapped to a raw source value. "
+                            "Use a Lookup transform or a Constant record to avoid MALFORMED_ID."
+                        ),
+                    })
+
+            # 3) Picklist destinations with no/partial value map (non-blocking).
+            #    A plain copy or an empty generic_value_map means source values that
+            #    don't match the Salesforce picklist get blanked at load time.
+            for fm in explicit_mappings:
+                dest_name = fm.get("destination_field", "")
+                meta = dest_meta.get(dest_name)
+                if not meta or not meta.get("picklist_values"):
+                    continue
+                # Skip constants (a fixed valid value is chosen) and reference fields.
+                if fm.get("constant_value") is not None or fm.get("use_constant") or meta.get("reference_to"):
+                    continue
+                if not fm.get("source_field"):
+                    continue
+                transform_fn = fm.get("transformation_function", "")
+                params = fm.get("transformation_params") or {}
+                value_map = params.get("map") if isinstance(params, dict) else None
+                if transform_fn == "generic_value_map":
+                    if not value_map:
+                        picklist_warnings.append({
+                            "mapping": obj_name,
+                            "field": dest_name,
+                            "reason": (
+                                f"Picklist '{dest_name}' has an empty value map — source "
+                                "values will be blanked. Map values in Step 4."
+                            ),
+                        })
+                    else:
+                        unmapped = [k for k, v in value_map.items() if not v]
+                        if unmapped:
+                            picklist_warnings.append({
+                                "mapping": obj_name,
+                                "field": dest_name,
+                                "reason": (
+                                    f"Picklist '{dest_name}' has {len(unmapped)} unmapped "
+                                    "source value(s); those rows will be blanked."
+                                ),
+                            })
+                elif not transform_fn:
+                    picklist_warnings.append({
+                        "mapping": obj_name,
+                        "field": dest_name,
+                        "reason": (
+                            f"Picklist '{dest_name}' is a raw source copy — values that "
+                            "don't match the Salesforce picklist will be blanked. Add a "
+                            "value map in Step 4."
+                        ),
+                    })
+
         results.append(ObjectCompatibility(
             object_name=obj_name,
             source_label=source_label,
@@ -647,11 +953,33 @@ def check_compatibility(
         f"Objects with 100% mapping: {sum(1 for o in results if o.compatibility_pct == 100.0)}."
     )
 
+    # Resolve dependency ordering from Salesforce schema
+    dep_result = resolve_dependency_order(selected_objects, destination_credentials)
+
     return CompatibilityReport(
         source_type=source_type,
         overall_pct=overall,
         objects=results,
         summary=summary,
+        dependency_order=dep_result.get("order", []),
+        dependency_edges=[
+            DependencyEdge(
+                from_mapping=e["from"],
+                to_mapping=e["to"],
+                field=e["field"],
+                required=e["required"],
+            )
+            for e in dep_result.get("edges", [])
+        ],
+        dependency_warnings=[
+            DependencyWarning(**w) for w in dep_result.get("warnings", [])
+        ],
+        dependency_missing_parents=[
+            DependencyWarning(**mp) for mp in dep_result.get("missing_parents", [])
+        ],
+        dependency_has_cycle=dep_result.get("has_cycle", False),
+        blocking_required_fields=blocking_required,
+        picklist_mapping_warnings=picklist_warnings,
     )
 
 
@@ -727,6 +1055,175 @@ def _suggest_custom_field_api_name(field_name: str) -> str:
     if not name.endswith("__c"):
         name = name + "__c"
     return name
+
+
+def resolve_dependency_order(
+    mapping_names: list[str],
+    sf_credentials: dict,
+) -> dict:
+    """Build a dependency graph from mapped reference fields and topological-sort it.
+
+    For each mapping, describes the Salesforce destination object and inspects
+    the user's mapped fields.  When a mapped destination field is a reference
+    (``type == "reference"``) whose ``reference_to`` targets another mapping's
+    destination object, an edge is recorded.
+
+    Returns a dict::
+
+        {
+            "order":           [...],   # topologically sorted mapping names
+            "edges":           [...],   # {from, to, field, required}
+            "warnings":        [...],   # self-refs, cycles, etc.
+            "missing_parents": [...],   # required lookups to unmapped objects
+            "has_cycle":       bool,
+        }
+    """
+    import services.internal.mappings_service as mappings_service
+
+    # 1. Load configs and build sf_object -> mapping_name lookup
+    configs: dict[str, dict] = {}
+    sf_obj_to_name: dict[str, str] = {}
+    for name in mapping_names:
+        cfg = mappings_service.get_mapping_config(name)
+        if not cfg:
+            continue
+        configs[name] = cfg
+        dest_obj = cfg.get("destination_object") or cfg.get("salesforce_object", "")
+        if dest_obj:
+            sf_obj_to_name[dest_obj] = name
+
+    # 2. Describe each unique SF object and index fields by name
+    sf_field_index: dict[str, dict[str, dict]] = {}  # sf_object -> {field_name -> field_meta}
+    for sf_obj in sf_obj_to_name:
+        if sf_obj not in sf_field_index:
+            dest_fields = get_destination_fields(sf_obj, sf_credentials)
+            sf_field_index[sf_obj] = {f["name"]: f for f in dest_fields}
+
+    # 3. Walk each mapping's fields and detect reference edges
+    edges: list[dict] = []
+    warnings: list[dict] = []
+    missing_parents: list[dict] = []
+    adjacency: dict[str, set[str]] = {n: set() for n in configs}
+
+    for name, cfg in configs.items():
+        dest_obj = cfg.get("destination_object") or cfg.get("salesforce_object", "")
+        field_meta_map = sf_field_index.get(dest_obj, {})
+        mapped_fields = cfg.get("fields", [])
+
+        mapped_dest_names = {
+            f.get("destination_field", "") for f in mapped_fields
+        }
+
+        for mf in mapped_fields:
+            dest_field_name = mf.get("destination_field", "")
+            meta = field_meta_map.get(dest_field_name)
+            if not meta:
+                continue
+            if meta.get("type") != "reference":
+                continue
+
+            ref_to_list = meta.get("reference_to") or []
+            is_required = meta.get("required", False)
+
+            for ref_obj in ref_to_list:
+                if ref_obj == dest_obj:
+                    warnings.append({
+                        "mapping": name,
+                        "field": dest_field_name,
+                        "references": ref_obj,
+                        "reason": (
+                            f"Self-referencing lookup — parent {ref_obj} "
+                            "records must already exist or a two-pass "
+                            "approach is needed"
+                        ),
+                    })
+                    continue
+
+                target_name = sf_obj_to_name.get(ref_obj)
+                if target_name and target_name in configs:
+                    edges.append({
+                        "from": name,
+                        "to": target_name,
+                        "field": dest_field_name,
+                        "required": is_required,
+                    })
+                    adjacency.setdefault(name, set()).add(target_name)
+                elif is_required:
+                    missing_parents.append({
+                        "mapping": name,
+                        "field": dest_field_name,
+                        "references": ref_obj,
+                        "reason": (
+                            f"Required lookup to {ref_obj} but no mapping "
+                            "targeting that object is included in this migration"
+                        ),
+                    })
+
+        # Also check unmapped *required* reference fields for missing-parent warnings
+        for field_name, meta in field_meta_map.items():
+            if field_name in mapped_dest_names:
+                continue
+            if meta.get("type") != "reference":
+                continue
+            if not meta.get("required", False):
+                continue
+            if not meta.get("createable", False):
+                continue
+            ref_to_list = meta.get("reference_to") or []
+            for ref_obj in ref_to_list:
+                if ref_obj != dest_obj and ref_obj not in sf_obj_to_name:
+                    missing_parents.append({
+                        "mapping": name,
+                        "field": field_name,
+                        "references": ref_obj,
+                        "reason": (
+                            f"Required reference field '{field_name}' targets "
+                            f"{ref_obj} which is not mapped (field is also not "
+                            "included in field mappings)"
+                        ),
+                    })
+
+    # 4. Topological sort (Kahn's algorithm)
+    # adjacency[A] = {B} means "A depends on B" (B must be migrated first).
+    # reverse_adj[B] = {A} lets us find dependents when B is scheduled.
+    reverse_adj: dict[str, set[str]] = {n: set() for n in configs}
+    for name, deps in adjacency.items():
+        for dep in deps:
+            if dep in configs:
+                reverse_adj[dep].add(name)
+
+    in_deg: dict[str, int] = {
+        n: len(adjacency.get(n, set()) & set(configs.keys()))
+        for n in configs
+    }
+
+    queue: list[str] = sorted(n for n, d in in_deg.items() if d == 0)
+    topo_order: list[str] = []
+    while queue:
+        node = queue.pop(0)
+        topo_order.append(node)
+        for dependent in sorted(reverse_adj.get(node, set())):
+            in_deg[dependent] -= 1
+            if in_deg[dependent] == 0:
+                queue.append(dependent)
+
+    has_cycle = len(topo_order) != len(configs)
+    if has_cycle:
+        warnings.append({
+            "mapping": "",
+            "field": "",
+            "references": "",
+            "reason": "Circular dependency detected — falling back to card order",
+        })
+        topo_order = list(configs.keys())
+
+    return {
+        "order": topo_order,
+        "edges": edges,
+        "warnings": warnings,
+        "missing_parents": missing_parents,
+        "has_cycle": has_cycle,
+    }
 
 
 def _find_similar(target: str, candidates: list[str]) -> str | None:

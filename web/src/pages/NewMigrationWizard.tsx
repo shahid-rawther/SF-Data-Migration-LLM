@@ -243,6 +243,9 @@ export function NewMigrationWizard() {
             sourceFields: [],
             destFields: [],
             fieldsLoaded: false,
+            joinTables: [],
+            joins: [],
+            filters: [],
           });
         }
       }
@@ -279,6 +282,9 @@ export function NewMigrationWizard() {
         sourceFields: [],
         destFields: [],
         fieldsLoaded: false,
+        joinTables: [],
+        joins: [],
+        filters: [],
       }));
       const next = [...prev];
       next.splice(requestingIdx, 0, ...newCards);
@@ -301,6 +307,9 @@ export function NewMigrationWizard() {
         sourceFields: source.sourceFields,
         destFields: [],
         fieldsLoaded: false,
+        joinTables: [...source.joinTables],
+        joins: source.joins.map((j) => ({ ...j })),
+        filters: source.filters.map((f) => ({ ...f })),
       };
       const next = [...prev];
       next.splice(idx + 1, 0, newCard);
@@ -339,9 +348,34 @@ export function NewMigrationWizard() {
       for (let i = 0; i < tableMappings.length; i++) {
         const m = tableMappings[i];
         if (!m.sfObject || !m.mappingName) continue;
+        // Emit only complete filters in the exact shape the DuckDB engine reads
+        // (table/field always present; count carries its own key).
+        const filters = m.filters
+          .map((f) => {
+            if (f.operator === 'count') {
+              if (!f.count || f.count <= 0) return null;
+              return { table: m.sourceTable, field: '', operator: 'count', count: f.count };
+            }
+            if (!f.field) return null;
+            if (f.operator === 'is_null' || f.operator === 'is_not_null') {
+              return { table: f.table, field: f.field, operator: f.operator };
+            }
+            if (f.operator === 'in' || f.operator === 'not_in') {
+              const list = Array.isArray(f.value) ? f.value.filter(Boolean) : [];
+              if (list.length === 0) return null;
+              return { table: f.table, field: f.field, operator: f.operator, value: list };
+            }
+            // equals / not_equals
+            const val = typeof f.value === 'string' ? f.value : '';
+            if (val === '') return null;
+            return { table: f.table, field: f.field, operator: f.operator, value: val };
+          })
+          .filter((f): f is NonNullable<typeof f> => f !== null);
         const config = {
           destination_object: m.sfObject,
-          source_tables: [m.sourceTable],
+          source_tables: [m.sourceTable, ...m.joinTables],
+          joins: m.joins,
+          filters,
           operation: m.operation,
           priority: i + 1,
           fields: m.fields,
@@ -575,8 +609,11 @@ export function NewMigrationWizard() {
     }
   };
 
+  // Mapping-heavy steps (field mapping, compatibility) need more horizontal
+  // room on larger displays; form-like steps stay narrow for readability.
+  const isWideStep = step === 4 || step === 5;
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, maxWidth: isWideStep ? 1400 : 820 }}>
       {/* Stepper */}
       <div style={stepperStyle}>
         {(['Select Source', 'Destination', 'Select Tables', 'Map Fields', 'Compatibility', 'Review & Run'] as const).map(
@@ -1084,6 +1121,11 @@ export function NewMigrationWizard() {
                         <span style={{ fontSize: 12, color: '#6b7280' }}>
                           {obj.mapped_fields}/{obj.total_fields} fields mapped
                         </span>
+                        {obj.type_mismatches > 0 && (
+                          <span style={{ fontSize: 11, color: '#92400e', background: '#fef9c3', padding: '1px 6px', borderRadius: 4 }}>
+                            {obj.type_mismatches} type mismatch{obj.type_mismatches > 1 ? 'es' : ''}
+                          </span>
+                        )}
                         <span>{expandedCompatObj === obj.object_name ? '\u25BC' : '\u25B6'}</span>
                       </div>
                     </div>
@@ -1155,15 +1197,25 @@ export function NewMigrationWizard() {
                               const fieldKey = `${obj.salesforce_object}::${f.destination_field}`;
                               return (
                               <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <td style={tdStyle}>{f.source_field || '\u2014'}</td>
-                                <td style={tdStyle}>{f.destination_field}</td>
+                                <td style={tdStyle}>
+                                  {f.source_field || '\u2014'}
+                                  {f.source_type && f.status === 'type_mismatch' && (
+                                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>({f.source_type})</span>
+                                  )}
+                                </td>
+                                <td style={tdStyle}>
+                                  {f.destination_field}
+                                  {f.destination_type && f.status === 'type_mismatch' && (
+                                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>({f.destination_type})</span>
+                                  )}
+                                </td>
                                 <td style={tdStyle}>
                                   <span style={{
                                     padding: '2px 6px', borderRadius: 4, fontSize: 11,
                                     background: f.status === 'mapped' ? '#dcfce7' : f.status === 'type_mismatch' ? '#fef9c3' : '#fee2e2',
                                     color: f.status === 'mapped' ? '#166534' : f.status === 'type_mismatch' ? '#854d0e' : '#991b1b',
                                   }}>
-                                    {f.status}
+                                    {f.status === 'type_mismatch' ? 'type mismatch' : f.status}
                                   </span>
                                 </td>
                                 <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '\u2014'}</td>
@@ -1270,6 +1322,112 @@ export function NewMigrationWizard() {
                     )}
                   </div>
                 ))}
+
+                {/* Execution Order section */}
+                {compatReport.dependency_order && compatReport.dependency_order.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <h3 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700 }}>Execution Order</h3>
+                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+                      Objects will be migrated in this order based on Salesforce reference field dependencies.
+                      {compatReport.dependency_has_cycle && (
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                          {' '}Circular dependency detected — using card order instead.
+                        </span>
+                      )}
+                    </p>
+
+                    {/* Missing parent warnings */}
+                    {compatReport.dependency_missing_parents && compatReport.dependency_missing_parents.length > 0 && (
+                      <div style={{
+                        padding: 12, marginBottom: 12, borderRadius: 8,
+                        background: '#fffbeb', border: '1px solid #fcd34d',
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
+                          Missing Parent Object Warnings
+                        </div>
+                        {compatReport.dependency_missing_parents.map((mp, i) => (
+                          <div key={i} style={{ fontSize: 12, color: '#92400e', marginBottom: 3 }}>
+                            <strong>{mp.mapping}</strong> field <code style={{ background: '#fef3c7', padding: '1px 4px', borderRadius: 3 }}>{mp.field}</code> references <strong>{mp.references}</strong> — {mp.reason}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Self-reference / cycle warnings */}
+                    {compatReport.dependency_warnings && compatReport.dependency_warnings.length > 0 && (
+                      <div style={{
+                        padding: 12, marginBottom: 12, borderRadius: 8,
+                        background: '#fef2f2', border: '1px solid #fca5a5',
+                      }}>
+                        {compatReport.dependency_warnings.map((w, i) => (
+                          <div key={i} style={{ fontSize: 12, color: '#991b1b', marginBottom: 3 }}>
+                            {w.mapping ? <><strong>{w.mapping}</strong> — </> : null}{w.reason}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Ordered list with dependency arrows */}
+                    <div style={{
+                      border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden',
+                    }}>
+                      {compatReport.dependency_order.map((name, i) => {
+                        const edges = (compatReport.dependency_edges ?? []).filter((e) => e.from_mapping === name);
+                        const objInfo = compatReport.objects.find((o) => o.object_name === name);
+                        return (
+                          <div key={name} style={{
+                            padding: '10px 14px',
+                            borderBottom: i < compatReport.dependency_order!.length - 1 ? '1px solid #e5e7eb' : 'none',
+                            background: i % 2 === 0 ? '#f9fafb' : '#fff',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                          }}>
+                            <div style={{
+                              width: 28, height: 28, borderRadius: '50%',
+                              background: '#2563eb', color: '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 12, fontWeight: 700, flexShrink: 0,
+                            }}>
+                              {i + 1}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                                {name}
+                                {objInfo && (
+                                  <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 8, fontSize: 12 }}>
+                                    → {objInfo.salesforce_object}
+                                  </span>
+                                )}
+                              </div>
+                              {edges.length > 0 && (
+                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                                  depends on:{' '}
+                                  {edges.map((e, ei) => (
+                                    <span key={ei}>
+                                      {ei > 0 && ', '}
+                                      <span style={{
+                                        padding: '1px 5px', borderRadius: 3, fontSize: 10,
+                                        background: e.required ? '#fee2e2' : '#f0f9ff',
+                                        color: e.required ? '#991b1b' : '#1e40af',
+                                        border: e.required ? '1px solid #fca5a5' : '1px dashed #93c5fd',
+                                      }}>
+                                        {e.to_mapping}
+                                        <span style={{ opacity: 0.7 }}> via {e.field}</span>
+                                        {e.required && <span style={{ fontWeight: 600 }}> (required)</span>}
+                                      </span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {i > 0 && (
+                              <div style={{ fontSize: 16, color: '#d1d5db', flexShrink: 0 }}>↓</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1341,12 +1499,32 @@ export function NewMigrationWizard() {
                 <div><strong>Source:</strong> {selectedSource?.name}</div>
                 <div><strong>Destination:</strong> Salesforce ({destCreds.base_url || 'not set'})</div>
                 <div><strong>Mappings:</strong> {mappingNames.length} configured</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 16 }}>
-                  {tableMappings
-                    .filter((m) => m.sfObject && m.mappingName)
-                    .map((m) => `${m.sourceTable} -> ${m.sfObject} (${m.mappingName})`)
-                    .join(', ')}
-                </div>
+                {compatReport?.dependency_order && compatReport.dependency_order.length > 0 ? (
+                  <div style={{ marginLeft: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Execution Order:</div>
+                    {compatReport.dependency_order.map((name, i) => {
+                      const objInfo = compatReport.objects.find((o) => o.object_name === name);
+                      return (
+                        <div key={name} style={{ fontSize: 12, color: '#6b7280', display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                          <span style={{
+                            width: 18, height: 18, borderRadius: '50%', background: '#2563eb', color: '#fff',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0,
+                          }}>
+                            {i + 1}
+                          </span>
+                          {name}{objInfo ? ` → ${objInfo.salesforce_object}` : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 16 }}>
+                    {tableMappings
+                      .filter((m) => m.sfObject && m.mappingName)
+                      .map((m) => `${m.sourceTable} -> ${m.sfObject} (${m.mappingName})`)
+                      .join(', ')}
+                  </div>
+                )}
                 {compatReport && (
                   <div>
                     <strong>Compatibility:</strong>{' '}
@@ -1355,15 +1533,148 @@ export function NewMigrationWizard() {
                     </span>
                   </div>
                 )}
+
+                {/* Per-object field summary */}
+                {compatReport && compatReport.objects.length > 0 && (
+                  <div style={{ marginTop: 4 }}>
+                    <strong>Field Mappings:</strong>
+                    <div style={{ marginLeft: 16, marginTop: 4 }}>
+                      {compatReport.objects.map((obj) => (
+                        <div key={obj.object_name} style={{ fontSize: 12, color: '#6b7280', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>{obj.object_name} → {obj.salesforce_object}:</span>
+                          <span style={{ color: compatColor(obj.compatibility_pct), fontWeight: 600 }}>
+                            {obj.mapped_fields}/{obj.total_fields} fields
+                          </span>
+                          {obj.type_mismatches > 0 && (
+                            <span style={{
+                              fontSize: 10, padding: '1px 5px', borderRadius: 4,
+                              background: '#fef9c3', color: '#92400e',
+                            }}>
+                              {obj.type_mismatches} type mismatch{obj.type_mismatches > 1 ? 'es' : ''}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div><strong>Dry run:</strong> {options.disable_load ? 'Yes (extract & transform only)' : 'No'}</div>
               </div>
             </div>
+
+            {/* Dependency warnings banner */}
+            {compatReport && (
+              (compatReport.dependency_warnings ?? []).length > 0 ||
+              (compatReport.dependency_missing_parents ?? []).length > 0
+            ) && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: '#fffbeb', border: '1px solid #fcd34d',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                  Dependency Warnings
+                </div>
+                {(compatReport.dependency_warnings ?? []).map((w, i) => (
+                  <div key={`w-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                    <span>⚠</span>
+                    <span>{w.mapping ? `${w.mapping} — ` : ''}{w.reason}</span>
+                  </div>
+                ))}
+                {(compatReport.dependency_missing_parents ?? []).map((mp, i) => (
+                  <div key={`mp-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                    <span>⚠</span>
+                    <span>{mp.mapping} — {mp.reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Blocking required-field banner — hard gate before launch */}
+            {compatReport && (compatReport.blocking_required_fields ?? []).length > 0 && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: '#fef2f2', border: '1px solid #fecaca',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 8 }}>
+                  Resolve these before launching
+                </div>
+                {(compatReport.blocking_required_fields ?? []).map((b, i) => (
+                  <div key={`b-${i}`} style={{ fontSize: 12, color: '#7f1d1d', marginBottom: 4, display: 'flex', gap: 6 }}>
+                    <span>✕</span>
+                    <span><b>{b.mapping}.{b.field}</b> — {b.reason}</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: '#991b1b', marginTop: 8 }}>
+                  Fix these in Step 4 (set a Source field, Constant, or Lookup), then re-run the compatibility check.
+                </div>
+              </div>
+            )}
+
+            {/* Picklist value-mapping warnings banner (non-blocking) */}
+            {compatReport && (compatReport.picklist_mapping_warnings ?? []).length > 0 && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: '#fef9c3', border: '1px solid #fde68a',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#854d0e', marginBottom: 8 }}>
+                  Picklist values not fully mapped
+                </div>
+                {(compatReport.picklist_mapping_warnings ?? []).map((p, i) => (
+                  <div key={`pk-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                    <span>⚠</span>
+                    <span><b>{p.mapping}.{p.field}</b> — {p.reason}</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: '#854d0e', marginTop: 8 }}>
+                  Unmapped values load as blank. This does not block the migration.
+                </div>
+              </div>
+            )}
+
+            {/* Type mismatch warnings banner */}
+            {compatReport && compatReport.objects.some((o) => o.type_mismatches > 0) && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: '#fef9c3', border: '1px solid #fde68a',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#854d0e', marginBottom: 8 }}>
+                  Type Mismatch Warnings
+                </div>
+                {compatReport.objects
+                  .filter((o) => o.type_mismatches > 0)
+                  .map((obj) => (
+                    <div key={obj.object_name} style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>
+                        {obj.object_name} → {obj.salesforce_object} ({obj.type_mismatches} mismatch{obj.type_mismatches > 1 ? 'es' : ''})
+                      </div>
+                      {obj.fields
+                        .filter((f) => f.status === 'type_mismatch')
+                        .map((f, fi) => (
+                          <div key={fi} style={{ fontSize: 11, color: '#78350f', marginLeft: 16, marginTop: 2 }}>
+                            {f.source_field} ({f.source_type}) → {f.destination_field} ({f.destination_type})
+                            {f.suggestion && <span style={{ color: '#92400e' }}> — {f.suggestion}</span>}
+                          </div>
+                        ))}
+                    </div>
+                  ))}
+              </div>
+            )}
 
             {error && <p style={{ color: '#dc2626', fontSize: 13 }}>Error: {error}</p>}
 
             <div style={navRow}>
               <button onClick={() => goStep(5)} style={secondaryBtn}>&larr; Back</button>
-              <button onClick={submit} disabled={submitting} style={primaryBtn}>
+              <button
+                onClick={submit}
+                disabled={submitting || (compatReport?.blocking_required_fields ?? []).length > 0}
+                style={primaryBtn}
+                title={
+                  (compatReport?.blocking_required_fields ?? []).length > 0
+                    ? 'Resolve the required-field blockers above before launching'
+                    : ''
+                }
+              >
                 {submitting ? 'Creating...' : 'Create Migration'}
               </button>
             </div>
@@ -1375,7 +1686,7 @@ export function NewMigrationWizard() {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const pageStyle: React.CSSProperties = { maxWidth: 820, margin: '0 auto', padding: '32px 24px' };
+const pageStyle: React.CSSProperties = { maxWidth: 820, margin: '0 auto', padding: '32px 24px', transition: 'max-width 0.2s ease' };
 const h2: React.CSSProperties = { margin: '0 0 20px', fontSize: 20, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 };
 const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 };

@@ -7,16 +7,57 @@ SSE clients can subscribe to via asyncio queues.
 import asyncio
 import json
 import threading
+import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import dotenv
+import requests
 
 from api.cancellation_token import CancellationToken
 from api import session_db
 from common.logger import logger
+
+
+# ── Transient-failure retry (EC-05) ─────────────────────────────────────────
+_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY = 2.0  # seconds; doubled each attempt
+_TRANSIENT_HTTP_STATUS = {429, 500, 502, 503, 504}
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    """Best-effort classification of retryable transient failures.
+
+    Network blips and server-side 429/5xx responses are worth retrying; other
+    errors (bad config, validation, auth misconfig) are fatal and re-raised.
+    """
+    if isinstance(exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return True
+    if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
+        return exc.response.status_code in _TRANSIENT_HTTP_STATUS
+    return False
+
+
+def _run_with_retry(fn, *args, what: str = "operation", **kwargs):
+    """Run ``fn`` with bounded retry + exponential backoff on transient errors."""
+    last_exc: Exception | None = None
+    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if attempt >= _RETRY_ATTEMPTS or not _is_transient_error(exc):
+                raise
+            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            logger.warning(
+                "Transient failure during %s (attempt %d/%d): %s — retrying in %.1fs",
+                what, attempt, _RETRY_ATTEMPTS, exc, delay,
+            )
+            time.sleep(delay)
+    if last_exc:
+        raise last_exc
 
 
 @dataclass
@@ -258,21 +299,14 @@ class MigrationManager:
     def _do_run(self, session_id: str, config: dict, state: SessionState) -> None:
         from controllers import extraction_controller, transformation_controller
         from api import sources as plugin_registry
-        from config.settings import (
-            EXTRACTION_JOB_NUMBER,
-            TRANSFORMATION_JOB_NUMBER,
-            LOADING_JOB_NUMBER,
-        )
+        from services.internal import jobs_service
         from tools.cache import execution_cache
 
         execution_cache.clear()
 
-        # Always clear stale job tracking so each run starts fresh
-        from services.external.db_client import db_client
-        db_client.execute("DELETE FROM job_table_batches")
-        db_client.execute("DELETE FROM job_tables")
-        db_client.execute("DELETE FROM jobs")
-        logger.info("Cleared job tracking data for fresh run")
+        extraction_job_number = jobs_service.create_new_job("extraction")
+        transformation_job_number = jobs_service.create_new_job("transformation")
+        loading_job_number = jobs_service.create_new_job("loading")
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
@@ -321,23 +355,14 @@ class MigrationManager:
                     "ProductId/Item__c may be blank: %s", _sync_err,
                 )
 
-        # Build an ordered priority list containing only selected objects.
-        # Priority groups are derived from the mapping_configs DB table so that
-        # user-created mappings (added via the Mapping Editor) participate in
-        # ordering; falls back to the hardcoded settings groups when empty.
-        from services.internal.mappings_service import get_priority_groups
-
-        priority_groups = get_priority_groups(source_type)
-
-        # Auto-include dependency objects required by the selected objects
-        selected_objects = _resolve_dependencies(selected_objects, priority_groups, source_type)
-        logger.info("Resolved dependencies — final object list: %s", selected_objects)
-
-        ordered: list[list[str]] = []
-        for group in priority_groups:
-            filtered = [name for name in group if name in selected_objects]
-            if filtered:
-                ordered.append(filtered)
+        ordered = _build_schema_ordered_groups(
+            selected_objects, destination_credentials,
+        )
+        logger.info(
+            "Execution order resolved — %d group(s): %s",
+            len(ordered),
+            [g[0] for g in ordered],
+        )
 
         total_groups = len(ordered)
 
@@ -351,85 +376,74 @@ class MigrationManager:
         skip_extraction = config.get("skip_extraction", False)
         flat = [name for group in ordered for name in group]
 
+        # Always-fresh wizard runs: clear any stale on-disk working state for the
+        # selected objects so a new run never picks up extracted/transformed
+        # files from a previous run.
+        from services.internal import workspace_service
+        workspace_service.clean_working_state(flat, source_type=source_type)
+
         # ── Phase 1: Extraction ──────────────────────────────────────
-        if skip_extraction:
-            logger.info("Retry mode — skipping extraction, counting existing files")
-            total_fetched = self._count_extracted_records(flat, source_type)
+        session_db.update_session_status(session_id, "running", "extraction")
+
+        for idx, name in enumerate(flat):
+            if not token.wait_if_paused():
+                return
             self._emit(
                 session_id,
                 ProgressEvent(
                     session_id=session_id,
                     phase="extraction",
-                    object_name=", ".join(flat),
-                    batch_current=len(flat),
+                    object_name=name,
+                    batch_current=idx,
                     batch_total=len(flat),
                     records_fetched=total_fetched,
                     records_processed=total_processed,
                     records_failed=total_failed,
-                    overall_percent=round(100 / 3, 1),
+                    overall_percent=round(idx / max(len(flat) * 3, 1) * 100, 1),
                     status="running",
-                    message=f"Extraction skipped (retry) — {total_fetched:,} records from previous run",
+                    message=f"Extracting {name}",
                 ),
             )
-        else:
-            session_db.update_session_status(session_id, "running", "extraction")
 
-            for idx, name in enumerate(flat):
-                if not token.wait_if_paused():
-                    return
-                self._emit(
-                    session_id,
-                    ProgressEvent(
-                        session_id=session_id,
-                        phase="extraction",
-                        object_name=name,
-                        batch_current=idx,
-                        batch_total=len(flat),
-                        records_fetched=total_fetched,
-                        records_processed=total_processed,
-                        records_failed=total_failed,
-                        overall_percent=round(idx / max(len(flat) * 3, 1) * 100, 1),
-                        status="running",
-                        message=f"Extracting {name}",
-                    ),
-                )
+        extract_start_date = options.get("start_date", "") or None
+        extract_end_date = options.get("end_date", "") or None
+        total_fetched = extraction_controller.start_extraction(
+            extraction_job_number,
+            flat,
+            source_plugin=source_plugin,
+            start_date=extract_start_date,
+            end_date=extract_end_date,
+        )
 
-            # Perform actual extraction (all selected tables at once)
-            total_fetched = extraction_controller.start_extraction(
-                EXTRACTION_JOB_NUMBER, flat, source_plugin=source_plugin,
-                record_limit=record_limit,
+        from services.internal.mappings_service import get_mapping_config
+        attachment_names = set()
+        for n in flat:
+            mcfg = get_mapping_config(n)
+            if mcfg and mcfg.get("is_attachment_table"):
+                attachment_names.add(n)
+        selected_attachment_names = [n for n in flat if n in attachment_names]
+        if selected_attachment_names:
+            logger.info("Extracting attachment files for: %s", selected_attachment_names)
+            extraction_controller.start_attachment_file_extraction(
+                extraction_job_number, selected_attachment_names, source_plugin=source_plugin
             )
 
-            # Extract individual attachment files for any attachment objects.
-            from services.internal.mappings_service import get_mapping_config
-            attachment_names = set()
-            for n in flat:
-                mcfg = get_mapping_config(n)
-                if mcfg and mcfg.get("is_attachment_table"):
-                    attachment_names.add(n)
-            selected_attachment_names = [n for n in flat if n in attachment_names]
-            if selected_attachment_names:
-                logger.info("Extracting attachment files for: %s", selected_attachment_names)
-                extraction_controller.start_attachment_file_extraction(
-                    EXTRACTION_JOB_NUMBER, selected_attachment_names, source_plugin=source_plugin
-                )
-
-            self._emit(
-                session_id,
-                ProgressEvent(
-                    session_id=session_id,
-                    phase="extraction",
-                    object_name=", ".join(flat),
-                    batch_current=len(flat),
-                    batch_total=len(flat),
-                    records_fetched=total_fetched,
-                    records_processed=total_processed,
-                    records_failed=total_failed,
-                    overall_percent=round(100 / 3, 1),
-                    status="running",
-                    message=f"Extraction complete — {total_fetched:,} records fetched",
-                ),
-            )
+        self._emit(
+            session_id,
+            ProgressEvent(
+                session_id=session_id,
+                phase="extraction",
+                object_name=", ".join(flat),
+                batch_current=len(flat),
+                batch_total=len(flat),
+                records_fetched=total_fetched,
+                records_processed=total_processed,
+                records_failed=total_failed,
+                overall_percent=round(100 / 3, 1),
+                status="running",
+                message=f"Extraction complete — {total_fetched:,} records fetched",
+            ),
+        )
 
         if token.is_cancelled():
             return
@@ -459,7 +473,12 @@ class MigrationManager:
                 ),
             )
 
-            transformation_controller.start_trasformation(TRANSFORMATION_JOB_NUMBER, group)
+            _run_with_retry(
+                transformation_controller.start_trasformation,
+                transformation_job_number,
+                group,
+                what=f"transformation of {', '.join(group)}",
+            )
             logger.info(f"[Migration] Transformation complete for group: {group}")
 
             if token.is_cancelled():
@@ -505,7 +524,12 @@ class MigrationManager:
                 ),
             )
 
-            load_result = destination_plugin.start_loading(LOADING_JOB_NUMBER, group)
+            load_result = _run_with_retry(
+                destination_plugin.start_loading,
+                loading_job_number,
+                group,
+                what=f"loading of {', '.join(group)}",
+            )
             total_processed += load_result.get("records_processed", 0)
             total_failed += load_result.get("records_failed", 0)
             for obj_name, counts in load_result.get("by_object", {}).items():
@@ -539,14 +563,17 @@ class MigrationManager:
             if token.is_cancelled():
                 return
 
+        had_errors = (not dry_run) and total_failed > 0
         final_msg = (
             f"Dry run completed — {total_fetched:,} fetched, {total_processed:,} transformed"
             if dry_run
             else f"Migration completed — {total_fetched:,} fetched, {total_processed:,} processed, {total_failed:,} failed"
         )
+        if had_errors:
+            final_msg += " (completed with errors)"
         final_phase = "dry_run" if dry_run else "loading"
 
-        session_db.mark_session_completed(session_id)
+        session_db.mark_session_completed(session_id, had_errors=had_errors)
         self._emit(
             session_id,
             ProgressEvent(
@@ -559,7 +586,7 @@ class MigrationManager:
                 records_processed=total_processed,
                 records_failed=total_failed,
                 overall_percent=100.0,
-                status="completed",
+                status="completed_with_errors" if had_errors else "completed",
                 message=final_msg,
                 records_by_object=records_by_object,
                 load_errors=load_errors_by_object,
@@ -567,88 +594,48 @@ class MigrationManager:
         )
 
 
-# ── Dependency resolution ──────────────────────────────────────────────────────
+# ── Schema-based ordering ──────────────────────────────────────────────────────
 
-# Per-source-type dependency maps.  The key is the downloaded folder name
-# expected by transformation helpers; the value is the migration object whose
-# extraction produces that folder.
-
-_TABLE_DEPENDENCY_MAPS: dict[str, dict[str, str]] = {
-    "servicenow": {
-        "sys_user": "Account",
-        "sys_user_group": "Group",
-        "cmn_location": "ParentLocation",
-        "cmn_department": "Department",
-        "core_company": "Company",
-    },
-    "jsm": {
-        "users": "JSMUser",
-        "organizations": "JSMOrganization",
-    },
-}
-
-# Which transformation_function names imply a dependency on which table
-_FUNCTION_DEPENDENCY_MAPS: dict[str, dict[str, str]] = {
-    "servicenow": {
-        "look_up_user_sys_id": "sys_user",
-        "look_up_user_user_name": "sys_user",
-        "look_up_assignement_group": "sys_user_group",
-        "look_up_location_sys_id": "cmn_location",
-        "look_up_company_sys_id": "core_company",
-    },
-    "jsm": {
-        "look_up_jsm_user": "users",
-        "look_up_jsm_organization": "organizations",
-    },
-}
-
-# Legacy flat aliases so any external code referencing the old names still works
-_TABLE_DEPENDENCY_MAP = _TABLE_DEPENDENCY_MAPS["servicenow"]
-_FUNCTION_DEPENDENCY_MAP = _FUNCTION_DEPENDENCY_MAPS["servicenow"]
-
-
-def _resolve_dependencies(
+def _build_schema_ordered_groups(
     selected_objects: list[str],
-    all_priority_groups: list[list[str]],
-    source_type: str = "servicenow",
-) -> list[str]:
-    """Ensure all dependency objects are included and ordered correctly.
+    destination_credentials: dict,
+) -> list[list[str]]:
+    """Determine execution order from live Salesforce reference-field metadata.
 
-    Scans each selected object's mapping config (from DB first, JSON fallback)
-    for transformation functions that require lookup tables from other objects.
-    If those prerequisite objects are not already selected, they are
-    automatically added.
+    Uses ``resolve_dependency_order`` to topologically sort the selected
+    mappings based on their destination object relationships.  Falls back
+    to the wizard card order (``selected_objects``) when the schema
+    resolution fails, detects a cycle, or returns an empty result.
     """
-    from services.internal.mappings_service import get_mapping_config
+    try:
+        from api.compat_engine import resolve_dependency_order
 
-    table_dep_map = _TABLE_DEPENDENCY_MAPS.get(source_type, {})
-    func_dep_map = _FUNCTION_DEPENDENCY_MAPS.get(source_type, {})
+        dep_result = resolve_dependency_order(
+            selected_objects, destination_credentials,
+        )
+        if not dep_result.get("has_cycle", False) and dep_result.get("order"):
+            topo_order: list[str] = dep_result["order"]
+            logger.info(
+                "SF dependency order resolved: %s (edges: %d, warnings: %d)",
+                topo_order,
+                len(dep_result.get("edges", [])),
+                len(dep_result.get("warnings", [])),
+            )
+            return [[name] for name in topo_order]
 
-    needed: set[str] = set(selected_objects)
+        if dep_result.get("has_cycle"):
+            logger.warning(
+                "Circular SF dependency detected — falling back to "
+                "wizard card order"
+            )
+    except Exception as exc:
+        logger.warning(
+            "SF dependency resolution failed (non-blocking) — using "
+            "wizard card order: %s",
+            exc,
+        )
 
-    for obj_name in list(selected_objects):
-        mapping = get_mapping_config(obj_name)
-        if not mapping:
-            continue
-        for field_def in mapping.get("fields", []):
-            func = field_def.get("transformation_function", "")
-            if func in func_dep_map:
-                table = func_dep_map[func]
-                dep_object = table_dep_map.get(table)
-                if dep_object and dep_object not in needed:
-                    needed.add(dep_object)
-                    logger.info(
-                        "Auto-including '%s' as dependency for '%s' (requires %s)",
-                        dep_object, obj_name, table,
-                    )
-
-    # Return in priority order
-    all_flat = [name for group in all_priority_groups for name in group]
-    ordered = [name for name in all_flat if name in needed]
-    for name in needed:
-        if name not in ordered:
-            ordered.append(name)
-    return ordered
+    return [[name] for name in selected_objects]
 
 
 # Module-level singleton

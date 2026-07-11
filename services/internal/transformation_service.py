@@ -24,7 +24,7 @@ from services.internal.mappings_service import (
     cfg_destination_object,
 )
 from tools.csv_manager import read_csv_as_dictionary, save_as_csv, write_csv_split_by_size
-import helpers.transformation_helper as transformation_helper
+from services.transforms.generic import GENERIC_TRANSFORMS
 import services.external.duckdb_client as duckdb_client
 from helpers.hash_helper import create_hash_for_row
 from services.internal import extraction_service
@@ -166,13 +166,17 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
             transformation_name if transformation_name else salesforce_object_name
         )
 
-        transformations, transformation_hashes = transform_batch(
+        transformations, transformation_hashes, skipped_rows = transform_batch(
             batch_path, table_mappings
         )
 
-        import sys
-        print(f"[TRANSFORM_SAVE] insert={len(transformations['insert'])}, update={len(transformations['update'])}, hashes={len(transformation_hashes)}", flush=True)
-        sys.stdout.flush()
+        if skipped_rows:
+            error_batch_path = (
+                salesforce_object_transformation_path
+                / batch_path.stem
+                / f"{len(skipped_rows)}_errors.csv"
+            )
+            save_as_csv(error_batch_path, skipped_rows)
 
         # ================== INSERT ================================================
         if transformations["insert"]:
@@ -271,6 +275,9 @@ def transform_batch(batch_path: Path, table_mappings: dict):
     ]
     transformations = {"insert": [], "update": []}
     transformation_hashes = []
+    # Rows dropped during transformation are collected here (EC-12/EC-14) so the
+    # caller can persist them to an error CSV instead of losing them to a log line.
+    skipped_rows: list[dict] = []
     removable_extra_fields = [field['destination_field'] for field in fields if field.get("ignore_on_update")]
 
     join_tables = []
@@ -326,37 +333,51 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             transformation_function = field.get("transformation_function")
             transformation_params = field.get("transformation_params")
             constant = field.get("use_constant")
+            constant_value = field.get("constant_value")
             skip_if_not_found = field.get("skip_if_not_found")
-            if constant:
+            if constant_value is not None:
+                # Per-migration literal chosen in the wizard (UI-specific, no env).
+                salesforce_object[destination_field] = constant_value
+            elif constant:
+                # Legacy: constant resolved from a global environment variable.
                 salesforce_object[destination_field] = os.getenv(constant)
             elif transformation_function:
-                func = _resolve_transform_func(transformation_function, source_type)
-                if func is not None:
-                    try:
-                        if transformation_params:
-                            salesforce_object.update(
-                                func(destination_field, *field_values, params=transformation_params)
-                            )
-                        else:
-                            salesforce_object.update(func(destination_field, *field_values))
-                        if skip_if_not_found:
-                            if not salesforce_object[destination_field]:
-                                skip_row = True
-                                continue
-                    except Exception as e:
-                        logger.error(f"Transform error on row {row[source_id_column]}, field={destination_field}: {e}")
-                        skip_row = True
-                        skipped_error += 1
-                        continue
-                else:
-                    logger.error(
-                        "Transform function not found for row %s, field=%s: %s",
-                        row[source_id_column],
-                        destination_field,
-                        transformation_function,
+                func = GENERIC_TRANSFORMS.get(transformation_function)
+                if func is None:
+                    func = _resolve_transform_func(transformation_function, source_type)
+                if func is None:
+                    raise ValueError(
+                        f"Function {transformation_function} not found in module"
                     )
+                try:
+                    if transformation_params is not None:
+                        salesforce_object.update(
+                            func(destination_field, *field_values, params=transformation_params)
+                        )
+                    else:
+                        salesforce_object.update(func(destination_field, *field_values))
+                    if skip_if_not_found:
+                        if not salesforce_object[destination_field]:
+                            skip_row = True
+                            skipped_rows.append({
+                                SERVICE_NOW_ID_COLUMN: row[source_id_column],
+                                "destination_field": destination_field,
+                                "reason": "missing_reference",
+                                "error": (
+                                    f"'{destination_field}' resolved empty via "
+                                    f"'{transformation_function}'; skipped (skip_if_not_found)"
+                                ),
+                            })
+                            continue
+                except Exception as e:
+                    logger.error("Exception occured during transformation of row. Row Skipped", exc_info=e)
                     skip_row = True
-                    skipped_error += 1
+                    skipped_rows.append({
+                        SERVICE_NOW_ID_COLUMN: row[source_id_column],
+                        "destination_field": destination_field,
+                        "reason": "transform_error",
+                        "error": str(e),
+                    })
                     continue
             else:
                 if not field_values:
@@ -368,11 +389,10 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                     continue
                 if len(field_values) == 1:
                     try:
-                        field_value = (
-                            ""
-                            if (pd.isna(field_values[0]) or not bool(field_values[0]))
-                            else field_values[0]
-                        )
+                        # EC-13: only treat null/NaN as empty. Using bool() here
+                        # wrongly blanked legitimate falsy values like 0 / False.
+                        raw_value = field_values[0]
+                        field_value = "" if (raw_value is None or pd.isna(raw_value)) else raw_value
                         salesforce_object[destination_field] = field_value
                     except Exception as e:
                         logger.error(
@@ -430,4 +450,12 @@ def transform_batch(batch_path: Path, table_mappings: dict):
         f"insert={len(transformations['insert'])}, update={len(transformations['update'])} | "
         f"skipped: exists={skipped_exists}, date_filter={skipped_date}, error={skipped_error}"
     )
-    return transformations, transformation_hashes
+    if skipped_rows:
+        error_count = sum(1 for r in skipped_rows if r["reason"] == "transform_error")
+        missing_ref_count = sum(1 for r in skipped_rows if r["reason"] == "missing_reference")
+        logger.warning(
+            "Transformation skipped %d row(s) for %s: %d transform error(s), "
+            "%d missing-reference row(s)",
+            len(skipped_rows), salesforce_object_name, error_count, missing_ref_count,
+        )
+    return transformations, transformation_hashes, skipped_rows

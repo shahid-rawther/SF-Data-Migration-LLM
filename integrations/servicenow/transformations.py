@@ -6651,152 +6651,22 @@ def empty_if_lengthy(destination_field: str, value: str):
 # ─────────────────────────────────────────────────────────────────────────────
 # Generic, parameter-driven transformation functions
 #
-# These are configured entirely through the mapping JSON via a
-# `transformation_params` object, so new clients can map fields without writing
-# Python. The ETL passes `params` only when `transformation_params` is present
-# in the field definition, keeping every existing function fully backward
-# compatible. Each returns {destination_field: value}, matching the convention
-# used by all other helpers in this module.
+# These now live in the standalone, legacy-free module
+# ``services/transforms/generic.py`` so the wizard runtime can run migrations
+# without importing this hardcoded module. They are re-exported here so that
+# existing by-name references (CLI, shipped JSON packs, getattr lookups) keep
+# working unchanged. This module remains the source for the bespoke look_up_*/
+# convert_* functions only.
 # ─────────────────────────────────────────────────────────────────────────────
 
-
-def _clean_value(value) -> str:
-    """Normalise an incoming source value to a plain string ('' for NaN/None)."""
-    try:
-        if value is None or (not isinstance(value, (list, dict)) and pd.isna(value)):
-            return ""
-    except (TypeError, ValueError):
-        pass
-    if not bool(value):
-        return ""
-    return str(value).strip() if isinstance(value, str) else str(value)
-
-
-def generic_default_if_empty(destination_field: str, *values, params: dict | None = None):
-    """Use the first non-empty source value, else a configured default.
-
-    params: {"default": "Not provided"}
-    """
-    params = params or {}
-    for v in values:
-        cleaned = _clean_value(v)
-        if cleaned:
-            return {destination_field: cleaned}
-    return {destination_field: params.get("default", "")}
-
-
-def generic_truncate(destination_field: str, value=None, params: dict | None = None):
-    """Truncate a string to a maximum length, optionally appending a suffix.
-
-    params: {"max_length": 255, "suffix": "..."}
-    The suffix (if any) is included within the max_length budget.
-    """
-    params = params or {}
-    max_length = int(params.get("max_length", 255))
-    suffix = params.get("suffix", "")
-    text = _clean_value(value)
-    if len(text) <= max_length:
-        return {destination_field: text}
-    if suffix and len(suffix) < max_length:
-        return {destination_field: text[: max_length - len(suffix)] + suffix}
-    return {destination_field: text[:max_length]}
-
-
-def generic_value_map(destination_field: str, value=None, params: dict | None = None):
-    """Map a source value to a destination value using a lookup table.
-
-    params: {
-        "map": {"1": "High", "2": "Medium"},
-        "default": "Medium",          # optional, used when no key matches
-        "case_insensitive": true,     # optional
-        "passthrough_if_missing": false  # optional: keep original instead of default
-    }
-    """
-    params = params or {}
-    mapping = params.get("map", {}) or {}
-    case_insensitive = bool(params.get("case_insensitive", False))
-    raw = _clean_value(value)
-
-    if case_insensitive:
-        lowered = {str(k).lower(): v for k, v in mapping.items()}
-        if raw.lower() in lowered:
-            return {destination_field: lowered[raw.lower()]}
-    elif raw in mapping:
-        return {destination_field: mapping[raw]}
-
-    if params.get("passthrough_if_missing"):
-        return {destination_field: raw}
-    return {destination_field: params.get("default", "")}
-
-
-def generic_format_datetime(destination_field: str, value=None, params: dict | None = None):
-    """Reformat a datetime string between input/output strftime patterns.
-
-    params: {
-        "input_format": "%Y-%m-%d %H:%M:%S",   # optional, default ServiceNow format
-        "output_format": "%Y-%m-%dT%H:%M:%S.000+0000"  # optional, default SF format
-    }
-    Returns '' for empty/unparseable values.
-    """
-    params = params or {}
-    input_format = params.get("input_format", "%Y-%m-%d %H:%M:%S")
-    output_format = params.get("output_format", "%Y-%m-%dT%H:%M:%S.000+0000")
-    raw = _clean_value(value)
-    if not raw:
-        return {destination_field: ""}
-    try:
-        parsed = datetime.strptime(raw, input_format)
-        return {destination_field: parsed.strftime(output_format)}
-    except (ValueError, TypeError):
-        return {destination_field: ""}
-
-
-def generic_concat(destination_field: str, *values, params: dict | None = None):
-    """Concatenate multiple source field values with a separator.
-
-    params: {"separator": " ", "skip_empty": true}
-    """
-    params = params or {}
-    separator = params.get("separator", " ")
-    skip_empty = params.get("skip_empty", True)
-    parts = []
-    for v in values:
-        cleaned = _clean_value(v)
-        if cleaned or not skip_empty:
-            parts.append(cleaned)
-    return {destination_field: separator.join(parts)}
-
-
-def generic_lookup(destination_field: str, value=None, params: dict | None = None):
-    """Resolve a source id to a destination id via the id_mappings table.
-
-    Replaces most bespoke look_up_* functions for new clients. The lookup is
-    cached per table-set for the duration of a migration run.
-
-    params: {
-        "lookup_table": "sys_user_group_Group_",   # a single id_mappings table_name
-        # or
-        "lookup_tables": ["tableA", "tableB"],       # search multiple tables
-        "default": ""                                # optional fallback value
-    }
-    """
-    params = params or {}
-    tables = params.get("lookup_tables")
-    if not tables:
-        single = params.get("lookup_table")
-        tables = [single] if single else []
-    sys_id = _clean_value(value)
-
-    if not tables or not sys_id:
-        return {destination_field: params.get("default", "")}
-
-    def _load_all_id_mappings():
-        rows = mappings_service.get_sales_force_id_mappings_for_tables(tables)
-        return {row[1]: row[0] for row in rows}
-
-    cache_key = "ID_MAPPING::GENERIC::" + "#".join(sorted(tables))
-    mappings: dict[str, str] = execution_cache.get_or_set(
-        cache_key, lambda: _load_all_id_mappings()
-    )
-    sales_force_id = mappings.get(sys_id)
-    return {destination_field: sales_force_id if sales_force_id else params.get("default", "")}
+from services.transforms.generic import (  # noqa: E402,F401
+    _clean_value,
+    generic_default_if_empty,
+    generic_truncate,
+    generic_value_map,
+    generic_format_datetime,
+    generic_concat,
+    generic_strip_html,
+    generic_length_guard,
+    generic_lookup,
+)

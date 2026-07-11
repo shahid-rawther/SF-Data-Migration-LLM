@@ -5,6 +5,7 @@ transformation step can use them as lookup sources. Moved out of the old
 ``services/internal/extraction_service.py``.
 """
 import math
+import shutil
 from datetime import datetime
 
 import tqdm
@@ -54,7 +55,16 @@ def extract_salesforce_table(job_id: int, sales_force_object_details: dict):
     )
     logger.info(f"Total rows in {sales_force_object} is {row_count}")
 
-    batch_no = 0
+    # EC-21: Salesforce cursor pagination uses a query locator (nextRecordsUrl)
+    # that only lives in memory for this call and expires server-side, so it
+    # cannot be resumed across runs. Skipping already-"success" batches while
+    # the cursor restarts from page 0 would duplicate/misalign reference data.
+    # Instead, treat lookup extraction as non-resumable: clear any stale output
+    # and always re-fetch the whole object in a single sequential pass.
+    object_dir = PATH_TO_DOWNLOADS / "salesforce" / f"{sales_force_object}"
+    if object_dir.exists():
+        shutil.rmtree(object_dir, ignore_errors=True)
+
     number_of_batches = math.ceil(row_count / SALESFORCE_BATCH_SIZE)
     next_records_url = ""
     batches = list(range(number_of_batches))
@@ -73,38 +83,36 @@ def extract_salesforce_table(job_id: int, sales_force_object_details: dict):
         logger.info(
             f"Start: { datetime.now()} Table: {sales_force_object}, Batch: {batch_no}, Job Batch Id: {job_table_batch_id}"
         )
-        if not jobs_service.is_job_table_batch_success(job_table_batch_id):
-            path_csv = (
-                PATH_TO_DOWNLOADS
-                / "salesforce"
-                / f"{sales_force_object}"
-                / f"{SALESFORCE_BATCH_SIZE}_{batch_no}.csv"
-            )
+        path_csv = (
+            object_dir
+            / f"{SALESFORCE_BATCH_SIZE}_{batch_no}.csv"
+        )
 
-            response = salesforce_client.fetch_table(
-                sales_force_object, fields, next_records_url
-            )
-            next_records_url = (
-                response["nextRecordsUrl"] if "nextRecordsUrl" in response else None
-            )
+        response = salesforce_client.fetch_table(
+            sales_force_object, fields, next_records_url
+        )
+        next_records_url = (
+            response["nextRecordsUrl"] if "nextRecordsUrl" in response else None
+        )
 
-            # response = JSON from Salesforce
-            records = response["records"]
+        # response = JSON from Salesforce
+        records = response["records"]
 
-            # Remove attributes
-            clean_records = [
-                {k: v for k, v in rec.items() if k != "attributes"} for rec in records
-            ]
+        # Remove attributes
+        clean_records = [
+            {k: v for k, v in rec.items() if k != "attributes"} for rec in records
+        ]
 
-            save_as_csv(path_csv, clean_records)
-            jobs_service.update_job_table_batch_status(job_table_batch_id, "success")
-
-            if response.get("done") is True:
-                break
+        save_as_csv(path_csv, clean_records)
+        jobs_service.update_job_table_batch_status(job_table_batch_id, "success")
 
         logger.info(
             f"End: {datetime.now()} Table: {sales_force_object}, Batch: {batch_no}, Job Batch Id: {job_table_batch_id}"
         )
+
+        if response.get("done") is True:
+            break
+
     jobs_service.update_job_table_status(job_table_id, "success")
     logger.info(
         f"Salesforce table '{sales_force_object}' extraction ends at {datetime.now()}"

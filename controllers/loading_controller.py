@@ -14,6 +14,7 @@ from services.internal.mappings_service import (
     get_id_mapping_table_name,
     cfg_source_tables,
     cfg_destination_object,
+    cfg_external_id_field,
 )
 import services.internal.jobs_service as jobs_service
 from integrations.salesforce.http_client import salesforce_client
@@ -322,10 +323,18 @@ def load_insert_batch(
     try:
         jobs_service.update_job_table_batch_status(table_batch_id, "in-progress")
         result = load_batch(job_table_id, table_batch_id, batch_path, "insert", table_mapping)
-        jobs_service.update_job_table_batch_status(table_batch_id, "success")
-        logger.info(
-            f"Loading: Insert: Batch Number: {batch_number}, Insert Batch Size: {batch_insert_size}, Status: Success"
-        )
+        fully_migrated = isinstance(result, dict) and result.get("failed", 0) == 0 and result.get("processed", 0) > 0
+        if fully_migrated:
+            jobs_service.update_job_table_batch_status(table_batch_id, "success")
+            logger.info(
+                f"Loading: Insert: Batch Number: {batch_number}, Insert Batch Size: {batch_insert_size}, Status: Success"
+            )
+        else:
+            jobs_service.update_job_table_batch_status(table_batch_id, "partial-success")
+            logger.info(
+                f"Loading: Insert: Batch Number: {batch_number}, Insert Batch Size: {batch_insert_size}, "
+                f"Failed Records: {result.get('failed', 0) if isinstance(result, dict) else 'unknown'}, Status: Partial Success"
+            )
         return result or {"processed": 0, "failed": 0}
 
     except Exception as e:
@@ -415,32 +424,47 @@ def _match_id_mappings_by_recomputed_hash(
         with open(servicenow_hash_path, newline="", encoding="utf-8") as hf:
             hash_rows = list(csv.DictReader(hf))
 
-    mappings: List[Dict[str, str]] = []
     with open(transformation_csv_path, newline="", encoding="utf-8") as f:
-        for idx, row in enumerate(csv.DictReader(f)):
-            sys_id = hash_rows[idx].get(SERVICE_NOW_ID_COLUMN, "") if idx < len(hash_rows) else ""
-            if not sys_id:
-                continue
+        transformation_rows = list(csv.DictReader(f))
 
-            filtered = {k: row[k] for k in sf_fields if k in row}
+    # The fallback recovers sys_id for each transformation row by POSITION in the
+    # hash CSV. That is only safe when both files describe exactly the same rows
+    # in the same order. If the counts differ, the files are misaligned and any
+    # positional pairing would silently link a sys_id to the wrong Salesforce Id
+    # (corrupting child lookups). Abort loudly instead of guessing.
+    if len(hash_rows) != len(transformation_rows):
+        logger.error(
+            "ID-mapping fallback aborted: transformation rows (%d) and hash rows (%d) "
+            "are misaligned; refusing positional sys_id pairing.",
+            len(transformation_rows), len(hash_rows),
+        )
+        return []
 
-            if picklist_values:
-                for field_name, allowed in picklist_values.items():
-                    if field_name in filtered and filtered[field_name] and filtered[field_name] not in allowed:
-                        filtered[field_name] = ""
-            if force_values:
-                for field_name, val in force_values.items():
-                    if field_name in filtered:
-                        filtered[field_name] = val
+    mappings: List[Dict[str, str]] = []
+    for idx, row in enumerate(transformation_rows):
+        sys_id = hash_rows[idx].get(SERVICE_NOW_ID_COLUMN, "")
+        if not sys_id:
+            continue
 
-            h = create_hash_for_row(filtered)
-            sf_id = sf_hash_lookup.get(h)
-            if sf_id:
-                mappings.append({
-                    SERVICE_NOW_ID_COLUMN: sys_id,
-                    SALESFORCE_ID_COLUMN: sf_id,
-                    HASH_KEY_NAME: h,
-                })
+        filtered = {k: row[k] for k in sf_fields if k in row}
+
+        if picklist_values:
+            for field_name, allowed in picklist_values.items():
+                if field_name in filtered and filtered[field_name] and filtered[field_name] not in allowed:
+                    filtered[field_name] = ""
+        if force_values:
+            for field_name, val in force_values.items():
+                if field_name in filtered:
+                    filtered[field_name] = val
+
+        h = create_hash_for_row(filtered)
+        sf_id = sf_hash_lookup.get(h)
+        if sf_id:
+            mappings.append({
+                SERVICE_NOW_ID_COLUMN: sys_id,
+                SALESFORCE_ID_COLUMN: sf_id,
+                HASH_KEY_NAME: h,
+            })
     return mappings
 
 
@@ -460,8 +484,24 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
     if operation == "insert":
         insert_force_values = _get_insert_force_values(salesforce_object)
 
+    # EC-03: If the mapping declares an external-id field, perform inserts as an
+    # upsert keyed on that field so re-runs (even after a local DB reset) update
+    # the existing Salesforce record instead of creating a duplicate. The logical
+    # `operation` is preserved for the id-mapping/hash bookkeeping below.
+    external_id_field = cfg_external_id_field(table_mappings)
+    sf_operation = operation
+    if operation == "insert" and external_id_field:
+        sf_operation = "upsert"
+        logger.info(
+            f"[{salesforce_object}] Using external-id upsert on '{external_id_field}' for idempotent insert"
+        )
+
     # Create a Job
-    job = salesforce_client.create_job(salesforce_object, operation)
+    job = salesforce_client.create_job(
+        salesforce_object,
+        sf_operation,
+        external_id_field=external_id_field if sf_operation == "upsert" else None,
+    )
     job_id = job["id"]
     jobs_service.update_job_table_batch_salesforce_job_id(table_batch_id, job_id)
 

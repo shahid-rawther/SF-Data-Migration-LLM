@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from api.compat_engine import check_compatibility, CompatibilityReport
+from api.compat_engine import check_compatibility, get_type_coercion, CompatibilityReport
 
 router = APIRouter(prefix="/compat", tags=["compatibility"])
 
@@ -14,6 +14,19 @@ class CompatCheckRequest(BaseModel):
     source_credentials: dict = {}
     destination_credentials: dict = {}
     selected_objects: list[str] = []
+
+
+class TypeCheckRequest(BaseModel):
+    source_type: str
+    destination_type: str
+
+
+class TypeCheckResponse(BaseModel):
+    compatible: bool
+    coercible: bool = False
+    transform: str = ""
+    params: dict = {}
+    warning: str = ""
 
 
 class FieldResultOut(BaseModel):
@@ -40,11 +53,44 @@ class ObjectCompatibilityOut(BaseModel):
     blockers: list[str]
 
 
+class DependencyEdgeOut(BaseModel):
+    from_mapping: str
+    to_mapping: str
+    field: str
+    required: bool
+
+
+class DependencyWarningOut(BaseModel):
+    mapping: str
+    field: str
+    references: str
+    reason: str
+
+
+class BlockingRequiredFieldOut(BaseModel):
+    mapping: str
+    field: str
+    reason: str
+
+
+class PicklistWarningOut(BaseModel):
+    mapping: str
+    field: str
+    reason: str
+
+
 class CompatReportOut(BaseModel):
     source_type: str
     overall_pct: float
     objects: list[ObjectCompatibilityOut]
     summary: str
+    dependency_order: list[str] = []
+    dependency_edges: list[DependencyEdgeOut] = []
+    dependency_warnings: list[DependencyWarningOut] = []
+    dependency_missing_parents: list[DependencyWarningOut] = []
+    dependency_has_cycle: bool = False
+    blocking_required_fields: list[BlockingRequiredFieldOut] = []
+    picklist_mapping_warnings: list[PicklistWarningOut] = []
 
 
 @router.post("/check", response_model=CompatReportOut)
@@ -53,6 +99,7 @@ def check_compat(body: CompatCheckRequest) -> CompatReportOut:
 
     Returns a structured report showing which source fields map to
     Salesforce fields, which are missing, and actionable suggestions.
+    Also includes dependency analysis with execution order.
     """
     report: CompatibilityReport = check_compatibility(
         source_type=body.source_type,
@@ -91,4 +138,62 @@ def check_compat(body: CompatCheckRequest) -> CompatReportOut:
             )
             for obj in report.objects
         ],
+        dependency_order=report.dependency_order,
+        dependency_edges=[
+            DependencyEdgeOut(
+                from_mapping=e.from_mapping,
+                to_mapping=e.to_mapping,
+                field=e.field,
+                required=e.required,
+            )
+            for e in report.dependency_edges
+        ],
+        dependency_warnings=[
+            DependencyWarningOut(
+                mapping=w.mapping,
+                field=w.field,
+                references=w.references,
+                reason=w.reason,
+            )
+            for w in report.dependency_warnings
+        ],
+        dependency_missing_parents=[
+            DependencyWarningOut(
+                mapping=mp.mapping,
+                field=mp.field,
+                references=mp.references,
+                reason=mp.reason,
+            )
+            for mp in report.dependency_missing_parents
+        ],
+        dependency_has_cycle=report.dependency_has_cycle,
+        blocking_required_fields=[
+            BlockingRequiredFieldOut(
+                mapping=b.get("mapping", ""),
+                field=b.get("field", ""),
+                reason=b.get("reason", ""),
+            )
+            for b in report.blocking_required_fields
+        ],
+        picklist_mapping_warnings=[
+            PicklistWarningOut(
+                mapping=p.get("mapping", ""),
+                field=p.get("field", ""),
+                reason=p.get("reason", ""),
+            )
+            for p in report.picklist_mapping_warnings
+        ],
+    )
+
+
+@router.post("/type-check", response_model=TypeCheckResponse)
+def type_check(body: TypeCheckRequest) -> TypeCheckResponse:
+    """Check whether two field types are compatible and suggest coercion."""
+    result = get_type_coercion(body.source_type, body.destination_type)
+    return TypeCheckResponse(
+        compatible=result.get("compatible", False),
+        coercible=result.get("coercible", False),
+        transform=result.get("transform", ""),
+        params=result.get("params", {}),
+        warning=result.get("warning", ""),
     )

@@ -36,7 +36,14 @@ def extract_full_tables(source_plugin=None):
     jobs_service.update_job_status(job_id, "success")
 
 
-def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_plugin=None, record_limit: int | None = None):
+def start_extraction(
+    job_id: int,
+    mappings_file_names: list[str] = [],
+    source_plugin=None,
+    record_limit: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
     job_id = jobs_service.get_or_create_job(job_id, "extraction")
     jobs_service.update_job_status(job_id, "in-progress")
     total_extracted = 0
@@ -53,7 +60,10 @@ def start_extraction(job_id: int, mappings_file_names: list[str] = [], source_pl
 
         all_tables = list(dict.fromkeys(all_tables))
         logger.info(f"[Extraction] Resolved tables | plugin={type(plugin).__name__} | tables={all_tables}")
-        total_extracted = plugin.extract_tables(job_id, all_tables, record_limit=record_limit)
+        total_extracted = plugin.extract_tables(
+            job_id, all_tables, record_limit=record_limit,
+            start_date=start_date, end_date=end_date,
+        )
         logger.info(f"[Extraction] Completed | job_id={job_id} | total_extracted={total_extracted}")
     except Exception as e:
         logger.error(f"[Extraction] Failed | job_id={job_id} | error={e}")

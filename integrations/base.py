@@ -108,6 +108,18 @@ class SourceProvider(ABC):
         """
         return []
 
+    def get_field_values(
+        self, table_name: str, field_name: str, credentials: dict, limit: int = 500
+    ) -> list[dict]:
+        """Return the valid/known values of a source field as ``[{value, label}]``.
+
+        Powers the wizard's picklist value-map editor: the user maps each source
+        value to a destination picklist value. Override in providers that expose
+        choice/enumeration metadata. Defaults to an empty list (the UI then lets
+        the user add source values manually).
+        """
+        return []
+
     def extract_records(
         self,
         object_name: str,
@@ -181,11 +193,21 @@ class SourcePlugin(SourceProvider):
         from config.settings import PATH_TO_DOWNLOADS
         return PATH_TO_DOWNLOADS / self.source_id
 
-    def extract_tables(self, job_id: int, tables: list[str], record_limit: int | None = None) -> int:
+    def extract_tables(
+        self,
+        job_id: int,
+        tables: list[str],
+        record_limit: int | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> int:
         """Bulk-extract the given raw tables into CSV. Return rows extracted.
 
         *record_limit*: when set, caps the number of records extracted **per
         table** to this value.  ``None`` (default) means extract everything.
+
+        ``start_date``/``end_date`` optionally scope extraction to a creation-date
+        window; providers that don't support it may ignore them.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not implement extract_tables()"

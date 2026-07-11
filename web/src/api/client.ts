@@ -165,11 +165,40 @@ export interface ObjectCompatibility {
   blockers: string[];
 }
 
+export interface DependencyEdge {
+  from_mapping: string;
+  to_mapping: string;
+  field: string;
+  required: boolean;
+}
+
+export interface DependencyWarning {
+  mapping: string;
+  field: string;
+  references: string;
+  reason: string;
+}
+
+export interface BlockingRequiredField {
+  mapping: string;
+  field: string;
+  reason: string;
+}
+
 export interface CompatibilityReport {
   source_type: string;
   overall_pct: number;
   objects: ObjectCompatibility[];
   summary: string;
+  dependency_order?: string[];
+  dependency_edges?: DependencyEdge[];
+  dependency_warnings?: DependencyWarning[];
+  dependency_missing_parents?: DependencyWarning[];
+  dependency_has_cycle?: boolean;
+  // Hard blockers that must be resolved before launch (EC-33 / guardrail).
+  blocking_required_fields?: BlockingRequiredField[];
+  // Non-blocking: picklist destinations with no/partial value map.
+  picklist_mapping_warnings?: BlockingRequiredField[];
 }
 
 export interface SavedConnection {
@@ -201,6 +230,11 @@ export interface SourceFieldInfo {
   reference_table?: string;
 }
 
+export interface SourceChoiceValue {
+  value: string;
+  label: string;
+}
+
 export interface DestinationFieldInfo {
   name: string;
   label: string;
@@ -219,10 +253,28 @@ export interface MappingFieldDef {
   transformation_function?: string;
   transformation_params?: Record<string, unknown>;
   use_constant?: string;
+  // Per-migration literal value chosen in the wizard (UI-specific, not env-based).
+  constant_value?: string | number | boolean;
+  // How this field is populated. Inferred when absent for backward compatibility.
+  value_source?: 'field' | 'constant' | 'lookup';
   skip_if_not_found?: boolean;
   // Present on auto-suggested fields only:
   confidence?: number;
   match_reason?: string;
+  type_warning?: string;
+}
+
+export interface TypeCheckRequest {
+  source_type: string;
+  destination_type: string;
+}
+
+export interface TypeCheckResponse {
+  compatible: boolean;
+  coercible: boolean;
+  transform: string;
+  params: Record<string, unknown>;
+  warning: string;
 }
 
 export interface TransformDef {
@@ -351,6 +403,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ source_type, source_credentials, destination_credentials, selected_objects }),
       }),
+    typeCheck: (
+      source_type: string,
+      destination_type: string,
+    ): Promise<TypeCheckResponse> =>
+      request('/compat/type-check', {
+        method: 'POST',
+        body: JSON.stringify({ source_type, destination_type }),
+      }),
   },
 
   customFields: {
@@ -389,6 +449,15 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ source_type, credentials, ...opts }),
       }),
+    sourceValues: (
+      source_type: string,
+      credentials: Record<string, string>,
+      opts: { table: string; field: string; limit?: number },
+    ): Promise<{ source_type: string; values: SourceChoiceValue[] }> =>
+      request('/schema/source-values', {
+        method: 'POST',
+        body: JSON.stringify({ source_type, credentials, ...opts }),
+      }),
     destinationObjects: (
       credentials: Record<string, string>,
       destination_type = 'salesforce',
@@ -404,6 +473,15 @@ export const api = {
       request('/schema/destination-fields', {
         method: 'POST',
         body: JSON.stringify({ object_name, credentials }),
+      }),
+    destinationRecords: (
+      object_name: string,
+      credentials: Record<string, string>,
+      opts: { name_field?: string; limit?: number } = {},
+    ): Promise<{ object_name: string; records: { id: string; name: string }[] }> =>
+      request('/schema/destination-records', {
+        method: 'POST',
+        body: JSON.stringify({ object_name, credentials, ...opts }),
       }),
   },
 

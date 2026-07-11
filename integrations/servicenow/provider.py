@@ -347,6 +347,56 @@ class ServiceNowProvider(SourcePlugin):
         except Exception:
             return []
 
+    def get_field_values(
+        self, table_name: str, field_name: str, credentials: dict, limit: int = 500
+    ) -> list[dict]:
+        """Return a field's ServiceNow choice values as ``[{value, label}]``.
+
+        Queries ``sys_choice`` for the field's element across the table's full
+        inheritance chain (choices are often defined on a parent table such as
+        ``task``). Returns [] on any error or when the field has no choices, so
+        the wizard can fall back to manual value entry.
+        """
+        if not table_name or not field_name:
+            return []
+        # Accept either "element" or "table.element".
+        element = field_name.split(".")[-1]
+        base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
+        username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
+        password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        auth = (username, password)
+        try:
+            hierarchy = self._resolve_table_hierarchy(table_name, base_url, auth)
+            query = (
+                "nameIN" + ",".join(hierarchy)
+                + f"^element={element}^inactive=false^language=en"
+            )
+            resp = requests.get(
+                f"{base_url}/api/now/table/sys_choice",
+                auth=auth,
+                headers={"Accept": "application/json"},
+                params={
+                    "sysparm_query": query,
+                    "sysparm_fields": "value,label",
+                    "sysparm_limit": limit,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            rows = resp.json().get("result", [])
+            values: list[dict] = []
+            seen: set[str] = set()
+            for row in rows:
+                value = str(row.get("value", "")).strip()
+                if not value or value in seen:
+                    continue
+                seen.add(value)
+                label = str(row.get("label", "") or value).strip()
+                values.append({"value": value, "label": label})
+            return values
+        except Exception:
+            return []
+
     def extract_records(
         self,
         object_name: str,
@@ -417,12 +467,20 @@ class ServiceNowProvider(SourcePlugin):
             password=credentials.get("password"),
         )
 
-    def extract_tables(  # noqa: override
-        self, job_id: int, tables: list[str], record_limit: int | None = None,
+    def extract_tables(
+        self,
+        job_id: int,
+        tables: list[str],
+        record_limit: int | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> int:
         from integrations.servicenow.extraction import extract_servicenow_tables
 
-        return extract_servicenow_tables(job_id, tables, record_limit=record_limit)
+        return extract_servicenow_tables(
+            job_id, tables, record_limit=record_limit,
+            start_date=start_date, end_date=end_date,
+        )
 
     def extract_attachment_files(self, job_id: int, table_mapping: dict) -> None:
         from integrations.servicenow.extraction import extract_servicenow_files
