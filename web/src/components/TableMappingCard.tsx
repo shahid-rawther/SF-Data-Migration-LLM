@@ -1,7 +1,13 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { api } from '../api/client';
-import type { MappingFieldDef, SourceFieldInfo, DestinationFieldInfo } from '../api/client';
+import type {
+  MappingFieldDef,
+  SourceFieldInfo,
+  DestinationFieldInfo,
+  SemanticSuggestReport,
+} from '../api/client';
 import { FieldMapper } from './FieldMapper';
+import { PrerequisiteNotice } from './PrerequisiteNotice';
 import { SearchableSelect } from './SearchableSelect';
 import type { SelectOption } from './SearchableSelect';
 
@@ -91,9 +97,10 @@ export function TableMappingCard({
 }: Props) {
   const [loadingFields, setLoadingFields] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [matchReport, setMatchReport] = useState<SemanticSuggestReport | null>(null);
+  const [matchError, setMatchError] = useState('');
   const [expanded, setExpanded] = useState(true);
-  const [dismissedRefs, setDismissedRefs] = useState(false);
-  const [checkedRefTables, setCheckedRefTables] = useState<Set<string>>(new Set());
 
   const patch = useCallback(
     (p: Partial<TableMappingState>) => onChange({ ...state, ...p }),
@@ -243,25 +250,9 @@ export function TableMappingCard({
     patch({ filters: state.filters.map((f, i) => (i === index ? { ...f, ...p } : f)) });
   };
 
-  // Detect reference fields that point to tables not in the current selection
-  const missingRefTables = useMemo(() => {
-    if (!state.fieldsLoaded || state.sourceFields.length === 0) return new Map<string, string[]>();
-    const missing = new Map<string, string[]>();
-    for (const f of state.sourceFields) {
-      if (f.field_type === 'reference' && f.reference_table && !selectedTables.includes(f.reference_table)) {
-        const shortName = f.name.includes('.') ? f.name.split('.').pop()! : f.name;
-        const existing = missing.get(f.reference_table) ?? [];
-        existing.push(shortName);
-        missing.set(f.reference_table, existing);
-      }
-    }
-    return missing;
-  }, [state.sourceFields, state.fieldsLoaded, selectedTables]);
-
   const loadFields = async () => {
     if (!state.sfObject) return;
     setLoadingFields(true);
-    setDismissedRefs(false);
     try {
       const [srcRes, dstRes] = await Promise.all([
         api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }),
@@ -283,7 +274,6 @@ export function TableMappingCard({
   const autoSuggest = async () => {
     if (!state.sfObject) return;
     setSuggesting(true);
-    setDismissedRefs(false);
     try {
       const result = await api.mappings.autoSuggest({
         source_type: sourceType,
@@ -313,6 +303,40 @@ export function TableMappingCard({
       console.error('Auto-suggest failed', err);
     } finally {
       setSuggesting(false);
+    }
+  };
+
+  // Asks the model for pairs whose names differ but whose meaning matches
+  // (u_caller_id -> ContactId). Runs on whatever auto-suggest left unmapped and
+  // appends its proposals for review; nothing already on screen is overwritten.
+  const semanticMatch = async () => {
+    if (!state.sfObject) return;
+    setMatching(true);
+    setMatchError('');
+    setMatchReport(null);
+    try {
+      const report = await api.mappings.semanticSuggest({
+        source_type: sourceType,
+        source_table: state.sourceTable,
+        salesforce_object: state.sfObject,
+        source_credentials: sourceCreds,
+        destination_credentials: destCreds,
+        existing_fields: state.fields,
+        other_mappings: otherMappings,
+        operation: state.operation,
+      });
+      setMatchReport(report);
+      if (report.error) setMatchError(report.error);
+      const taken = new Set(state.fields.map((f) => f.destination_field.toLowerCase()));
+      const additions = report.matches.filter(
+        (m) => !taken.has(m.destination_field.toLowerCase()),
+      );
+      if (additions.length > 0) patch({ fields: [...state.fields, ...additions] });
+    } catch (err) {
+      console.error('Semantic match failed', err);
+      setMatchError(err instanceof Error ? err.message : 'Semantic match failed');
+    } finally {
+      setMatching(false);
     }
   };
 
@@ -393,57 +417,14 @@ export function TableMappingCard({
 
       {expanded && (
         <div style={{ padding: 16 }}>
-          {/* Missing reference tables warning */}
-          {missingRefTables.size > 0 && !dismissedRefs && (
-            <div style={refBannerStyle}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
-                This table references {missingRefTables.size} table(s) not in your selection:
-              </div>
-              {Array.from(missingRefTables.entries()).map(([table, fields]) => (
-                <label key={table} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#78350f', marginBottom: 4, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={checkedRefTables.has(table)}
-                    onChange={(e) => {
-                      setCheckedRefTables((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(table); else next.delete(table);
-                        return next;
-                      });
-                    }}
-                  />
-                  <strong>{table}</strong>
-                  <span style={{ color: '#92400e' }}>(used by: {fields.join(', ')})</span>
-                </label>
-              ))}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button
-                  type="button"
-                  disabled={checkedRefTables.size === 0}
-                  onClick={() => {
-                    onAddTables(Array.from(checkedRefTables));
-                    setCheckedRefTables(new Set());
-                  }}
-                  style={{
-                    ...actionBtn,
-                    background: checkedRefTables.size > 0 ? '#fef3c7' : '#f3f4f6',
-                    color: checkedRefTables.size > 0 ? '#92400e' : '#9ca3af',
-                    borderColor: checkedRefTables.size > 0 ? '#fcd34d' : '#d1d5db',
-                    cursor: checkedRefTables.size > 0 ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  Add Selected ({checkedRefTables.size})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDismissedRefs(true)}
-                  style={{ ...actionBtn, background: '#fff', color: '#6b7280', borderColor: '#d1d5db' }}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
+          <PrerequisiteNotice
+            sourceType={sourceType}
+            destCreds={destCreds}
+            sfObject={state.sfObject}
+            selectedObjects={otherMappings.map((m) => m.sf_object).filter(Boolean)}
+            fields={state.fields}
+            onAddTables={onAddTables}
+          />
 
           {/* Controls row */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14, alignItems: 'end' }}>
@@ -764,7 +745,54 @@ export function TableMappingCard({
             >
               {suggesting ? 'Suggesting...' : 'Auto-suggest'}
             </button>
+            <button
+              type="button"
+              disabled={!state.sfObject || !state.fieldsLoaded || matching}
+              onClick={semanticMatch}
+              title={
+                state.fieldsLoaded
+                  ? 'Ask the model to pair the remaining fields by meaning rather than name'
+                  : 'Load or auto-suggest fields first'
+              }
+              style={{ ...actionBtn, background: '#faf5ff', color: '#7c3aed', borderColor: '#e9d5ff' }}
+            >
+              {matching ? 'Matching...' : 'AI match remaining'}
+            </button>
           </div>
+
+          {matchError && (
+            <div style={matchPanel('#fef2f2', '#fecaca', '#b91c1c')}>{matchError}</div>
+          )}
+
+          {matchReport && !matchError && (
+            <div style={matchPanel('#faf5ff', '#e9d5ff', '#5b21b6')}>
+              <strong>
+                {matchReport.matches.length > 0
+                  ? `${matchReport.matches.length} semantic match${
+                      matchReport.matches.length === 1 ? '' : 'es'
+                    } added for review`
+                  : 'No semantic matches found'}
+              </strong>
+              {matchReport.summary && <p style={{ margin: '6px 0 0' }}>{matchReport.summary}</p>}
+              <p style={{ margin: '6px 0 0', color: '#6b7280' }}>
+                Compared {matchReport.considered_source_fields} unmapped source field(s) against{' '}
+                {matchReport.considered_destination_fields} writable destination field(s).
+                {matchReport.truncated && ' The lists were capped, so run again after accepting these.'}
+              </p>
+              {matchReport.rejected.length > 0 && (
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{ cursor: 'pointer' }}>
+                    {matchReport.rejected.length} proposal(s) discarded by schema checks
+                  </summary>
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#6b7280' }}>
+                    {matchReport.rejected.map((r, i) => (
+                      <li key={i}>{r.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
 
           {/* Field mapping table */}
           {state.fieldsLoaded && (
@@ -792,6 +820,20 @@ export function TableMappingCard({
     </div>
   );
 }
+
+const matchPanel = (
+  background: string,
+  border: string,
+  color: string,
+): React.CSSProperties => ({
+  background,
+  border: `1px solid ${border}`,
+  color,
+  borderRadius: 8,
+  padding: '10px 12px',
+  fontSize: 12,
+  marginBottom: 12,
+});
 
 const cardStyle: React.CSSProperties = {
   border: '1px solid #e5e7eb',
@@ -889,14 +931,6 @@ const removeCardBtn: React.CSSProperties = {
   border: '1px solid #fecaca',
   background: '#fef2f2',
   marginLeft: 4,
-};
-
-const refBannerStyle: React.CSSProperties = {
-  padding: 12,
-  marginBottom: 14,
-  borderRadius: 8,
-  background: '#fffbeb',
-  border: '1px solid #fcd34d',
 };
 
 const joinBoxStyle: React.CSSProperties = {

@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SF Data Migration Tool — Selectively Agentic Architecture</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      themeVariables: {
+        primaryColor: "#e8f1f8",
+        primaryTextColor: "#1a2332",
+        primaryBorderColor: "#3d6b8a",
+        lineColor: "#3d6b8a",
+        secondaryColor: "#f4f6f8",
+        tertiaryColor: "#ffffff",
+        fontFamily: "Segoe UI, system-ui, sans-serif",
+      },
+      flowchart: { curve: "basis", padding: 16 },
+      sequence: { mirrorActors: false },
+    });
+    window.__mermaidReady = mermaid.run().then(() => {
+      document.body.dataset.diagramsReady = "true";
+    });
+  </script>
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5a6570;
+      --line: #d5dde5;
+      --accent: #2c5f7c;
+      --accent-soft: #e8f1f8;
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --warn: #8a5a00;
+      --ok: #1f6b4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .page { max-width: 900px; margin: 0 auto; padding: 40px 32px 80px; }
+    header.hero {
+      background: linear-gradient(135deg, #1a2332 0%, #2c5f7c 100%);
+      color: #fff;
+      padding: 34px 40px;
+      border-radius: 12px;
+      margin-bottom: 32px;
+    }
+    header.hero h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin: 42px 0 14px;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-soft);
+      padding-bottom: 8px;
+    }
+    h3 { font-size: 1.04rem; margin: 26px 0 10px; color: var(--ink); }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    code {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.87em;
+      background: #eef2f6;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #1f3d52;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 16px 0;
+    }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 16px 0 24px;
+      overflow-x: auto;
+    }
+    .diagram .mermaid { display: flex; justify-content: center; }
+    .caption { color: var(--muted); font-size: 0.86rem; margin: -14px 0 26px; text-align: center; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+      background: var(--card);
+    }
+    th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+    th { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    td code { font-size: 0.86em; }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 13px 18px;
+      margin: 18px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .callout.warn { border-left-color: var(--warn); background: #fdf6e7; }
+    .callout.ok { border-left-color: var(--ok); background: #eaf6f0; }
+    ul.compact li, ol.compact li { margin-bottom: 7px; }
+    footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; padding: 0; }
+      header.hero { break-after: avoid; }
+      h2, h3 { break-after: avoid; }
+      .diagram, .card, table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>SF Data Migration Tool — Selectively Agentic Architecture</h1>
+    </header>
+
+    <section>
+      <h2>1. Division of responsibility</h2>
+      <p>
+        The tool stays a deterministic ETL pipeline: source data is extracted in full to our side, then
+        transformed and loaded into Salesforce. Agents are applied <em>selectively</em>, to the two
+        problems that deterministic rules have not solved — getting relationships between objects
+        right, and recovering from load errors. Everything else, including extraction, transformation,
+        loading and ordering, runs exactly as it does today.
+      </p>
+      <p>
+        Where they are applied, the agents act as a configuration layer: they read system state, decide
+        what the pipeline needs in order to move related data correctly, and then <em>build that
+        configuration themselves</em> — which the pipeline executes exactly as it executes hand-written
+        configuration today.
+      </p>
+      <div class="card">
+        <ol class="compact">
+          <li><strong>Only the ETL touches data.</strong> Agents read schema, dependency graphs and
+            error summaries. They never read record payloads in bulk, never write to Salesforce, and
+            never modify staged files.</li>
+          <li><strong>Humans own field-to-field mapping.</strong> Choosing that a source field belongs
+            in a particular Salesforce field remains a human decision, supported by the existing
+            auto-suggest.</li>
+          <li><strong>Agents own relationship correctness and error repair, end to end.</strong>
+            Identifier remapping, identifier maps, load ordering, missing parents, and post-load
+            failures. They do not hand a list of problems back to an engineer to wire up — they wire it
+            up, and report what they did. This is the work that is currently manual, iterative, and the
+            main source of failed runs.</li>
+          <li><strong>Escalate only what cannot be fixed safely.</strong> Anything inside the bounded
+            remedy set is resolved autonomously. A decision that genuinely needs human judgement — a
+            required parent that is out of scope, an ambiguous default — is raised as a blocker instead
+            of guessed at.</li>
+          <li><strong>Every change is validated before it is written.</strong> The agent's work is
+            checked against the live Salesforce describe and an allow-list of transform functions.
+            Anything that fails validation is discarded rather than applied, and everything applied is
+            recorded and reversible.</li>
+          <li><strong>Staged, not streaming.</strong> All selected source data lands on our side before
+            any transform runs, so repair and retry operate on local data and never re-query the
+            source system.</li>
+          <li><strong>Degrades to today's behaviour.</strong> If Bedrock is unavailable the agent path
+            is skipped and the pipeline runs unchanged. No model call sits on a data-integrity
+            critical path.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Where the agents attach</h2>
+      <p>
+        A migration runs as the numbered sequence below, start to finish, split into the two halves it
+        naturally has: the design-time half on the left, where the migration is configured and nothing
+        has moved yet, and the run itself on the right. Every step already exists today except the
+        three highlighted ones — <strong>step 2, step 4 and step 11</strong> — which are the entire
+        scope of this work. Following the numbers is the clearest way to see how little of the pipeline
+        changes.
+      </p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TB
+  %% Dagre lays disconnected components out right-to-left in declaration order,
+  %% so the run is declared first to place design time on the left.
+  subgraph RUN["MIGRATION RUN — steps 5 to 13"]
+    direction TB
+    A5["<b>5. Extract every selected table</b><br/>all data lands on our side first"]
+    A6["<b>6. Resolve load order</b><br/>parents before children"]
+    A7["<b>7. Transform the next object group</b><br/>apply transforms, resolve identifiers"]
+    A8["<b>8. Load that group into Salesforce</b>"]
+    A9["<b>9. Record the new Salesforce identifiers</b><br/>so later groups can resolve them"]
+    D1{"10. Any failed<br/>records?"}
+    A11["<b>11. Repair Agent patches<br/>the mapping</b><br/>then retries this one object"]
+    D2{"12. More object<br/>groups?"}
+    A13["<b>13. Migration complete</b>"]
+
+    A5 --> A6 --> A7 --> A8 --> A9 --> D1
+    D1 -- "yes, and repairable" --> A11
+    A11 -- "re-transform from staged data" --> A7
+    D1 -- "no" --> D2
+    D2 -- "yes, next group" --> A7
+    D2 -- "no" --> A13
+  end
+
+  subgraph DESIGN["DESIGN TIME — steps 1 to 4, before any data moves"]
+    direction TB
+    A1["<b>1. Select objects and map fields</b><br/>Wizard Step 4 — human decision"]
+    A2["<b>2. Relationship Agent resolves the relationships</b><br/>reads source references against Salesforce lookups,<br/>builds the dependency graph and parent-first order,<br/>detects the edge cases that ordering alone cannot fix,<br/>then <b>wires the fixes itself</b> — identifier maps, lookup<br/>transforms, two-pass loads, parents pulled into scope"]
+    A3["<b>3. Human reviews what the agent changed</b><br/>a change log, not a to-do list — any item can be<br/>reverted, blockers it refused to guess at are decided here"]
+    A4["<b>4. Pre-flight check</b><br/>unresolved blockers stop the run here<br/>— otherwise launch"]
+    A1 --> A2 --> A3 --> A4
+  end
+
+  style DESIGN fill:#ffffff,stroke:#c3ced8,stroke-width:1px
+  style RUN fill:#ffffff,stroke:#c3ced8,stroke-width:1px
+  style A2 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
+  style A4 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
+  style A11 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
+  style A13 fill:#eaf6f0,stroke:#1f6b4a
+        </pre>
+      </div>
+      <p class="caption">
+        Diagram 1 — The migration procedure end to end. Highlighted steps are the new agent work.
+      </p>
+
+      <p>
+        The two halves matter because they carry different risk: everything on the left is reversible
+        at no cost, while everything on the right is touching a live Salesforce org. Note also that
+        step 7 is re-entered from two places: once per object group in the normal loop, and again after
+        a repair — which is why a repair costs one object's transform rather than a restart.
+      </p>
+
+      <h3>Inside step 2 — how the Relationship Agent works</h3>
+      <p>
+        Step 2 is the substance of the design-time half, so it is worth expanding. It proceeds in five
+        passes, each building on the last. The first four work out what is wrong; the fifth is the one
+        that matters operationally, because the agent fixes it rather than reporting it.
+      </p>
+      <div class="card">
+        <ol class="compact">
+          <li>
+            <strong>Read both sides of the relationship.</strong> On the source side, every field
+            carries a type, and reference fields additionally carry the table they point at — a record's
+            owner field declares that it points at the user table. On the destination side, the
+            Salesforce describe declares which fields are lookups and which objects each lookup accepts.
+            These two facts, put side by side, are what makes dependency discovery possible without
+            reading a single record.
+          </li>
+          <li>
+            <strong>Pair references into dependency edges.</strong> For each source reference field, the
+            agent asks whether the table it points at is also part of this migration, and if so which
+            Salesforce object it becomes. When the answer is yes, that is a dependency edge: the child
+            cannot be loaded correctly until the parent exists. When the answer is no, it is a missing
+            parent — the reference has nothing to resolve against, and it is recorded as a notice whose
+            severity depends on whether the destination field is required.
+          </li>
+          <li>
+            <strong>Derive the load order from the edges.</strong> The set of edges forms a graph, and
+            the graph is sorted so that every parent loads before anything that points at it. This sort
+            is deterministic and stays in code — the agent's job is to make sure the graph is
+            <em>complete and correct</em>, particularly that no parent is missing from the selection,
+            because a sort over an incomplete graph produces a confidently wrong order.
+          </li>
+          <li>
+            <strong>Find the edge cases ordering cannot express.</strong> Correct sequencing alone does
+            not make a relationship work. The child mapping must also carry a resolution step that turns
+            the source identifier into the parent's new Salesforce identifier, pointed at the right
+            identifier map — and some shapes cannot be sequenced at all: a record pointing at its own
+            object, two objects pointing at each other, a lookup that accepts several object types, a
+            parent that sits outside the migration's scope. The agent identifies each of these and
+            selects a remedy from the fixed set in section 5.3.
+          </li>
+          <li>
+            <strong>Wire the remedy into the pipeline.</strong> This is the pass that distinguishes the
+            agent from a linter. It does not return a list of things for an engineer to configure — it
+            performs the configuration, then reports what it did. Concretely, it registers the
+            identifier map that the parent mapping will populate during load and attaches the matching
+            lookup transform to the child field, so the child resolves against the parent's new
+            Salesforce identifiers. It pulls a missing parent into the run when the reference cannot
+            work without it. It splits a self-reference or a mutual reference into an insert pass and a
+            follow-up pass that fills the reference once identifiers exist. It writes the resolved
+            parent-first order onto the mappings. It sets a constant or default where a reference points
+            outside scope and a safe default exists. Everything it writes is ordinary pipeline
+            configuration of a kind an engineer would otherwise hand-author, and it is validated against
+            the live Salesforce schema before being saved.
+          </li>
+        </ol>
+      </div>
+      <p>
+        What comes out of step 2 is therefore a <strong>configured migration plus a change log</strong>,
+        not a to-do list. Step 3 is human oversight of work already done: every item can be inspected
+        and reverted individually, and the only things left genuinely outstanding are the blockers the
+        agent deliberately refused to guess at — a required parent nobody selected, a default with no
+        safe answer. Section 5 covers what it can detect and why that set is deliberately not fixed.
+      </p>
+
+      <h3>The three new steps in detail</h3>
+      <table>
+        <thead>
+          <tr><th>Step</th><th>When it runs</th><th>Where it lives</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>2 — Resolve</strong></td>
+            <td>On request in wizard Step 4, after the user has made an initial pass at mapping</td>
+            <td>A new mapping-agent service and endpoint, alongside the existing mappings and compatibility APIs</td>
+            <td>Registers identifier maps, attaches lookup transforms, pulls in missing parents, sets two-pass handling where needed, and writes the parent-first order — then returns a change log plus any blockers it refused to guess at.</td>
+          </tr>
+          <tr>
+            <td><strong>4 — Gate</strong></td>
+            <td>At launch, before extraction begins</td>
+            <td>Migration manager, immediately before load-order resolution</td>
+            <td>Makes no changes. Re-validates the configuration as it now stands and refuses to start on unresolved blockers, reusing the compatibility engine's existing checks.</td>
+          </tr>
+          <tr>
+            <td><strong>11 — Repair</strong></td>
+            <td>Only when an object reports failed records at step 10</td>
+            <td>Migration manager, inside the per-group loop after the load call returns</td>
+            <td>Field-level patches to transform functions and their parameters, followed by a re-transform and re-load of that single object from staged data.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Why these three positions and no others.</strong> Step 2 is where a mistake costs
+        nothing to fix, because no data has moved. Step 4 is the last moment at which we can still
+        refuse to start. Step 11 is the only point where Salesforce has told us something we could not
+        have known in advance. Anywhere else would place the model between the data and the
+        destination, which the first design rule forbids.
+      </div>
+    </section>
+
+    <section>
+      <h2>3. How the agent is connected</h2>
+
+      <h3>3.1 Runtime</h3>
+      <p>
+        Each agent is a bounded tool-use loop against the Bedrock Converse API. The model is given a
+        role, a task, and a set of tools; it calls tools to gather facts, then terminates by calling a
+        single submission tool that carries its conclusion. There is no framework in between — the loop
+        is small, and keeping it small is what lets us validate between every turn.
+      </p>
+      <p>
+        Deployment is a thin service module in the existing FastAPI application. Credentials are
+        resolved server-side and held outside the model's reach: they are captured by the tool
+        executors, never declared in a tool's input schema, so the model can neither see them nor
+        supply them.
+      </p>
+
+      <h3>3.2 Tools are adapters over logic we already have</h3>
+      <p>
+        This is the reason the agentic layer is a small build rather than a rewrite. The analysis
+        capability already exists in the compatibility engine and is already tested in production
+        runs. The agent does not reimplement any of it — it decides what to inspect and what to
+        conclude.
+      </p>
+
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Existing capability behind it</th><th>What it gives the agent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>List source fields</td><td>Source provider field discovery</td><td>Field names, data types, and which table each reference field points at</td></tr>
+          <tr><td>List destination fields</td><td>Salesforce describe wrapper</td><td>Type, length, required, createable, lookup targets, picklist values</td></tr>
+          <tr><td>Suggest mapping</td><td>Deterministic auto-suggest</td><td>A name-and-type draft to reason from rather than starting blank</td></tr>
+          <tr><td>Check type</td><td>Type coercion engine</td><td>Whether a pair is compatible, and which transform closes the gap</td></tr>
+          <tr><td>Resolve order</td><td>Dependency resolver</td><td>Topological order, edges, cycles, and missing parents</td></tr>
+          <tr><td>Check compatibility</td><td>Compatibility report</td><td>Current blockers: unset required fields, raw reference copies, picklist gaps</td></tr>
+          <tr><td>Submit resolution</td><td>—</td><td>The single, schema-constrained channel through which the agent's decisions leave the loop and enter validation</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>One prerequisite refactor.</strong> The dependency resolver and the compatibility
+        report currently load mapping configurations from the database. The agent reasons over drafts
+        before it commits anything, so both need to accept in-memory configurations. Without this,
+        working out what to change would require writing speculative state first — which also breaks
+        preview mode, where nothing may be written at all.
+      </div>
+
+      <h3>3.3 Guardrails</h3>
+      <p class="muted">
+        Because the agent applies its own conclusions rather than handing them to a person, the
+        guardrails carry more weight than they would in an advisory design. They are what make autonomy
+        safe: the agent can decide freely, but only within a space where every possible decision is
+        already known to be executable.
+      </p>
+      <ul class="compact">
+        <li><strong>Fixed transform allow-list.</strong> The agent may only configure generic transform
+          functions already registered in the pipeline. Any other function name is rejected — it cannot
+          introduce new executable behaviour, only new configuration of behaviour that already exists
+          and is already tested.</li>
+        <li><strong>Schema verification before write.</strong> Every destination field it touches is
+          re-checked against a fresh Salesforce describe. Unknown or non-createable fields are dropped
+          rather than written.</li>
+        <li><strong>Ordering is recomputed, never trusted.</strong> Whatever sequence the agent arrives
+          at is discarded, and the deterministic resolver is re-run over the configuration it produced.
+          Its real contribution is making the graph complete — ensuring the parent is <em>in</em> the
+          selection and wired — while the machine decides the order.</li>
+        <li><strong>Bounded execution.</strong> Turn cap, token cap, wall-clock cap per session, a
+          capped number of repair attempts per object, and a global feature flag.</li>
+        <li><strong>Everything applied is reversible.</strong> Each change is recorded against the
+          session and object that produced it, so a review can revert one item without unpicking the
+          rest.</li>
+        <li><strong>Full audit.</strong> Every decision, validation verdict, and applied change is
+          recorded before it takes effect, with token usage attached.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. The two flows</h2>
+      <p class="muted">
+        Design-time resolution and run-time repair use the same loop, the same validator and the same
+        write path; only the prompt, the tools exposed, and the trigger differ. In both, the agent
+        finishes by writing configuration, not by asking someone to.
+      </p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as Wizard UI
+  participant A as API
+  participant AG as Agent loop
+  participant B as Bedrock
+  participant T as Analysis tools
+  participant M as Migration manager
+  participant SF as Salesforce
+
+  rect rgb(245,248,251)
+  note over U,T: STEP 2 - relationship resolution at design time
+  U->>A: Request the agent pass
+  A->>AG: Start agent with selection and credentials
+  loop bounded turns
+    AG->>B: Send state and available tools
+    B-->>AG: Request a tool call
+    AG->>T: Inspect fields, references, order, compatibility
+    T-->>AG: Facts
+  end
+  B-->>AG: Resolution set
+  AG->>A: Validate against describe and allow-list
+  A->>A: Write identifier maps, lookup transforms, order
+  A-->>U: Change log plus blockers needing a decision
+  U->>A: Review - revert an item or resolve a blocker
+  end
+
+  rect rgb(250,247,240)
+  note over M,SF: STEP 11 - repair at run time
+  M->>SF: Load object group
+  SF-->>M: Failed records with error messages
+  M->>AG: Send error summary and mapping config
+  AG->>B: Reason over errors and field metadata
+  B-->>AG: Submit field patches
+  AG->>M: Validated patch
+  M->>M: Save config, re-transform from staged data
+  M->>SF: Re-load the failed object only
+  SF-->>M: Result - retry once more or surface to user
+  end
+        </pre>
+      </div>
+      <p class="caption">Diagram 2 — Resolution loop at design time; repair loop at run time.</p>
+    </section>
+
+    <section>
+      <h2>5. Relationship Agent</h2>
+
+      <h3>5.1 The problem it exists to solve</h3>
+      <p>
+        When related records move into Salesforce, Salesforce assigns new identifiers. A child record
+        that pointed at a parent by its source identifier must instead point at the parent's new
+        Salesforce identifier. The pipeline already has the machinery for this — an identifier map
+        populated during load, and a lookup transform that reads it — but somebody has to notice that a
+        given field needs it, register the map under the name the transform will look for, attach the
+        transform to the right field, and ensure the parent loads first.
+      </p>
+      <p>
+        Today all of that is manual, and it is the single largest cause of failed runs: the symptom
+        appears late — a malformed-identifier error during load, thousands of records in — while the
+        cause is a configuration decision made much earlier. The agent takes over the whole chain, not
+        just the noticing. Detecting the problem and leaving the wiring to a person would keep the
+        expensive half of the work exactly where it is.
+      </p>
+
+      <h3>5.2 Why the agent generalizes rather than pattern-matching</h3>
+      <p>
+        Identifier remapping is one scenario. It is not the only one, and the important design point is
+        that <strong>we are not building a checklist of known cases</strong>. Deterministic rule
+        checking is exactly where the current implementation already stops: a rule catches the case its
+        author anticipated, and every new client dataset produces relationship shapes nobody
+        anticipated.
+      </p>
+      <p>
+        The agent is given the whole relational picture rather than a list of tests to run:
+      </p>
+      <ul class="compact">
+        <li>The full source field inventory, including which table every reference field targets.</li>
+        <li>The full Salesforce describe for each destination object — lookup targets (including
+          polymorphic targets), required flags, field lengths, and constrained value sets.</li>
+        <li>The complete set of objects selected for this migration, and what each one maps to.</li>
+        <li>The computed dependency graph, with its edges, cycles, and unresolved parents.</li>
+        <li>The naming convention that links an identifier map to the mapping that populates it.</li>
+      </ul>
+      <p>
+        From that surface, the agent reasons about <em>categories of breakage</em> — a reference that
+        will not resolve, an ordering that cannot satisfy a dependency, a value that will not survive
+        the destination's constraints — rather than matching a fixed catalogue. When it encounters a
+        relationship shape none of us anticipated, it can still describe the problem in those terms and
+        <em>fix</em> it, because the fix is assembled from a small, fixed set of moves that the pipeline
+        already knows how to execute. Novel problem, familiar remedy: that combination is what lets it
+        act on a case nobody wrote a rule for.
+      </p>
+
+      <h3>5.3 A bounded set of remedies it applies itself</h3>
+      <p>
+        This is what makes autonomous action on open-ended detection safe. Detection is unbounded;
+        action is not. Whatever the agent concludes, the fix it applies must be composed from these
+        primitives, every one of which is something the pipeline already executes today. The agent is
+        choosing and configuring moves, never inventing them.
+      </p>
+      <table>
+        <thead><tr><th>Remedy</th><th>What the agent actually writes</th></tr></thead>
+        <tbody>
+          <tr><td>Wire an identifier lookup</td><td>Registers the identifier map the parent will populate at load time and attaches the lookup transform, pointed at that map, to the child's reference field</td></tr>
+          <tr><td>Bring a parent into scope</td><td>Adds the parent mapping to the run so its identifiers exist to resolve against</td></tr>
+          <tr><td>Reorder the load</td><td>Writes the parent-first order onto the mappings, as computed by the deterministic resolver</td></tr>
+          <tr><td>Split into two passes</td><td>Configures an insert pass without the reference and a follow-up pass that fills it once identifiers exist — for self-references and cycles</td></tr>
+          <tr><td>Substitute a constant or default</td><td>Sets a fixed target for a required reference whose real target is out of scope</td></tr>
+          <tr><td>Add a value map</td><td>Builds the translation from source vocabulary to the destination's allowed values, read from the describe</td></tr>
+          <tr><td>Coerce a type</td><td>Configures the transform that reformats or bounds the value so the destination accepts it</td></tr>
+          <tr><td>Raise a blocker</td><td>Writes nothing and stops the run with a named remedy — the deliberate choice when no safe automatic fix exists</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>The last row is as important as the others.</strong> An agent that always acts is not
+        trustworthy; one that knows when acting would be a guess is. Refusing to fabricate a parent
+        record or invent a default is treated as a first-class outcome, not a failure to resolve.
+      </div>
+
+      <h3>5.4 Illustrative scenarios</h3>
+      <p>
+        The following are examples of what this reasoning surface plus this remedy set covers today —
+        deliberately presented as illustrations, not as the definition of the agent's scope.
+      </p>
+      <table>
+        <thead><tr><th>Scenario</th><th>What the agent recognises</th><th>What it does about it</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Source identifier copied straight into a lookup field</td>
+            <td>Destination is a lookup; the mapping copies a raw value with no resolution step</td>
+            <td>Registers the identifier map and attaches the lookup transform to that field</td>
+          </tr>
+          <tr>
+            <td>Parent object not selected for migration</td>
+            <td>A referenced source table has no mapping in the current selection</td>
+            <td>Pulls the parent into the run and wires the lookup; falls back to a default record where one is safe, and raises a blocker where neither is</td>
+          </tr>
+          <tr>
+            <td>Multi-level chain across three or more objects</td>
+            <td>Transitive dependency edges in the graph</td>
+            <td>Wires the lookup at every level and lets the resolver order the whole chain</td>
+          </tr>
+          <tr>
+            <td>Self-referencing hierarchy, such as a record naming a parent record of the same type</td>
+            <td>A dependency edge from an object to itself</td>
+            <td>Configures a two-pass load: insert first, then fill the self-reference</td>
+          </tr>
+          <tr>
+            <td>Circular dependency between two objects</td>
+            <td>A cycle in the graph, which the resolver cannot order</td>
+            <td>Defers the least critical edge to a second pass so the rest can be ordered, and flags the choice it made</td>
+          </tr>
+          <tr>
+            <td>Polymorphic reference with several possible targets</td>
+            <td>A destination lookup that accepts more than one object type</td>
+            <td>Configures a multi-target lookup with a defined precedence order</td>
+          </tr>
+          <tr>
+            <td>Identifier map referenced by the wrong name</td>
+            <td>A configured map name that does not match the naming convention</td>
+            <td>Rewrites it to the canonical name derived from the parent mapping</td>
+          </tr>
+          <tr>
+            <td>Junction object joining two others</td>
+            <td>A source table composed almost entirely of reference fields</td>
+            <td>Wires resolution on both sides of the join and places it last in the order</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>5.5 New scenario classes need no code change</h3>
+      <p>
+        The notice channel between the agent and the interface is deliberately open. A notice carries a
+        severity, a category label, the mapping and field it concerns, a plain-language explanation,
+        and either the change that was made or the decision still required. The category label is not a
+        fixed enumeration, so a relationship problem we have never seen is handled correctly without a
+        deployment: it is resolved and logged if it falls inside the remedy set, or it stops the launch
+        and reaches the person who can decide if it does not.
+      </p>
+      <div class="callout ok">
+        <strong>Compounding benefit.</strong> Because every notice is audited with its category, the
+        categories that recur across clients become visible. Those graduate into deterministic checks in
+        the compatibility engine — cheaper, instant, and no model call required. The agent effectively
+        acts as a discovery mechanism that keeps hardening the deterministic layer beneath it.
+      </div>
+    </section>
+
+    <section>
+      <h2>6. Repair Agent</h2>
+
+      <h3>6.1 What it works from</h3>
+      <p>
+        The loader already extracts unique error messages from Salesforce's failed-record output and
+        returns them per object. The repair agent receives that error summary, the object's mapping
+        configuration, and the destination field metadata. It never sees record data — only error text
+        and schema — which keeps the same data-handling posture as the Relationship Agent.
+      </p>
+      <p>
+        Salesforce error messages are self-describing enough to reason from, and the same bounded
+        remedy set from the previous section applies. Common classes and their typical resolutions:
+      </p>
+      <table>
+        <thead><tr><th>Error class</th><th>Typical resolution</th></tr></thead>
+        <tbody>
+          <tr><td>Value in the wrong format for its type, commonly dates</td><td>Reformat with the correct input pattern</td></tr>
+          <tr><td>Value longer than the destination allows</td><td>Bound it to the described length</td></tr>
+          <tr><td>Value outside a restricted value set</td><td>Add a value map built from the destination's own allowed values</td></tr>
+          <tr><td>Malformed identifier</td><td>A missing resolution step — handed back to relationship logic rather than patched locally</td></tr>
+          <tr><td>Required field empty on some records</td><td>Supply a default, or escalate as a blocker if no safe default exists</td></tr>
+          <tr><td>Duplicate detection, permission and access failures</td><td>Not repairable by configuration; surfaced to the user without retry</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.2 Why staging makes repair practical</h3>
+      <p>
+        Because every selected record already sits on our side before any transform runs, a repair is
+        cheap: the failed object is re-transformed from local data and re-loaded on its own. The source
+        system is not re-queried, successfully loaded objects are untouched, and the identifier map
+        entries already written remain valid. Repair on a streaming pipeline would mean re-extracting
+        and reasoning about partial state; here it is a local, scoped, repeatable operation.
+      </p>
+
+      <div class="callout warn">
+        <strong>Stopping conditions.</strong> A capped number of repair attempts per object per run.
+        Abort immediately if an attempt does not reduce the failure count, if the error class is on the
+        non-repairable list, or if the same patch has already been tried. A run that exhausts repair
+        finishes in the existing completed-with-errors state with the unresolved errors attached — the
+        agent can improve an outcome but never worsen one.
+      </div>
+    </section>
+
+    <section>
+      <h2>7. State and interfaces</h2>
+
+      <h3>7.1 New state</h3>
+      <p>
+        One new table records agent activity. Every row captures the session and object it concerns,
+        the agent and phase, a digest of the inputs, the change the agent made, the validation verdict,
+        whether it was applied, the prior value it replaced, the model identifier, and token counts.
+        Because the agent writes rather than suggests, this table is doing three jobs at once: it is the
+        audit trail, the mechanism that makes any individual change reversible, and the cost ledger. It
+        also feeds the scenario-frequency analysis described in section 5.5.
+      </p>
+
+      <h3>7.2 Existing state the agents depend on</h3>
+      <ul class="compact">
+        <li><strong>Mapping configurations</strong> — the only design-time write target. The agent adds
+          transform functions, their parameters, and load priorities to the same structure the wizard
+          already saves; nothing structurally new is introduced, which is why its output needs no
+          special handling downstream.</li>
+        <li><strong>Identifier maps</strong> — populated during load, read by lookup transforms. The
+          agent registers them as part of wiring a relationship, always deriving the name from the
+          shared naming helper rather than composing one. Hand-built names are the most common
+          relationship defect in the current process, and the validator checks for exactly this before
+          anything is written.</li>
+        <li><strong>Job and batch records</strong> — repair retries reuse the same job identifiers so
+          run history stays coherent and a repaired run reads as one run.</li>
+      </ul>
+
+      <h3>7.3 Interfaces</h3>
+      <table>
+        <thead><tr><th>Interface</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>Resolve endpoint</td><td>Takes the current selection and credential references. Runs the agent, validates its conclusions, writes the resulting configuration, and returns a change log, the outstanding blockers, and token usage.</td></tr>
+          <tr><td>Preview mode on the same endpoint</td><td>Identical analysis with the write suppressed. Useful for a first run on an unfamiliar client dataset, and for testing.</td></tr>
+          <tr><td>Revert endpoint</td><td>Takes a change reference and restores the prior value from the audit record. Reversal is per item, not per run.</td></tr>
+          <tr><td>Notices endpoint</td><td>Serves current relationship notices for the pre-launch banner and the run view.</td></tr>
+        </tbody>
+      </table>
+
+      <p>Interface changes in the web application:</p>
+      <ul class="compact">
+        <li>An agent action in Step 4 alongside the existing auto-suggest.</li>
+        <li>A change-log panel rather than an approval queue: each item states what was wired, on which
+          field, and why, with a revert control. The default is that the work is done; the user is
+          auditing it, not completing it.</li>
+        <li>A separate, prominent list of blockers the agent declined to guess at — these are the only
+          items that actually need a human decision, and they should not be buried among the changes it
+          already handled.</li>
+        <li>A notice strip on each mapping card, colour-coded by severity, driven by the open-ended
+          notice categories.</li>
+        <li>A repair state on the progress view, so an in-flight repair and its rationale are visible
+          while it happens rather than only in the final error list.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Delivery sequence</h2>
+      <table>
+        <thead><tr><th>#</th><th>Stage</th><th>Complete when</th><th>Estimate</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Bedrock client and configuration</td><td>A round trip to the target model succeeds from the application environment</td><td>1–2 days</td></tr>
+          <tr><td>2</td><td>In-memory configuration refactor</td><td>Dependency resolution and compatibility checks run on draft configurations without database writes</td><td>2–3 days</td></tr>
+          <tr><td>3</td><td>Tool adapters</td><td>Each tool is independently exercisable against real source and destination credentials</td><td>2–3 days</td></tr>
+          <tr><td>4</td><td>Agent loop and validator</td><td>A deliberately malformed conclusion is rejected rather than written</td><td>3–4 days</td></tr>
+          <tr><td>5</td><td>Relationship agent in preview mode</td><td>The change log for a known multi-object set matches what an experienced engineer would wire by hand</td><td>4–6 days</td></tr>
+          <tr><td>6</td><td>Audit trail and revert</td><td>Every change is recorded with its prior value and can be reversed individually</td><td>2 days</td></tr>
+          <tr><td>7</td><td>Enable writes, plus the wizard change-log view</td><td>A run wired entirely by the agent completes without hand-editing a mapping</td><td>3–5 days</td></tr>
+          <tr><td>8</td><td>Repair agent</td><td>A seeded format failure self-heals on the first retry</td><td>3–5 days</td></tr>
+          <tr><td>9</td><td>Repair visibility in the run view</td><td>Repair state and rationale are visible live</td><td>1–2 days</td></tr>
+        </tbody>
+      </table>
+
+      <h3>What the estimates assume</h3>
+      <p>
+        End to end this is <strong>roughly four to five weeks</strong> for one engineer already
+        familiar with this codebase, working the stages in order. Two intermediate points are worth
+        planning against rather than the end date alone: the agent can be evaluated against real
+        client data at the end of stage 5, around <strong>two and a half to three weeks</strong>, and
+        it is permitted to write configuration at the end of stage 7, around <strong>three and a half
+        to four weeks</strong>. Repair lands last.
+      </p>
+      <ul class="compact">
+        <li><strong>Sequential, because each stage depends on the one before it.</strong> The
+          exception is stage 9, which is presentation only and can trail the rest or be dropped from
+          the first release without affecting behaviour.</li>
+        <li><strong>Stage 5 carries the widest range because it is the only empirical stage.</strong>
+          Everything else is ordinary engineering with a testable finish line; prompt and tool-surface
+          iteration converges when it converges. It is also the stage where the range narrows fastest
+          once work starts, so it is the right place to re-forecast from.</li>
+        <li><strong>Stages 1 to 7 carry no runtime risk and can absorb slippage.</strong> None of them
+          execute during a migration, so they can be delivered around live client work rather than
+          blocking it.</li>
+        <li><strong>Excluded: waiting for Bedrock access.</strong> Stage 1 measures the build once
+          credentials exist, not the approval that precedes it. Nothing can start without that
+          approval, which makes it the critical path ahead of any of these numbers.</li>
+        <li><strong>Excluded: review cycles that depend on other people.</strong> Stage 5 is judged by
+          comparing the agent's change log against hand-wiring on a real dataset, so it assumes an
+          experienced engineer is available to do that comparison.</li>
+      </ul>
+
+      <div class="callout ok">
+        <strong>Autonomy is switched on at stage 7, not stage 5.</strong> The agent runs in preview for
+        two stages first, which means we can compare its change log against hand-wiring on real client
+        data before it is permitted to write anything, and the revert path exists before the first write
+        does. Stages 1 to 7 also carry no runtime risk: none of them execute during a migration. Repair
+        is the only component that runs inside a live migration, it arrives last, and it sits behind
+        both a feature flag and its own attempt cap.
+      </div>
+    </section>
+
+    <section>
+      <h2>9. Operational posture</h2>
+      <table>
+        <thead><tr><th>Concern</th><th>Handling</th></tr></thead>
+        <tbody>
+          <tr><td>Bedrock unavailable or throttled</td><td>Adaptive retry, then fall through to the deterministic path; the run proceeds as it does today</td></tr>
+          <tr><td>What the model receives</td><td>Schema and error text only — field names, types, allowed values, and Salesforce error messages. No record payloads, no credentials, no attachments</td></tr>
+          <tr><td>Credential handling</td><td>Resolved server-side by reference; never declared in a tool schema, never placed in a prompt</td></tr>
+          <tr><td>Cost</td><td>A resolution pass is a modest number of tokens against a schema, not against data; a repair is smaller still. Both are capped and logged per call, so spend is measurable per migration from day one</td></tr>
+          <tr><td>Latency</td><td>Resolution is user-initiated at design time and takes tens of seconds. Repair adds one model call and a scoped re-transform to a run that had already failed</td></tr>
+          <tr><td>Non-determinism</td><td>Deterministic decoding settings, and every conclusion validated against live schema before it is written. Two runs may reach the same outcome by different routes; neither can write an invalid configuration</td></tr>
+          <tr><td>Wrong-but-valid changes</td><td>The residual risk of autonomy: a change that passes validation but is not what the client wanted. Contained by the change log, per-item revert, and the pre-flight gate at step 4 — not by asking a human to approve every item, which is the review nobody performs carefully</td></tr>
+          <tr><td>Auditability</td><td>Every decision, verdict and applied change is attributable to a session, an object, and a model version, with the value it replaced</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      Staged pipeline: extract all selected data to our side, then transform, load, and record
+      identifier mappings. Agents resolve relationships and write the configuration themselves; the
+      deterministic pipeline executes it.
+    </footer>
+  </div>
+</body>
+</html>

@@ -200,6 +200,16 @@ def create_custom_field(body: CreateCustomFieldRequest):
         raise HTTPException(status_code=502, detail=f"Failed to reach Salesforce: {e}")
 
     if resp.status_code in (200, 201):
+        # The object's describe is now out of date, and a stale one would hide
+        # the field that was just created for the rest of the cache lifetime.
+        from services.internal import schema_cache
+
+        schema_cache.invalidate(
+            schema_cache.SCOPE_DESTINATION,
+            "salesforce",
+            body.destination_credentials,
+            body.salesforce_object,
+        )
         return CreateCustomFieldResponse(
             success=True,
             message=f"Custom field '{body.field_label}' ({body.field_api_name}) created successfully on {body.salesforce_object}.",

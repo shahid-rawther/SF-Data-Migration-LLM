@@ -49,6 +49,13 @@ class AutoSuggestRequest(BaseModel):
     other_mappings: list[dict] = []
 
 
+class SemanticSuggestRequest(AutoSuggestRequest):
+    # The draft already on screen. Fields it uses are excluded from the run, so
+    # the model only sees what name matching could not pair.
+    existing_fields: list[dict] = []
+    operation: str = "insert"
+
+
 class ValidateRequest(BaseModel):
     destination_credentials: dict = {}
     destination_connection_id: str | None = None
@@ -78,6 +85,35 @@ def auto_suggest(body: AutoSuggestRequest):
         other_mappings=body.other_mappings,
     )
     return draft
+
+
+@router.post("/semantic-suggest")
+def semantic_suggest(body: SemanticSuggestRequest):
+    """Ask the model for field pairs whose names differ but whose meaning matches.
+
+    Returns proposals only; the wizard decides what to keep.
+    """
+    from agents.config import load_settings
+    from agents.field_matcher import suggest
+
+    settings = load_settings()
+    if not settings.field_match_enabled:
+        raise HTTPException(400, "Model-assisted field matching is disabled (AGENT_FIELD_MATCH)")
+
+    src_creds = _resolve_credentials(body.source_credentials, body.source_connection_id)
+    dest_creds = _resolve_credentials(body.destination_credentials, body.destination_connection_id)
+    report = suggest(
+        source_type=body.source_type,
+        source_table=body.source_table,
+        destination_object=body.salesforce_object,
+        source_credentials=src_creds,
+        destination_credentials=dest_creds,
+        existing_fields=body.existing_fields,
+        other_mappings=body.other_mappings,
+        operation=body.operation,
+        settings=settings,
+    )
+    return report.to_dict()
 
 
 @router.post("/import-from-json")

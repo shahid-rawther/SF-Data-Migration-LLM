@@ -8,6 +8,23 @@ Usage:
 """
 import argparse
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+# Watching the whole project makes the reloader thrash, because OneDrive sync
+# touches .venv and the runtime writes under data/ and logs/.
+RELOAD_DIRS = [
+    "agents",
+    "api",
+    "common",
+    "config",
+    "controllers",
+    "helpers",
+    "integrations",
+    "services",
+    "tools",
+]
 
 
 def main():
@@ -20,11 +37,14 @@ def main():
 
     import uvicorn
 
+    reload_dirs = [str(ROOT / d) for d in RELOAD_DIRS if (ROOT / d).is_dir()]
+
     uvicorn.run(
         "api.main:app",
         host=args.host,
         port=args.port,
         reload=args.dev,
+        reload_dirs=reload_dirs if args.dev else None,
         workers=1 if args.dev else args.workers,
         log_level="info",
     )

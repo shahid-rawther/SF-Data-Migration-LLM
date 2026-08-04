@@ -12,10 +12,12 @@ build/
 venv/
 *.log
 logs/
+
 # Data (large runtime files - keep schema and sample)
 data/downloads/
 data/transformations/
 data/results/
+data/staging/
 data/database/db/*.db
 data/database/db/*.db-shm
 data/database/db/*.db-wal
@@ -23,6 +25,14 @@ data/database/db/*.db-wal
 # Node
 web/node_modules/
 web/dist/
+
+# Debug / utility scripts (not part of the application)
+_check_state.py
+_check_db_mapping.py
+_verify_agents.py
+_probe_*.py
+_inspect_*.py
+_reset_*.py
 
 # OS
 .DS_Store

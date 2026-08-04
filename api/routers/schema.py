@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from api import sources as source_registry
 from api import connections_db
 from api.compat_engine import get_destination_fields, get_destination_records
+from services.internal import prerequisites_service, schema_cache
 
 router = APIRouter(prefix="/schema", tags=["schema"])
 
@@ -40,6 +41,24 @@ class SourceFieldsRequest(BaseModel):
     # Provide either an existing mapping object_name OR a raw source table name.
     object_name: str | None = None
     table: str | None = None
+    # Bypass the cached describe and re-read the table from the source.
+    refresh: bool = False
+
+
+class PrerequisitesRequest(BaseModel):
+    # The Salesforce object being migrated into.
+    object_name: str
+    credentials: dict = {}
+    connection_id: str | None = None
+    # Narrows the mappings consulted to one source pack; blank means all.
+    source_type: str | None = None
+    # Salesforce objects already covered by the run, so the answer can say
+    # which prerequisites are handled and which are still outstanding.
+    selected_objects: list[str] = []
+    # The mapping being edited; the fields it populates override anything stored.
+    draft_config: dict | None = None
+    max_depth: int = 3
+    max_nodes: int = 25
 
 
 class SourceValuesRequest(BaseModel):
@@ -93,7 +112,9 @@ def source_fields(body: SourceFieldsRequest):
         raise HTTPException(status_code=400, detail="Provide either 'object_name' or 'table'")
     creds = _resolve_credentials(body.credentials, body.connection_id)
     if body.table:
-        fields = provider.get_table_fields(body.table, creds)
+        fields = schema_cache.get_source_table_fields(
+            body.source_type, body.table, creds, refresh=body.refresh
+        )
     else:
         fields = provider.get_source_fields(body.object_name, creds)
     return {
@@ -110,6 +131,23 @@ def source_fields(body: SourceFieldsRequest):
             for f in fields
         ],
     }
+
+
+@router.post("/prerequisites")
+def prerequisites(body: PrerequisitesRequest):
+    """Return the Salesforce objects to load before this one, in order."""
+    if not body.object_name:
+        raise HTTPException(status_code=400, detail="Provide 'object_name'")
+    creds = _resolve_credentials(body.credentials, body.connection_id)
+    return prerequisites_service.build_prerequisites(
+        body.object_name,
+        creds,
+        source_type=body.source_type,
+        selected_objects=body.selected_objects,
+        draft_config=body.draft_config,
+        max_depth=body.max_depth,
+        max_nodes=body.max_nodes,
+    )
 
 
 @router.post("/source-values")

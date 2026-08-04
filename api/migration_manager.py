@@ -243,6 +243,265 @@ class MigrationManager:
         updated = ProgressEvent(**{**state.progress.__dict__, "status": status})
         self._emit(session_id, updated)
 
+    def _prepare_relationships(
+        self,
+        session_id: str,
+        options: dict,
+        source_type: str,
+        selected_objects: list[str],
+        source_credentials: dict,
+        destination_credentials: dict,
+    ) -> dict:
+        """Resolve outstanding relationships, then gate the launch.
+
+        The agent pass is optional and best-effort: if the model is unreachable
+        the migration still proceeds to the gate, which is deterministic. The
+        gate itself is not optional — :class:`~agents.preflight.PreflightBlocked`
+        propagates and fails the session with the list of unresolved problems.
+        """
+        from agents import preflight
+        from agents.config import load_settings
+        from agents.context import MigrationContext
+
+        settings = load_settings()
+        summary: dict = {"order": [], "agent": None, "preflight": None}
+
+        # One context for both passes: the describes it caches are the expensive
+        # part, and after the agent applies its changes it holds the same configs
+        # the gate needs to check.
+        context = MigrationContext.load(
+            source_type=source_type,
+            mapping_names=selected_objects,
+            source_credentials=source_credentials,
+            destination_credentials=destination_credentials,
+        )
+
+        autowire = options.get("agent_autowire")
+        if autowire is None:
+            autowire = settings.autowire_enabled
+
+        if autowire and settings.has_credentials:
+            self._emit(
+                session_id,
+                ProgressEvent(
+                    session_id=session_id,
+                    phase="preparation",
+                    object_name="",
+                    batch_current=0,
+                    batch_total=len(selected_objects),
+                    records_fetched=0,
+                    records_processed=0,
+                    records_failed=0,
+                    overall_percent=0.0,
+                    status="running",
+                    message="Resolving relationships across the selected objects",
+                ),
+            )
+            try:
+                from agents import relationship_agent
+
+                report = relationship_agent.analyze(
+                    source_type=source_type,
+                    mapping_names=selected_objects,
+                    source_credentials=source_credentials,
+                    destination_credentials=destination_credentials,
+                    session_id=session_id,
+                    settings=settings,
+                    context=context,
+                )
+                summary["agent"] = report.to_dict()
+                logger.info(
+                    "Relationship agent run %s — %d change(s), %d blocker(s) left%s",
+                    report.run_id,
+                    len(report.changes),
+                    len(report.remaining_blockers),
+                    f", error: {report.error}" if report.error else "",
+                )
+            except Exception as exc:  # noqa: BLE001 — the gate below is the real check
+                logger.warning(
+                    "Relationship agent pass failed (non-blocking) — continuing to "
+                    "the launch gate: %s",
+                    exc,
+                )
+
+        gate = preflight.enforce(
+            source_type=source_type,
+            mapping_names=selected_objects,
+            source_credentials=source_credentials,
+            destination_credentials=destination_credentials,
+            settings=settings,
+            context=context,
+        )
+        summary["preflight"] = gate.to_dict()
+        if not gate.has_cycle:
+            summary["order"] = gate.order
+        return summary
+
+    def _repair_failed_objects(
+        self,
+        session_id: str,
+        options: dict,
+        source_type: str,
+        group: list[str],
+        all_objects: list[str],
+        source_credentials: dict,
+        destination_credentials: dict,
+        destination_plugin,
+        load_result: dict,
+    ) -> dict:
+        """Diagnose each failed object, patch its mapping, and retry it.
+
+        Retrying re-transforms from the staged extract, so the source is never
+        touched again. Rows that already succeeded carry an id mapping and are
+        skipped by the transform, which is what makes a retry cost only the rows
+        that failed.
+
+        Returns the load result with the retried objects' counts folded in.
+        """
+        from services.internal import jobs_service, workspace_service
+        from services.internal.mappings_service import (
+            cfg_destination_object,
+            get_mapping_config,
+        )
+        from tools.cache import execution_cache
+        from controllers import transformation_controller
+
+        from agents.config import load_settings
+
+        settings = load_settings()
+        enabled = options.get("agent_repair")
+        if enabled is None:
+            enabled = settings.repair_enabled
+        if not enabled or not settings.has_credentials:
+            return load_result
+
+        by_object = dict(load_result.get("by_object") or {})
+        errors_by_object = dict(load_result.get("errors_by_object") or {})
+
+        # start_loading reports per destination object (or transformation name);
+        # the agent works in mapping names, so map one to the other.
+        mapping_for_result_key: dict[str, str] = {}
+        for name in group:
+            config = get_mapping_config(name)
+            if not config:
+                continue
+            key = config.get("transformation_name") or cfg_destination_object(config)
+            if key:
+                mapping_for_result_key[key] = name
+
+        attempts_log: list[dict] = []
+
+        for result_key, counts in list(by_object.items()):
+            mapping_name = mapping_for_result_key.get(result_key)
+            if not mapping_name or counts.get("failed", 0) <= 0:
+                continue
+
+            for attempt in range(1, settings.repair_max_attempts + 1):
+                self._emit(
+                    session_id,
+                    ProgressEvent(
+                        session_id=session_id,
+                        phase="repair",
+                        object_name=mapping_name,
+                        batch_current=attempt,
+                        batch_total=settings.repair_max_attempts,
+                        records_fetched=0,
+                        records_processed=counts.get("processed", 0),
+                        records_failed=counts.get("failed", 0),
+                        overall_percent=0.0,
+                        status="running",
+                        message=(
+                            f"Diagnosing {counts.get('failed', 0):,} rejected "
+                            f"{mapping_name} row(s) (attempt {attempt})"
+                        ),
+                        records_by_object=by_object,
+                        load_errors=errors_by_object,
+                    ),
+                )
+                try:
+                    from agents import repair_agent
+
+                    report = repair_agent.repair(
+                        source_type=source_type,
+                        mapping_name=mapping_name,
+                        error_messages=errors_by_object.get(result_key, []),
+                        source_credentials=source_credentials,
+                        destination_credentials=destination_credentials,
+                        session_id=session_id,
+                        related_mappings=all_objects,
+                        settings=settings,
+                    )
+                except Exception as exc:  # noqa: BLE001 — a failed repair is not a failed migration
+                    logger.warning(
+                        "Repair agent failed for %s (non-blocking): %s", mapping_name, exc
+                    )
+                    break
+
+                attempts_log.append(
+                    {"mapping": mapping_name, "attempt": attempt, **report.to_dict()}
+                )
+                logger.info(
+                    "Repair attempt %d for %s — %d change(s), retry=%s: %s",
+                    attempt,
+                    mapping_name,
+                    len(report.changes),
+                    report.should_retry,
+                    report.summary or report.error,
+                )
+                if not report.should_retry:
+                    break
+
+                try:
+                    workspace_service.clean_transformed_state([mapping_name])
+                    execution_cache.clear()
+                    transformation_controller.start_trasformation(
+                        jobs_service.create_new_job("transformation"), [mapping_name]
+                    )
+                    retry_result = destination_plugin.start_loading(
+                        jobs_service.create_new_job("loading"), [mapping_name]
+                    )
+                except Exception as exc:  # noqa: BLE001 — keep the original failure visible
+                    logger.warning(
+                        "Retry of %s after repair failed (non-blocking): %s",
+                        mapping_name,
+                        exc,
+                    )
+                    break
+
+                retry_counts = (retry_result.get("by_object") or {}).get(result_key, {})
+                counts = {
+                    "processed": counts.get("processed", 0)
+                    + retry_counts.get("processed", 0),
+                    "failed": retry_counts.get("failed", 0),
+                }
+                by_object[result_key] = counts
+                retry_errors = (retry_result.get("errors_by_object") or {}).get(
+                    result_key, []
+                )
+                if retry_errors:
+                    errors_by_object[result_key] = retry_errors
+                else:
+                    errors_by_object.pop(result_key, None)
+                execution_cache.clear()
+
+                logger.info(
+                    "Retry of %s after repair — %d processed, %d still failing",
+                    mapping_name,
+                    counts["processed"],
+                    counts["failed"],
+                )
+                if counts["failed"] == 0:
+                    break
+
+        return {
+            **load_result,
+            "records_processed": sum(c.get("processed", 0) for c in by_object.values()),
+            "records_failed": sum(c.get("failed", 0) for c in by_object.values()),
+            "by_object": by_object,
+            "errors_by_object": errors_by_object,
+            "repair_attempts": attempts_log,
+        }
+
     def _count_extracted_records(self, object_names: list[str], source_type: str) -> int:
         """Count records in already-extracted CSV files for a retry run."""
         import csv
@@ -355,8 +614,23 @@ class MigrationManager:
                     "ProductId/Item__c may be blank: %s", _sync_err,
                 )
 
+        # ── Agent layer: resolve relationships, then gate the launch ────────────
+        # Runs before extraction so the mapping configs the rest of this method
+        # obeys are the resolved ones, and so a run that cannot succeed is
+        # stopped before it spends hours pulling data.
+        agent_preparation = self._prepare_relationships(
+            session_id=session_id,
+            options=options,
+            source_type=source_type,
+            selected_objects=selected_objects,
+            source_credentials=source_credentials,
+            destination_credentials=destination_credentials,
+        )
+
         ordered = _build_schema_ordered_groups(
-            selected_objects, destination_credentials,
+            selected_objects,
+            destination_credentials,
+            precomputed_order=agent_preparation.get("order") or None,
         )
         logger.info(
             "Execution order resolved — %d group(s): %s",
@@ -376,13 +650,19 @@ class MigrationManager:
         skip_extraction = config.get("skip_extraction", False)
         flat = [name for group in ordered for name in group]
 
-        # Always-fresh wizard runs: clear any stale on-disk working state for the
-        # selected objects so a new run never picks up extracted/transformed
-        # files from a previous run.
-        from services.internal import workspace_service
-        workspace_service.clean_working_state(flat, source_type=source_type)
+        # Clear stale on-disk working state so a new run never picks up files from
+        # a previous one. When extraction is being skipped the staged extract is
+        # the whole point of the retry, so only the derived output is cleared.
+        from services.internal import staging_service, workspace_service
+        if skip_extraction:
+            workspace_service.clean_transformed_state(flat)
+        else:
+            workspace_service.clean_working_state(flat, source_type=source_type)
 
-        # ── Phase 1: Extraction ──────────────────────────────────────
+        # ── Phase 1: Extraction into the local stage ─────────────────
+        # Every selected object is pulled and written to disk here. Transform and
+        # load below read only from that staged copy — never from the source — so
+        # a retry or a repair never re-queries the source system.
         session_db.update_session_status(session_id, "running", "extraction")
 
         for idx, name in enumerate(flat):
@@ -405,28 +685,41 @@ class MigrationManager:
                 ),
             )
 
-        extract_start_date = options.get("start_date", "") or None
-        extract_end_date = options.get("end_date", "") or None
-        total_fetched = extraction_controller.start_extraction(
-            extraction_job_number,
-            flat,
-            source_plugin=source_plugin,
-            start_date=extract_start_date,
-            end_date=extract_end_date,
-        )
-
-        from services.internal.mappings_service import get_mapping_config
-        attachment_names = set()
-        for n in flat:
-            mcfg = get_mapping_config(n)
-            if mcfg and mcfg.get("is_attachment_table"):
-                attachment_names.add(n)
-        selected_attachment_names = [n for n in flat if n in attachment_names]
-        if selected_attachment_names:
-            logger.info("Extracting attachment files for: %s", selected_attachment_names)
-            extraction_controller.start_attachment_file_extraction(
-                extraction_job_number, selected_attachment_names, source_plugin=source_plugin
+        if skip_extraction:
+            total_fetched = self._count_extracted_records(flat, source_type)
+            logger.info(
+                "Skipping extraction — reusing the staged extract (%d record(s))",
+                total_fetched,
             )
+        else:
+            extract_start_date = options.get("start_date", "") or None
+            extract_end_date = options.get("end_date", "") or None
+            total_fetched = extraction_controller.start_extraction(
+                extraction_job_number,
+                flat,
+                source_plugin=source_plugin,
+                start_date=extract_start_date,
+                end_date=extract_end_date,
+            )
+
+            from services.internal.mappings_service import get_mapping_config
+            attachment_names = set()
+            for n in flat:
+                mcfg = get_mapping_config(n)
+                if mcfg and mcfg.get("is_attachment_table"):
+                    attachment_names.add(n)
+            selected_attachment_names = [n for n in flat if n in attachment_names]
+            if selected_attachment_names:
+                logger.info("Extracting attachment files for: %s", selected_attachment_names)
+                extraction_controller.start_attachment_file_extraction(
+                    extraction_job_number, selected_attachment_names, source_plugin=source_plugin
+                )
+
+        # The staging boundary: refuse to transform what was never staged.
+        manifest = staging_service.verify(flat, source_type=source_type)
+        staging_service.write_manifest(manifest, extraction_job_number)
+        if not total_fetched:
+            total_fetched = manifest.total_rows
 
         self._emit(
             session_id,
@@ -441,7 +734,10 @@ class MigrationManager:
                 records_failed=total_failed,
                 overall_percent=round(100 / 3, 1),
                 status="running",
-                message=f"Extraction complete — {total_fetched:,} records fetched",
+                message=(
+                    f"Staged {manifest.total_rows:,} record(s) across "
+                    f"{len(manifest.tables)} table(s)"
+                ),
             ),
         )
 
@@ -530,6 +826,20 @@ class MigrationManager:
                 group,
                 what=f"loading of {', '.join(group)}",
             )
+
+            if load_result.get("records_failed", 0) > 0:
+                load_result = self._repair_failed_objects(
+                    session_id=session_id,
+                    options=options,
+                    source_type=source_type,
+                    group=group,
+                    all_objects=flat,
+                    source_credentials=source_credentials,
+                    destination_credentials=destination_credentials,
+                    destination_plugin=destination_plugin,
+                    load_result=load_result,
+                )
+
             total_processed += load_result.get("records_processed", 0)
             total_failed += load_result.get("records_failed", 0)
             for obj_name, counts in load_result.get("by_object", {}).items():
@@ -599,6 +909,7 @@ class MigrationManager:
 def _build_schema_ordered_groups(
     selected_objects: list[str],
     destination_credentials: dict,
+    precomputed_order: list[str] | None = None,
 ) -> list[list[str]]:
     """Determine execution order from live Salesforce reference-field metadata.
 
@@ -606,7 +917,15 @@ def _build_schema_ordered_groups(
     mappings based on their destination object relationships.  Falls back
     to the wizard card order (``selected_objects``) when the schema
     resolution fails, detects a cycle, or returns an empty result.
+
+    ``precomputed_order`` is the order the launch gate already derived from the
+    same sort; passing it through avoids describing every destination object
+    twice for one run.
     """
+    if precomputed_order:
+        logger.info("Using load order from the launch gate: %s", precomputed_order)
+        return [[name] for name in precomputed_order]
+
     try:
         from api.compat_engine import resolve_dependency_order
 

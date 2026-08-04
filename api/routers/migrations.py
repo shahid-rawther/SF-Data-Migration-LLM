@@ -22,6 +22,10 @@ class MigrationOptions(BaseModel):
     service_now_batch_size: int = 5000
     salesforce_batch_size: int = 1000
     disable_load: bool = False
+    # Left unset, the agent settings decide. Set explicitly to run this migration
+    # with or without the agent passes regardless of the deployment default.
+    agent_autowire: bool | None = None
+    agent_repair: bool | None = None
 
 class CreateMigrationRequest(BaseModel):
     source_type: str = "servicenow"

@@ -230,6 +230,60 @@ export interface SourceFieldInfo {
   reference_table?: string;
 }
 
+export interface PrerequisiteNode {
+  object: string;
+  depth: number;
+  status: 'selected' | 'mapping_exists' | 'needs_mapping';
+  selected: boolean;
+  is_target: boolean;
+  mapping_names: string[];
+  source_tables: string[];
+  self_reference_fields: string[];
+  schema_unavailable: boolean;
+  needed_by: { object: string; field: string; mapped: boolean; required: boolean }[];
+  needed_by_count: number;
+  required_by_someone: boolean;
+}
+
+export interface PrerequisiteEdge {
+  from_object: string;
+  to_object: string;
+  field: string;
+  mapped: boolean;
+  required: boolean;
+  polymorphic: boolean;
+}
+
+/** A lookup field with no migratable object on the other end. */
+export interface PrerequisiteGap {
+  object: string;
+  field: string;
+  candidates: string[];
+  candidate_count: number;
+  polymorphic: boolean;
+}
+
+export interface PrerequisiteReport {
+  object: string;
+  /** Parent-first load order, containing the object that was asked about. */
+  order: string[];
+  nodes: PrerequisiteNode[];
+  edges: PrerequisiteEdge[];
+  /** Prerequisites not yet covered by the run. */
+  missing_objects: string[];
+  ready: boolean;
+  /** Groups of objects that reference each other, so no strict order exists. */
+  cycles: string[][];
+  /** Salesforce requires these lookups but nothing migrates their target. */
+  required_gaps: PrerequisiteGap[];
+  /** Lookups the mapping populates but whose target nothing migrates. */
+  unresolved_references: PrerequisiteGap[];
+  other_references: PrerequisiteGap[];
+  truncated: boolean;
+  truncation_reason: string;
+  max_depth: number;
+}
+
 export interface SourceChoiceValue {
   value: string;
   label: string;
@@ -262,6 +316,21 @@ export interface MappingFieldDef {
   confidence?: number;
   match_reason?: string;
   type_warning?: string;
+}
+
+/** Result of a model-assisted field-matching run. Proposals only — the wizard
+ *  decides what to keep. */
+export interface SemanticSuggestReport {
+  source_table: string;
+  destination_object: string;
+  matches: MappingFieldDef[];
+  rejected: { match: Record<string, unknown>; reason: string }[];
+  summary: string;
+  considered_source_fields: number;
+  considered_destination_fields: number;
+  truncated: boolean;
+  usage: { calls?: number; total_tokens?: number };
+  error: string;
 }
 
 export interface TypeCheckRequest {
@@ -449,6 +518,21 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ source_type, credentials, ...opts }),
       }),
+    prerequisites: (
+      object_name: string,
+      credentials: Record<string, string>,
+      opts: {
+        source_type?: string;
+        selected_objects?: string[];
+        draft_config?: unknown;
+        max_depth?: number;
+        max_nodes?: number;
+      } = {},
+    ): Promise<PrerequisiteReport> =>
+      request('/schema/prerequisites', {
+        method: 'POST',
+        body: JSON.stringify({ object_name, credentials, ...opts }),
+      }),
     sourceValues: (
       source_type: string,
       credentials: Record<string, string>,
@@ -511,6 +595,17 @@ export const api = {
       other_mappings?: { source_table: string; sf_object: string; mapping_name: string }[];
     }): Promise<MappingConfig> =>
       request('/mappings/auto-suggest', { method: 'POST', body: JSON.stringify(body) }),
+    semanticSuggest: (body: {
+      source_type: string;
+      source_table: string;
+      salesforce_object: string;
+      source_credentials: Record<string, string>;
+      destination_credentials: Record<string, string>;
+      existing_fields?: MappingFieldDef[];
+      other_mappings?: { source_table: string; sf_object: string; mapping_name: string }[];
+      operation?: string;
+    }): Promise<SemanticSuggestReport> =>
+      request('/mappings/semantic-suggest', { method: 'POST', body: JSON.stringify(body) }),
     validate: (
       name: string,
       destination_credentials: Record<string, string>,

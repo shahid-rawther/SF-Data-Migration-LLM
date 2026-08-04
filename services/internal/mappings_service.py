@@ -111,6 +111,74 @@ def list_mapping_configs(source_type: str | None = None) -> list[dict]:
     return result
 
 
+def summarise_mappings(source_type: str | None = None) -> list[dict]:
+    """Return a light summary of every mapping: what it reads and what it writes.
+
+    Each entry carries ``destination_object``, ``source_tables`` and the
+    destination fields the mapping actually populates. Callers use the empty
+    destination object to tell a real migration target from an extract-only
+    config, which reads a hundred tables and writes to nothing.
+    """
+    try:
+        if source_type:
+            rows = db_client.fetch_all(
+                "SELECT name, config FROM mapping_configs WHERE source_type = ? ORDER BY priority, name",
+                (source_type,),
+            )
+        else:
+            rows = db_client.fetch_all(
+                "SELECT name, config FROM mapping_configs ORDER BY priority, name"
+            )
+    except Exception:
+        rows = []
+
+    summaries: list[dict] = []
+    for name, raw_config in rows:
+        try:
+            config = json.loads(raw_config or "{}")
+        except Exception:
+            continue
+        summaries.append(
+            {
+                "name": name,
+                "destination_object": cfg_destination_object(config),
+                "source_tables": [t for t in cfg_source_tables(config) if t],
+                "mapped_destination_fields": mapped_destination_fields(config),
+            }
+        )
+    return summaries
+
+
+def index_by_destination_object(source_type: str | None = None) -> dict[str, list[dict]]:
+    """Return Salesforce object -> the mappings that populate it.
+
+    Answers "will anything migrate this object?", which is what turns a bare
+    prerequisite into an actionable one: an object with a mapping can simply be
+    added to the run, an object without one has to be built first.
+    """
+    index: dict[str, list[dict]] = {}
+    for entry in summarise_mappings(source_type):
+        destination = entry["destination_object"]
+        if destination:
+            index.setdefault(destination, []).append(entry)
+    return index
+
+
+def mapped_destination_fields(config: dict) -> set[str]:
+    """Return the destination fields a config actually populates."""
+    populated: set[str] = set()
+    for entry in config.get("fields", []) or []:
+        destination = entry.get("destination_field", "")
+        has_value = (
+            bool(entry.get("source_field"))
+            or entry.get("constant_value") is not None
+            or bool(entry.get("use_constant"))
+        )
+        if destination and has_value:
+            populated.add(destination)
+    return populated
+
+
 def save_mapping_config(
     name: str,
     config: dict,

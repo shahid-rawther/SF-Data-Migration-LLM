@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SF Data Migration Tool — Agentic Layer: Project Plan and Tool Requirements</title>
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5a6570;
+      --line: #d5dde5;
+      --accent: #2c5f7c;
+      --accent-soft: #e8f1f8;
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --warn: #8a5a00;
+      --ok: #1f6b4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .page { max-width: 900px; margin: 0 auto; padding: 40px 32px 80px; }
+    header.hero {
+      background: linear-gradient(135deg, #1a2332 0%, #2c5f7c 100%);
+      color: #fff;
+      padding: 34px 40px;
+      border-radius: 12px;
+      margin-bottom: 32px;
+    }
+    header.hero h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin: 42px 0 14px;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-soft);
+      padding-bottom: 8px;
+    }
+    h3 { font-size: 1.04rem; margin: 26px 0 10px; color: var(--ink); }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    code {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.87em;
+      background: #eef2f6;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #1f3d52;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+      background: var(--card);
+    }
+    th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+    th { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    td code { font-size: 0.86em; }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 13px 18px;
+      margin: 18px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .callout.warn { border-left-color: var(--warn); background: #fdf6e7; }
+    ul.compact li, ol.compact li { margin-bottom: 7px; }
+    footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; padding: 0; }
+      /* Keep the hero intact, but don't bind it to the next block: the section
+         that follows leads with a page-taller table, so break-after: avoid here
+         pushes that whole section to page 2 and strands the title on page 1. */
+      header.hero { break-inside: avoid; margin-bottom: 24px; }
+      h2, h3 { break-after: avoid; break-inside: avoid; }
+      /* These tables are taller than a page, so they have to break internally.
+         Rows stay whole and header rows repeat on each page. */
+      table { break-inside: auto; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; }
+      .callout, li { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>SF Data Migration Tool — Agentic Layer: Project Plan and Tool Requirements</h1>
+    </header>
+
+    <section>
+      <h2>1. Tool requirements</h2>
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Access needed</th><th>Justification</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Amazon Bedrock</strong></td>
+            <td>Model access in <strong>us-west-2 (Oregon)</strong> for two models, both requested by their <strong>US geo inference ID</strong>:
+              <code>us.anthropic.claude-sonnet-5</code> (relationship agent) and
+              <code>us.anthropic.claude-haiku-4-5-20251001-v1:0</code> (repair agent)</td>
+            <td>Runs both agents and is the only new capability the project needs. Sonnet 5 handles the relationship reasoning and Haiku 4.5 the narrower repair task at lower cost; both model IDs are application configuration, so either can be changed without a rebuild.</td>
+          </tr>
+          <tr>
+            <td><strong>Bedrock IAM permissions</strong></td>
+            <td><code>bedrock:InvokeModel</code>, <code>bedrock:InvokeModelWithResponseStream</code>, <code>bedrock:Converse</code>, <code>bedrock:ConverseStream</code> — scoped to the two inference-profile ARNs <em>and</em> the underlying foundation-model ARNs in the US geo member regions (us-east-1, us-east-2, us-west-2)</td>
+            <td>How the application calls the models. Neither model is offered for in-region inference in Oregon, so the geo profile is required rather than optional; because it routes across the member regions, a policy naming only the profile ARN is denied at call time and both halves are needed.</td>
+          </tr>
+          <tr>
+            <td><strong>EC2</strong></td>
+            <td>One general-purpose Linux instance in <strong>us-west-2</strong> — 2 vCPU / 8 GB as a starting point, right-sized after the first client run</td>
+            <td>Hosts the API, the wizard and the migration worker. Migrations run for hours and hold staged data in flight, so they need a persistent instance rather than a request-scoped process.</td>
+          </tr>
+          <tr>
+            <td><strong>S3</strong></td>
+            <td>One private bucket in <strong>us-west-2</strong>, default encryption on, versioning on, lifecycle expiry on staged data</td>
+            <td>Holds the staged extract: all selected source data lands on our side before any transform runs. Repairs and retries re-read from the bucket instead of re-querying the client's source system, which is what keeps a failed load recoverable. Same region as the instance to avoid cross-region transfer charges and latency.</td>
+          </tr>
+          <tr>
+            <td><strong>EC2 instance IAM role</strong></td>
+            <td><code>s3:GetObject</code>, <code>s3:PutObject</code>, <code>s3:ListBucket</code> on that bucket, plus the Bedrock actions above</td>
+            <td>Lets the instance reach the bucket and the model without long-lived access keys on disk.</td>
+          </tr>
+          <tr>
+            <td><strong>CloudWatch</strong></td>
+            <td>Log group for the application; Bedrock model invocation logging enabled</td>
+            <td>Makes token spend attributable per migration and gives us run diagnostics without shell access to the instance.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Cost.</strong> EC2 and S3 are ordinary hosting for the tool and are sized by data volume.
+        Bedrock is usage-based and driven by schema size rather than data volume, because the agents read
+        field definitions and dependency graphs, never records — order of magnitude, under one hundred
+        dollars for the whole build and under two dollars per migration, held there by a per-session
+        token cap, per-call token logging, and a budget alarm.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Time estimate</h2>
+      <ul class="compact">
+        <li><strong>Total: four to five weeks</strong>, one engineer already familiar with this codebase, stages worked in order.</li>
+        <li><strong>≈3 weeks</strong> — agent evaluable against real client data, still read-only.</li>
+        <li><strong>≈4 weeks</strong> — agent permitted to write configuration, with revert in place.</li>
+        <li><strong>Excludes the wait for AWS access</strong>, which is the critical path ahead of every number here.</li>
+        <li><strong>Stage 5 holds the widest range</strong> as the only empirical stage; re-forecast at the end of phase 1.</li>
+        <li>Phases 1 to 3 execute nothing during a live migration and can absorb slippage around client delivery. Stage 9 is presentation only and can be dropped from the first release.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Project plan</h2>
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>Work</th><th>Duration</th><th>Elapsed</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>0 — Access</strong></td>
+            <td>AWS access granted per section 1. Not build work, but nothing starts without it.</td>
+            <td>External</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>1 — Foundations</strong></td>
+            <td>Bedrock client and configuration; in-memory configuration refactor; tool adapters over the existing analysis logic.</td>
+            <td>1 – 1.5 weeks</td>
+            <td>≈1.5 weeks</td>
+          </tr>
+          <tr>
+            <td><strong>2 — Agent in preview</strong></td>
+            <td>Agent loop and validator; relationship agent running read-only with all writes suppressed.</td>
+            <td>1.5 – 2 weeks</td>
+            <td>≈3 weeks</td>
+          </tr>
+          <tr>
+            <td><strong>3 — Controlled autonomy</strong></td>
+            <td>Audit trail and per-item revert; writes enabled; change-log view in wizard Step 4.</td>
+            <td>1 – 1.5 weeks</td>
+            <td>≈4 weeks</td>
+          </tr>
+          <tr>
+            <td><strong>4 — Run-time repair</strong></td>
+            <td>Repair agent for post-load errors; repair state visible in the run view.</td>
+            <td>≈1 week</td>
+            <td>4 – 5 weeks</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Stage detail</h3>
+      <table>
+        <thead><tr><th>#</th><th>Stage</th><th>Phase</th><th>Complete when</th><th>Estimate</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Bedrock client and configuration</td><td>1</td><td>A round trip to the target model succeeds from the application environment</td><td>1–2 days</td></tr>
+          <tr><td>2</td><td>In-memory configuration refactor</td><td>1</td><td>Dependency and compatibility checks run on draft configs without database writes</td><td>2–3 days</td></tr>
+          <tr><td>3</td><td>Tool adapters</td><td>1</td><td>Each tool is independently exercisable against real source and destination credentials</td><td>2–3 days</td></tr>
+          <tr><td>4</td><td>Agent loop and validator</td><td>2</td><td>A deliberately malformed conclusion is rejected rather than written</td><td>3–4 days</td></tr>
+          <tr><td>5</td><td>Relationship agent in preview mode</td><td>2</td><td>The change log for a known multi-object set matches what an experienced engineer would wire by hand</td><td>4–6 days</td></tr>
+          <tr><td>6</td><td>Audit trail and revert</td><td>3</td><td>Every change is recorded with its prior value and can be reversed individually</td><td>2 days</td></tr>
+          <tr><td>7</td><td>Enable writes, plus wizard change-log view</td><td>3</td><td>A run wired entirely by the agent completes without hand-editing a mapping</td><td>3–5 days</td></tr>
+          <tr><td>8</td><td>Repair agent</td><td>4</td><td>A seeded format failure self-heals on the first retry</td><td>3–5 days</td></tr>
+          <tr><td>9</td><td>Repair visibility in the run view</td><td>4</td><td>Repair state and rationale are visible live</td><td>1–2 days</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Decision gates</h3>
+      <table>
+        <thead><tr><th>Gate</th><th>When</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Now</td><td>Approve the access in section 1 and allocate the engineer.</td></tr>
+          <tr><td>2</td><td>End of phase 2, ≈3 weeks</td><td>Whether the agent may write configuration, judged on its read-only change log against hand-wiring for the same migration.</td></tr>
+          <tr><td>3</td><td>End of phase 3, ≈4 weeks</td><td>Whether to enable it on a live client migration, and for which clients first.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      Companion to the architecture reference, which covers where the agents attach to the pipeline,
+      what they are permitted to change, and the guardrails around them.
+    </footer>
+  </div>
+</body>
+</html>

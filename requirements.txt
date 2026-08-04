@@ -1,4 +1,6 @@
+anthropic==0.120.2
 beautifulsoup4==4.14.3
+boto3==1.43.59
 bs4==0.0.2
 certifi==2025.11.12
 charset-normalizer==3.4.4

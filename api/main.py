@@ -9,7 +9,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from api.routers import sources, migrations, connections, compat, schema, mappings, transforms
+from api.routers import (
+    agents,
+    compat,
+    connections,
+    mappings,
+    migrations,
+    schema,
+    sources,
+    transforms,
+)
 from api import sources as source_registry
 
 app = FastAPI(
@@ -34,6 +43,7 @@ app.include_router(compat.router, prefix="/api")
 app.include_router(schema.router, prefix="/api")
 app.include_router(mappings.router, prefix="/api")
 app.include_router(transforms.router, prefix="/api")
+app.include_router(agents.router, prefix="/api")
 
 # Plugin-contributed routers (e.g. Salesforce destination + custom-field endpoints).
 # Each registered source/destination plugin may expose its own FastAPI routers.

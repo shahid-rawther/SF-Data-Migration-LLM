@@ -70,14 +70,26 @@ class DBClient:
         ATTACHMENT_MAPPING_PRIORITY so the original migration ordering is
         preserved. Seeding is self-contained (reads files directly) to avoid
         importing higher-level services from this low-level DB layer.
+
+        Set SEED_SYSTEM_MAPPINGS=0 to keep a deliberately emptied table empty;
+        the shipped files can still be loaded on demand from the mappings API.
         """
         import json
+        import os
         from datetime import datetime, timezone
         from config.settings import (
             PATH_TO_MAPPING,
             MAPPING_PRIORITY,
             ATTACHMENT_MAPPING_PRIORITY,
         )
+
+        if os.getenv("SEED_SYSTEM_MAPPINGS", "1").strip().lower() not in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            return
 
         row = conn.execute("SELECT COUNT(*) FROM mapping_configs").fetchone()
         if row and row[0] > 0:

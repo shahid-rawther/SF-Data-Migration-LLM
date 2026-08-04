@@ -48,6 +48,23 @@ def clean_working_state(
             _safe_rmtree(PATH_TO_TRANSFORMATION / "hash" / folder)
 
 
+def clean_transformed_state(selected_objects: list[str]) -> None:
+    """Remove only the transformed output for the given mappings.
+
+    Used when an object is re-transformed after a repair: the staged extract must
+    survive (that is the point of staging) but the previous transform output has
+    to go, so the retry loads the patched result rather than a stale CSV.
+    """
+    if not selected_objects:
+        return
+
+    for config in get_mappings(selected_objects):
+        folder = config.get("transformation_name") or cfg_destination_object(config)
+        if folder:
+            _safe_rmtree(PATH_TO_TRANSFORMATION / "csv" / folder)
+            _safe_rmtree(PATH_TO_TRANSFORMATION / "hash" / folder)
+
+
 def _safe_rmtree(path) -> None:
     if not path.exists():
         return

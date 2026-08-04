@@ -282,7 +282,7 @@ def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
     """Return rich field metadata for a Salesforce object.
 
     Each entry: {name, label, type, length, required, createable, updateable,
-    reference_to, picklist_values}. Used by the schema-discovery and
+    id_lookup, reference_to, picklist_values}. Used by the schema-discovery and
     auto-suggest APIs.
     """
     fields: list[dict] = []
@@ -296,6 +296,8 @@ def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
             "required": bool(required),
             "createable": bool(f.get("createable", False)),
             "updateable": bool(f.get("updateable", False)),
+            # Usable as an upsert key: External Id or a unique/standard id field.
+            "id_lookup": bool(f.get("idLookup", False)),
             "reference_to": f.get("referenceTo", []),
             "picklist_values": [
                 pv.get("value", "")
@@ -1060,6 +1062,8 @@ def _suggest_custom_field_api_name(field_name: str) -> str:
 def resolve_dependency_order(
     mapping_names: list[str],
     sf_credentials: dict,
+    draft_configs: dict[str, dict] | None = None,
+    destination_fields: dict[str, list[dict]] | None = None,
 ) -> dict:
     """Build a dependency graph from mapped reference fields and topological-sort it.
 
@@ -1067,6 +1071,14 @@ def resolve_dependency_order(
     the user's mapped fields.  When a mapped destination field is a reference
     (``type == "reference"``) whose ``reference_to`` targets another mapping's
     destination object, an edge is recorded.
+
+    ``draft_configs`` maps mapping name -> config and takes precedence over the
+    stored configs, so a candidate set of changes can be ordered and validated
+    before anything is written to the database.
+
+    ``destination_fields`` maps a destination object to its already-described
+    fields; supplying it avoids describing the same objects a second time when the
+    caller has them cached.
 
     Returns a dict::
 
@@ -1081,10 +1093,11 @@ def resolve_dependency_order(
     import services.internal.mappings_service as mappings_service
 
     # 1. Load configs and build sf_object -> mapping_name lookup
+    drafts = draft_configs or {}
     configs: dict[str, dict] = {}
     sf_obj_to_name: dict[str, str] = {}
     for name in mapping_names:
-        cfg = mappings_service.get_mapping_config(name)
+        cfg = drafts.get(name) or mappings_service.get_mapping_config(name)
         if not cfg:
             continue
         configs[name] = cfg
@@ -1093,10 +1106,13 @@ def resolve_dependency_order(
             sf_obj_to_name[dest_obj] = name
 
     # 2. Describe each unique SF object and index fields by name
+    cached_fields = destination_fields or {}
     sf_field_index: dict[str, dict[str, dict]] = {}  # sf_object -> {field_name -> field_meta}
     for sf_obj in sf_obj_to_name:
         if sf_obj not in sf_field_index:
-            dest_fields = get_destination_fields(sf_obj, sf_credentials)
+            dest_fields = cached_fields.get(sf_obj)
+            if dest_fields is None:
+                dest_fields = get_destination_fields(sf_obj, sf_credentials)
             sf_field_index[sf_obj] = {f["name"]: f for f in dest_fields}
 
     # 3. Walk each mapping's fields and detect reference edges
