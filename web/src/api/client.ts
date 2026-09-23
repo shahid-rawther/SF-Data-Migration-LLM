@@ -9,7 +9,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    // The API reports the reason in `detail`. Shown raw, that reason arrives
+    // wrapped in JSON behind a status line, so the sentence written for the
+    // operator ends up as the least readable part of the message.
+    let reason = text;
+    try {
+      const body = JSON.parse(text);
+      if (typeof body?.detail === 'string' && body.detail) reason = body.detail;
+    } catch {
+      // Not JSON — a proxy or a crash, so the raw body is all there is to show.
+    }
+    throw new Error(reason || `${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 }
@@ -65,17 +75,45 @@ export interface MigrationSession {
 
 export interface SessionConfig {
   source_type: string;
+  /** Secrets come back masked, so these cannot be replayed against an API. */
   source_credentials: Record<string, string>;
   destination_credentials: Record<string, string>;
+  /**
+   * The saved connections behind those credentials. Unlike the credentials
+   * these survive the round trip, which is what lets a loaded session go on
+   * describing schemas. Empty on sessions created before they were recorded.
+   */
+  source_connection_id: string;
+  destination_connection_id: string;
   selected_objects: string[];
   options: MigrationOptions;
+}
+
+export interface SessionConnectionCandidate {
+  id: string;
+  name: string;
+  type: string;
+  /** Reaches the same instance and account the session was created against. */
+  matches_session: boolean;
+}
+
+export interface SessionConnectionSide {
+  connection_id: string;
+  candidates: SessionConnectionCandidate[];
+}
+
+export interface SessionConnections {
+  session_id: string;
+  source_type: string;
+  source: SessionConnectionSide;
+  destination: SessionConnectionSide;
 }
 
 export interface MigrationOptions {
   start_date: string;
   end_date: string;
+  /** Caps rows extracted per source table. Applied to each table separately. */
   service_now_batch_size: number;
-  salesforce_batch_size: number;
   disable_load: boolean;
 }
 
@@ -98,6 +136,358 @@ export interface ProgressEvent {
   message: string;
   records_by_object: Record<string, ObjectCounts>;
   load_errors?: Record<string, string[]>;
+  /** References loaded empty on purpose, each awaiting a decision. */
+  pending_backfill?: BackfillUnit[];
+  /**
+   * References deferred by *earlier* runs that this run has just made fillable,
+   * by loading the object they were waiting for. Reported here because this is
+   * the moment the wait ends, and the run that recorded it is not one anybody
+   * has a reason to go back to.
+   */
+  unblocked_backfill?: BackfillUnit[];
+}
+
+/**
+ * One lookup that was loaded empty because no order could have resolved it, and
+ * the state of the follow-up update that fills it.
+ *
+ * Nothing here runs on its own: a unit stays `pending` until someone approves
+ * it, because filling it means updating records already in the destination.
+ */
+export interface AgentChange {
+  id: number;
+  run_id: string;
+  session_id: string;
+  agent: string;
+  /** 'notice' is the agent reporting a concern; every other kind is a write. */
+  kind: string;
+  mapping_name: string;
+  field: string;
+  previous_value: unknown;
+  new_value: unknown;
+  rationale: string;
+  /** For a notice: the concrete next step the agent recommends. */
+  suggested_action?: string;
+  severity: 'info' | 'warning' | 'blocker' | string;
+  /** False for a notice, which changes nothing and cannot be reverted. */
+  applied: boolean;
+  applied_at: string | null;
+  reverted: boolean;
+}
+
+export interface DestinationRecord {
+  id: string;
+  name: string;
+  /** Disambiguating columns for targets that need them, e.g. DeveloperName. */
+  extra?: Record<string, string | number | boolean | null>;
+}
+
+export interface DestinationRecordSearch {
+  object_name: string;
+  records: DestinationRecord[];
+  /** Rows matching the query in the org, which may exceed those returned. */
+  total: number;
+  truncated: boolean;
+  /** Columns the org refused, e.g. IsPersonType where the feature is off. */
+  unavailable_fields: string[];
+  /** Set when the query was narrowed to the mapping's destination object. */
+  scoped_to: string;
+  error: string;
+}
+
+export interface BackfillUnit {
+  id: number;
+  session_id: string;
+  mapping_name: string;
+  destination_object: string;
+  source_table: string;
+  field: string;
+  /** Why it could not be resolved on the first pass. */
+  reason: 'dependency_cycle' | 'self_reference' | 'parent_not_migrated' | string;
+  /** Records that loaded without the reference. */
+  rows_deferred: number;
+  /** How many of those can be attached now, given what has since loaded. */
+  rows_resolvable: number;
+  /** Mappings whose ids this is waiting on, which may not be in the session. */
+  awaiting?: string[];
+  /**
+   * The destination object whose ids are being waited for. Held as well as the
+   * mapping names because the object may have no mapping yet, in which case
+   * building one is what ends the wait.
+   */
+  awaiting_object?: string;
+  status: 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'skipped';
+  records_updated: number;
+  records_failed: number;
+  detail: string;
+  created_at: string;
+  decided_at: string | null;
+  completed_at: string | null;
+  pending: boolean;
+  /** A sentence describing what filling this would do, ready to display. */
+  summary: string;
+}
+
+/** One lookup this run will load empty on purpose, named before launch. */
+export interface DeferredLookupNotice {
+  mapping: string;
+  destination_object: string;
+  field: string;
+  reason: string;
+  /** The object whose ids it is waiting for, when that is what it waits on. */
+  awaiting_object?: string;
+  /** Mappings that would end the wait, and are not already in this run. */
+  awaiting?: string[];
+  /** False when nothing migrates the awaited object yet, so one must be built. */
+  buildable?: boolean;
+}
+
+export interface PreflightResult {
+  ok: boolean;
+  enforced: boolean;
+  blockers: { kind: string; mapping: string; field: string; detail: string }[];
+  warnings: { kind: string; mapping: string; field: string; detail: string }[];
+  order: string[];
+  has_cycle: boolean;
+  checked: boolean;
+  note: string;
+  deferred: DeferredLookupNotice[];
+  /** Ready-to-show sentence, empty when nothing will be deferred. */
+  deferred_notice: string;
+}
+
+/** One object's standing in a session, as the run plan reports it. */
+export interface RunPlanEntry {
+  object: string;
+  destination_object: string;
+  state: 'completed' | 'in_progress' | 'pending' | 'unmapped';
+  loaded: number;
+  source_rows: number;
+}
+
+/**
+ * What a run of an existing session would do. Offered before launching, because
+ * the difference between the two lists is the difference between adding to a
+ * session and migrating it all over again.
+ */
+export interface SessionRunPlan {
+  session_id: string;
+  status: string;
+  will_run: string[];
+  will_skip: string[];
+  pending: RunPlanEntry[];
+  skipped: RunPlanEntry[];
+}
+
+export interface BackfillReport {
+  units: BackfillUnit[];
+  pending: BackfillUnit[];
+  /** Undecided or approved, and with something that can actually be filled. */
+  ready: BackfillUnit[];
+}
+
+// ── Filling a column after the fact ───────────────────────────────────────────
+
+/** How a fill decides the value it writes. */
+export type ColumnFillMode = 'constant' | 'value_map' | 'rules';
+
+/** What to do with a row no rule claimed and no map covered. */
+export type ColumnFillUnmatched = 'skip' | 'blank' | 'value';
+
+export const COLUMN_FILL_OPERATORS = [
+  'equals',
+  'not_equals',
+  'contains',
+  'not_contains',
+  'starts_with',
+  'ends_with',
+  'is_empty',
+  'is_not_empty',
+  'in',
+  'not_in',
+  'matches',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+] as const;
+
+export type ColumnFillOperator = (typeof COLUMN_FILL_OPERATORS)[number];
+
+/** Operators that ignore the comparison value, so no input is asked for. */
+export const COLUMN_FILL_OPERATORS_WITHOUT_VALUE: ColumnFillOperator[] = [
+  'is_empty',
+  'is_not_empty',
+];
+
+export interface ColumnFillCondition {
+  /** The source column to test, qualified as "table.column". */
+  field: string;
+  op: ColumnFillOperator;
+  /** Absent for the operators that need nothing to compare against. */
+  value?: string | string[];
+}
+
+/** What a matched rule sets: a literal, or a transform over a source column. */
+export interface ColumnFillOutcome {
+  value?: string;
+  /** A transform name; requires `from` to say what it applies to. */
+  transform?: string;
+  from?: string;
+  params?: Record<string, unknown>;
+}
+
+export interface ColumnFillRule {
+  /** Every one of these must hold. */
+  all?: ColumnFillCondition[];
+  /** At least one of these must hold. */
+  any?: ColumnFillCondition[];
+  then: ColumnFillOutcome;
+}
+
+export interface ColumnFillSpec {
+  mapping_name: string;
+  field: string;
+  mode: ColumnFillMode;
+  /** mode: constant */
+  constant_value?: string;
+  /** mode: value_map — the source column whose values are mapped. */
+  source_field?: string;
+  value_map?: Record<string, string>;
+  /** mode: rules — tried in order, first match wins. */
+  rules?: ColumnFillRule[];
+  unmatched?: ColumnFillUnmatched;
+  unmatched_value?: string;
+  case_insensitive?: boolean;
+  /**
+   * Also write the field into the mapping, so a later run of this object fills
+   * it too. Stored without the skip flag the one-off pass uses, so a future
+   * insert leaves the column blank rather than dropping the record.
+   */
+  save_to_mapping?: boolean;
+}
+
+/** One object in a session that has records a fill could update. */
+export interface ColumnFillTarget {
+  mapping_name: string;
+  destination_object: string;
+  source_table: string;
+  loaded: number;
+  source_rows: number;
+  operation: string;
+}
+
+/** How many rows one rule claimed. */
+export interface ColumnFillRuleHit {
+  /** The rule's position, or -1 for the rows nothing matched. */
+  index: number;
+  label: string;
+  value: string;
+  rows: number;
+}
+
+/** One source value, what it maps to, and how common it is. */
+export interface ColumnFillValueHit {
+  source: string;
+  destination: string;
+  rows: number;
+  mapped: boolean;
+}
+
+export interface ColumnFillPreview {
+  mapping_name: string;
+  destination_object: string;
+  source_table: string;
+  field: string;
+  mode: ColumnFillMode;
+  /** Rows in the staged extract. */
+  rows_source: number;
+  /** Of those, how many have a destination record an update could address. */
+  rows_migrated: number;
+  /** Rows a value was produced for. */
+  rows_to_write: number;
+  rows_untouched: number;
+  /** Readable rendering of what happens to the untouched rows. */
+  untouched_means: string;
+  rule_hits: ColumnFillRuleHit[];
+  value_hits: ColumnFillValueHit[];
+  samples: { record: string; source: Record<string, string>; value: string }[];
+  /** Values a restricted picklist would refuse, which would fail the load. */
+  picklist_rejected: { value: string; rows: number }[];
+  warnings: string[];
+}
+
+export interface ColumnFillJob {
+  id: number;
+  session_id: string;
+  mapping_name: string;
+  destination_object: string;
+  source_table: string;
+  field: string;
+  mode: ColumnFillMode;
+  spec: ColumnFillSpec;
+  status: 'draft' | 'running' | 'completed' | 'failed' | 'cancelled';
+  rows_targeted: number;
+  records_updated: number;
+  records_failed: number;
+  saved_to_mapping: boolean;
+  detail: string;
+  created_at: string;
+  completed_at: string | null;
+  /** A sentence describing what this did, ready to display. */
+  summary: string;
+}
+
+/** One selected object's source, destination and row counts. */
+export interface SessionObjectStatus {
+  object: string;
+  source_table: string;
+  source_tables: string[];
+  destination_object: string;
+  id_mapping_table: string;
+  /** Rows the source had for this object, from the staged extract. */
+  source_rows: number;
+  source_rows_origin: 'stage' | 'checkpoint' | 'none';
+  /** Rows written to the destination, counted from the id map. */
+  loaded: number;
+  processed: number;
+  failed: number;
+  percent: number;
+  state: 'completed' | 'in_progress' | 'pending' | 'unmapped';
+  current: boolean;
+  errors: string[];
+}
+
+export interface SessionStatusReport {
+  session_id: string;
+  source_type: string;
+  destination_type: string;
+  status: string;
+  phase: string;
+  started_at: string;
+  updated_at: string;
+  completed_at: string;
+  live: boolean;
+  dry_run: boolean;
+  objects: SessionObjectStatus[];
+  totals: {
+    objects: number;
+    objects_completed: number;
+    source_rows: number;
+    loaded: number;
+    failed: number;
+    percent: number;
+  };
+  checkpoint: {
+    sequence: number;
+    saved_at: string;
+    phase: string;
+    completed_objects: string[];
+    id_mapping_count: number;
+    stage_available: boolean;
+    credentials_required: boolean;
+    last_error: string;
+  } | null;
 }
 
 export interface CreateMigrationRequest {
@@ -105,6 +495,9 @@ export interface CreateMigrationRequest {
   destination_type?: string;
   source_credentials: Record<string, string>;
   destination_credentials: Record<string, string>;
+  /** Recorded so the session can keep reaching the same places on its own. */
+  source_connection_id?: string;
+  destination_connection_id?: string;
   selected_objects: string[];
   options: Partial<MigrationOptions>;
 }
@@ -137,6 +530,13 @@ export interface CreateCustomFieldRequest {
   field_type?: string;
   length?: number;
   description?: string;
+  /**
+   * Marks the field as an external id, which is what lets a load upsert on it
+   * and so recognise records it created on an earlier run rather than inserting
+   * duplicates. Salesforce restricts both flags to Text, Number and Email.
+   */
+  external_id?: boolean;
+  unique?: boolean;
 }
 
 export interface CreateCustomFieldResponse {
@@ -284,6 +684,104 @@ export interface PrerequisiteReport {
   max_depth: number;
 }
 
+/** One object in the ancestor graph above a selection of destination objects. */
+export interface HierarchyNode {
+  object: string;
+  /** 0 is the top of the graph; every object sits below what it depends on. */
+  level: number;
+  /** Chosen by the user, rather than pulled in as a parent. */
+  selected: boolean;
+  has_mapping: boolean;
+  mapping_names: string[];
+  source_tables: string[];
+  self_reference_fields: string[];
+  schema_unavailable: boolean;
+  depends_on: {
+    object: string;
+    field: string;
+    required: boolean;
+    mapped: boolean;
+    polymorphic: boolean;
+  }[];
+  needed_by: { object: string; field: string; required: boolean; mapped: boolean }[];
+  depends_on_count: number;
+  needed_by_count: number;
+  required_by_someone: boolean;
+  /** Salesforce will not accept the child record without this parent. */
+  required_chain: boolean;
+  /** Required, or a lookup some mapping fills — so this migration as configured
+   *  cannot load the selection without it. Everything else is merely above it. */
+  needed: boolean;
+  in_cycle: boolean;
+}
+
+export interface HierarchyEdge {
+  child: string;
+  parent: string;
+  field: string;
+  required: boolean;
+  mapped: boolean;
+  polymorphic: boolean;
+}
+
+export interface HierarchyGraph {
+  selected_objects: string[];
+  /** Parent-first, so it reads as a load order on its own. */
+  nodes: HierarchyNode[];
+  edges: HierarchyEdge[];
+  /** Object names grouped by level, top row first. */
+  levels: string[][];
+  order: string[];
+  cycles: string[][];
+  /** The ancestors Salesforce will not let the load skip, in the same order. */
+  required_objects: string[];
+  /** The ancestors this migration cannot load the selection without. A superset
+   *  of required_objects: it also covers lookups the mappings actually fill. */
+  needed_objects: string[];
+  /** Salesforce requires these lookups but nothing in the graph fills them. */
+  required_gaps: PrerequisiteGap[];
+  /** Lookups accepting many objects, none of which are in the migration. */
+  polymorphic_choices: PrerequisiteGap[];
+  objects_without_mapping: string[];
+  truncated: boolean;
+  truncation_reason: string;
+  max_depth: number;
+  max_nodes: number;
+}
+
+export interface OrderStep {
+  object: string;
+  /** Empty for the objects the model did not think worth a comment. */
+  reason: string;
+  /** Set when the model placed this object above something it depends on. */
+  conflict: string;
+}
+
+export interface OrderDecision {
+  object: string;
+  field: string;
+  issue: string;
+  recommendation: string;
+  severity: 'blocker' | 'warning' | 'info';
+}
+
+/** The model's advice on sequencing. Advisory: the run obeys the graph. */
+export interface OrderSuggestion {
+  selected_objects: string[];
+  computed_order: string[];
+  steps: OrderStep[];
+  decisions: OrderDecision[];
+  summary: string;
+  appended: string[];
+  dropped: { object: string; reason: string }[];
+  /** Whether the suggestion loads every parent before its children. */
+  valid: boolean;
+  matches_computed: boolean;
+  model_invoked: boolean;
+  usage: Record<string, number>;
+  error: string;
+}
+
 export interface SourceChoiceValue {
   value: string;
   label: string;
@@ -297,8 +795,31 @@ export interface DestinationFieldInfo {
   required: boolean;
   createable: boolean;
   updateable: boolean;
+  /** Usable as an upsert key — an External Id, or a unique standard field. */
+  id_lookup: boolean;
   reference_to: string[];
+  /**
+   * The values this field will accept. Narrowed to the record type when one
+   * was supplied, in which case it can be a strict subset of what the field
+   * defines — see `picklist_unavailable`.
+   */
   picklist_values: string[];
+  /**
+   * A restricted picklist rejects the row when handed anything off the list;
+   * an unrestricted one stores the value regardless. Absent on non-picklists.
+   */
+  picklist_restricted?: boolean;
+  picklist_dependent?: boolean;
+  /** The field whose value decides which entries here are legal. */
+  picklist_controller?: string;
+  /**
+   * Defined by the field but withheld by the record type. These look valid in
+   * any describe and are still rejected at load, which is why they are named
+   * rather than simply omitted.
+   */
+  picklist_unavailable?: string[];
+  /** Controller value to the entries it permits. Only sent when scoped. */
+  picklist_valid_for?: Record<string, string[]>;
 }
 
 export interface MappingFieldDef {
@@ -312,7 +833,23 @@ export interface MappingFieldDef {
   // How this field is populated. Inferred when absent for backward compatibility.
   value_source?: 'field' | 'constant' | 'lookup';
   skip_if_not_found?: boolean;
-  // Present on auto-suggested fields only:
+  /**
+   * Load the record with this reference empty when it cannot be resolved, and
+   * record which source id it wanted so a later pass can attach it. Without
+   * this a reference that is not yet loadable is simply lost: the record still
+   * arrives, but nothing remembers what it pointed at.
+   */
+  defer_to_backfill?: boolean;
+  /**
+   * The destination object whose ids this field waits for. Recorded because the
+   * id-mapping table it reads may not exist yet — its name comes from the
+   * configuration of whichever mapping ends up migrating that object — so the
+   * wait has to be expressed as the object, not as a table name.
+   */
+  defer_object?: string;
+  /** Why it was deferred, which decides how the wait is explained. */
+  defer_reason?: 'dependency_cycle' | 'self_reference' | 'parent_not_migrated' | string;
+  // Present on model-proposed fields only:
   confidence?: number;
   match_reason?: string;
   type_warning?: string;
@@ -329,6 +866,32 @@ export interface SemanticSuggestReport {
   considered_source_fields: number;
   considered_destination_fields: number;
   truncated: boolean;
+  usage: { calls?: number; total_tokens?: number };
+  error: string;
+}
+
+/** Result of a model-assisted picklist value-matching run. Proposals only. */
+export interface ValueMapSuggestReport {
+  source_field: string;
+  destination_field: string;
+  matches: {
+    source_value: string;
+    destination_value: string;
+    confidence: number;
+    rationale: string;
+    /** An approximation rather than an equivalence — applied, but worth reading. */
+    needs_review: boolean;
+  }[];
+  rejected: { match: Record<string, unknown>; reason: string }[];
+  /** Last resort: values the picklist had no plausible home for at all. */
+  unmapped: { source_value: string; reason: string }[];
+  suggested_default: string;
+  summary: string;
+  considered_source_values: number;
+  considered_destination_values: number;
+  truncated: boolean;
+  /** Whether an unmatched value fails the row or is stored off-list. */
+  restricted: boolean;
   usage: { calls?: number; total_tokens?: number };
   error: string;
 }
@@ -351,6 +914,16 @@ export interface TransformDef {
   label: string;
   description: string;
   params_schema: Record<string, { type: string; default: unknown; description: string }>;
+  /**
+   * Present when the transform is implemented for particular source systems
+   * only. Absent means it lives in the shared module and works anywhere.
+   */
+  source_types?: string[];
+  /**
+   * Its parameters need a purpose-built editor, so a generic parameter form
+   * would only show a raw blob. Leave these out of a plain transform picker.
+   */
+  builder_only?: boolean;
 }
 
 export interface MappingConfig {
@@ -369,11 +942,25 @@ export interface MappingConfig {
   filters?: unknown[];
   source_id_column?: string;
   transformation_name?: string;
-  _meta?: {
-    source_field_count: number;
-    destination_field_count: number;
-    suggested_count: number;
-  };
+}
+
+/**
+ * Where a lookup to one destination object can get its ids. A lookup reads an
+ * id-mapping table that some other mapping writes on load, and that table's
+ * name is built from the parent's own configuration, so it has to be resolved
+ * rather than guessed from the object name.
+ */
+export interface LookupResolution {
+  destination_object: string;
+  candidates: {
+    mapping_name: string;
+    source_table: string;
+    lookup_table: string;
+    /** Ids on hand now. Zero means the table exists only once its mapping runs. */
+    migrated_count: number;
+  }[];
+  /** False when nothing in the catalogue can ever populate this object. */
+  resolvable: boolean;
 }
 
 export interface MappingValidationResult {
@@ -434,6 +1021,8 @@ export const api = {
       request('/migrations/', { method: 'POST', body: JSON.stringify(body) }),
     list: (): Promise<MigrationSession[]> => request('/migrations/'),
     get: (id: string): Promise<MigrationSession> => request(`/migrations/${id}`),
+    status: (id: string, includeCheckpoint = true): Promise<SessionStatusReport> =>
+      request(`/migrations/${id}/status?include_checkpoint=${includeCheckpoint}`),
     start: (id: string): Promise<{ session_id: string; status: string }> =>
       request(`/migrations/${id}/start`, { method: 'POST' }),
     pause: (id: string): Promise<{ session_id: string; status: string }> =>
@@ -444,6 +1033,105 @@ export const api = {
       request(`/migrations/${id}/stop`, { method: 'POST' }),
     retry: (id: string): Promise<{ session_id: string; status: string }> =>
       request(`/migrations/${id}/retry`, { method: 'POST' }),
+
+    /**
+     * Add objects to an existing session without running anything. Adding is the
+     * only supported edit: dropping one that has already loaded would leave
+     * records in the destination the session no longer accounts for.
+     */
+    addObjects: (
+      id: string,
+      objects: string[],
+    ): Promise<{ selected_objects: string[]; added: string[] }> =>
+      request(`/migrations/${id}/objects`, {
+        method: 'POST',
+        body: JSON.stringify({ objects }),
+      }),
+    /**
+     * The saved connections this session resolves through, plus the ones it
+     * could resolve through, each flagged with whether it reaches the same
+     * place the session was created against.
+     */
+    connections: (id: string): Promise<SessionConnections> =>
+      request(`/migrations/${id}/connections`),
+    /** Point the session at saved connections and adopt their credentials. */
+    linkConnections: (
+      id: string,
+      body: { source_connection_id?: string; destination_connection_id?: string },
+    ): Promise<{ source_connection_id: string; destination_connection_id: string }> =>
+      request(`/migrations/${id}/connections`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    /** What a run would work on and what it would leave alone. Runs nothing. */
+    runPlan: (id: string): Promise<SessionRunPlan> => request(`/migrations/${id}/run-plan`),
+    /**
+     * Run only the objects that still need it. Left empty, the plan's own list is
+     * used; naming objects runs exactly those.
+     */
+    runRemaining: (
+      id: string,
+      objects: string[] = [],
+    ): Promise<{ session_id: string; status: string; running: string[]; skipped: string[] }> =>
+      request(`/migrations/${id}/run-remaining`, {
+        method: 'POST',
+        body: JSON.stringify({ objects }),
+      }),
+
+    backfill: {
+      /** Read the deferred references. Re-checks the id map; runs nothing. */
+      list: (sessionId?: string): Promise<BackfillReport> =>
+        request(sessionId ? `/migrations/backfill?session_id=${sessionId}` : '/migrations/backfill'),
+      /** Record a decision. Approving marks intent; it does not run the fill. */
+      decide: (unitId: number, approve: boolean, note = ''): Promise<BackfillUnit> =>
+        request(`/migrations/backfill/${unitId}/decision`, {
+          method: 'POST',
+          body: JSON.stringify({ approve, note }),
+        }),
+      /** Fill one approved reference. Refused for anything not approved. */
+      run: (unitId: number): Promise<BackfillUnit> =>
+        request(`/migrations/backfill/${unitId}/run`, { method: 'POST' }),
+      runApproved: (
+        sessionId: string,
+      ): Promise<{ session_id: string; ran: BackfillUnit[]; count: number }> =>
+        request(`/migrations/${sessionId}/backfill/run-approved`, { method: 'POST' }),
+    },
+
+    /** Writing one column on records a session already loaded. */
+    columnFill: {
+      /** Objects with loaded records, which are the only ones a fill can touch. */
+      targets: (
+        sessionId: string,
+      ): Promise<{ session_id: string; targets: ColumnFillTarget[] }> =>
+        request(`/migrations/${sessionId}/column-fill/targets`),
+      /** What the fill would write. Sends nothing to the destination. */
+      preview: (sessionId: string, spec: ColumnFillSpec): Promise<ColumnFillPreview> =>
+        request(`/migrations/${sessionId}/column-fill/preview`, {
+          method: 'POST',
+          body: JSON.stringify({ spec }),
+        }),
+      /** Record the fill as a draft. Still writes nothing until run. */
+      create: (
+        sessionId: string,
+        spec: ColumnFillSpec,
+        rows_targeted = 0,
+      ): Promise<ColumnFillJob> =>
+        request(`/migrations/${sessionId}/column-fill`, {
+          method: 'POST',
+          body: JSON.stringify({ spec, rows_targeted }),
+        }),
+      run: (jobId: number): Promise<ColumnFillJob> =>
+        request(`/migrations/column-fill/${jobId}/run`, { method: 'POST' }),
+      cancel: (jobId: number): Promise<ColumnFillJob> =>
+        request(`/migrations/column-fill/${jobId}/cancel`, { method: 'POST' }),
+      list: (sessionId?: string): Promise<{ jobs: ColumnFillJob[]; count: number }> =>
+        request(
+          sessionId
+            ? `/migrations/column-fill?session_id=${encodeURIComponent(sessionId)}`
+            : '/migrations/column-fill',
+        ),
+    },
   },
 
   connections: {
@@ -500,19 +1188,26 @@ export const api = {
       }),
   },
 
+  /**
+   * Schema introspection. Every call authenticates one of two ways: an inline
+   * credentials dict, or a `connection_id` the server resolves against the
+   * saved connections. The id matters for anything opened on an existing
+   * session, whose credentials come back masked and so cannot be replayed.
+   */
   schema: {
     sourceTables: (
       source_type: string,
       credentials: Record<string, string>,
+      opts: { connection_id?: string } = {},
     ): Promise<{ source_type: string; tables: string[] }> =>
       request('/schema/source-tables', {
         method: 'POST',
-        body: JSON.stringify({ source_type, credentials }),
+        body: JSON.stringify({ source_type, credentials, ...opts }),
       }),
     sourceFields: (
       source_type: string,
       credentials: Record<string, string>,
-      opts: { object_name?: string; table?: string },
+      opts: { object_name?: string; table?: string; connection_id?: string },
     ): Promise<{ source_type: string; fields: SourceFieldInfo[] }> =>
       request('/schema/source-fields', {
         method: 'POST',
@@ -527,16 +1222,31 @@ export const api = {
         draft_config?: unknown;
         max_depth?: number;
         max_nodes?: number;
+        connection_id?: string;
       } = {},
     ): Promise<PrerequisiteReport> =>
       request('/schema/prerequisites', {
         method: 'POST',
         body: JSON.stringify({ object_name, credentials, ...opts }),
       }),
+    destinationHierarchy: (
+      selected_objects: string[],
+      credentials: Record<string, string>,
+      opts: {
+        source_type?: string;
+        max_depth?: number;
+        max_nodes?: number;
+        connection_id?: string;
+      } = {},
+    ): Promise<HierarchyGraph> =>
+      request('/schema/destination-hierarchy', {
+        method: 'POST',
+        body: JSON.stringify({ selected_objects, credentials, ...opts }),
+      }),
     sourceValues: (
       source_type: string,
       credentials: Record<string, string>,
-      opts: { table: string; field: string; limit?: number },
+      opts: { table: string; field: string; limit?: number; connection_id?: string },
     ): Promise<{ source_type: string; values: SourceChoiceValue[] }> =>
       request('/schema/source-values', {
         method: 'POST',
@@ -545,25 +1255,43 @@ export const api = {
     destinationObjects: (
       credentials: Record<string, string>,
       destination_type = 'salesforce',
+      opts: { connection_id?: string } = {},
     ): Promise<{ destination_type: string; objects: { name: string; label: string; createable: boolean }[] }> =>
       request('/schema/destination-objects', {
         method: 'POST',
-        body: JSON.stringify({ destination_type, credentials }),
+        body: JSON.stringify({ destination_type, credentials, ...opts }),
       }),
     destinationFields: (
       object_name: string,
       credentials: Record<string, string>,
+      opts: { connection_id?: string; record_type_id?: string } = {},
     ): Promise<{ object_name: string; fields: DestinationFieldInfo[] }> =>
       request('/schema/destination-fields', {
         method: 'POST',
-        body: JSON.stringify({ object_name, credentials }),
+        body: JSON.stringify({ object_name, credentials, ...opts }),
       }),
     destinationRecords: (
       object_name: string,
       credentials: Record<string, string>,
-      opts: { name_field?: string; limit?: number } = {},
+      opts: { name_field?: string; limit?: number; connection_id?: string } = {},
     ): Promise<{ object_name: string; records: { id: string; name: string }[] }> =>
       request('/schema/destination-records', {
+        method: 'POST',
+        body: JSON.stringify({ object_name, credentials, ...opts }),
+      }),
+    /** On-demand lookup: a short page plus the total, so it can say "10 of 143". */
+    destinationRecordSearch: (
+      object_name: string,
+      credentials: Record<string, string>,
+      opts: {
+        name_field?: string;
+        limit?: number;
+        search?: string;
+        for_object?: string;
+        connection_id?: string;
+      } = {},
+    ): Promise<DestinationRecordSearch> =>
+      request('/schema/destination-record-search', {
         method: 'POST',
         body: JSON.stringify({ object_name, credentials, ...opts }),
       }),
@@ -586,26 +1314,43 @@ export const api = {
       }),
     remove: (name: string): Promise<{ ok: boolean }> =>
       request(`/mappings/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-    autoSuggest: (body: {
-      source_type: string;
-      source_table: string;
-      salesforce_object: string;
-      source_credentials: Record<string, string>;
-      destination_credentials: Record<string, string>;
-      other_mappings?: { source_table: string; sf_object: string; mapping_name: string }[];
-    }): Promise<MappingConfig> =>
-      request('/mappings/auto-suggest', { method: 'POST', body: JSON.stringify(body) }),
     semanticSuggest: (body: {
       source_type: string;
       source_table: string;
       salesforce_object: string;
       source_credentials: Record<string, string>;
       destination_credentials: Record<string, string>;
+      source_connection_id?: string;
+      destination_connection_id?: string;
       existing_fields?: MappingFieldDef[];
       other_mappings?: { source_table: string; sf_object: string; mapping_name: string }[];
       operation?: string;
     }): Promise<SemanticSuggestReport> =>
       request('/mappings/semantic-suggest', { method: 'POST', body: JSON.stringify(body) }),
+    /** Pair one source column's values with a picklist's accepted values. */
+    suggestValueMap: (body: {
+      source_type: string;
+      source_table: string;
+      source_field: string;
+      salesforce_object: string;
+      destination_field: string;
+      source_credentials: Record<string, string>;
+      destination_credentials: Record<string, string>;
+      source_connection_id?: string;
+      destination_connection_id?: string;
+      existing_fields?: MappingFieldDef[];
+      source_values?: { value: string; label: string }[];
+    }): Promise<ValueMapSuggestReport> =>
+      request('/mappings/suggest-value-map', { method: 'POST', body: JSON.stringify(body) }),
+    /** Which id-mapping table a lookup to this object should read. */
+    lookupResolution: (
+      destination_object: string,
+      source_type?: string,
+    ): Promise<LookupResolution> =>
+      request(
+        `/mappings/lookup-resolution?destination_object=${encodeURIComponent(destination_object)}` +
+          (source_type ? `&source_type=${encodeURIComponent(source_type)}` : ''),
+      ),
     validate: (
       name: string,
       destination_credentials: Record<string, string>,
@@ -617,7 +1362,69 @@ export const api = {
   },
 
   transforms: {
-    list: (): Promise<TransformDef[]> => request('/transforms/'),
+    /** Scoped to the source system, so a mapping is only offered transforms it
+     *  can actually resolve at transform time. */
+    list: (source_type?: string): Promise<TransformDef[]> =>
+      request(
+        source_type
+          ? `/transforms/?source_type=${encodeURIComponent(source_type)}`
+          : '/transforms/',
+      ),
+  },
+
+  agents: {
+    /** Ask the model to sequence a selection and explain the sequence. The
+     *  graph and its own parent-first order come back alongside the advice. */
+    suggestOrder: (
+      selected_objects: string[],
+      destination_credentials: Record<string, string>,
+      opts: {
+        source_type?: string;
+        max_depth?: number;
+        max_nodes?: number;
+        destination_connection_id?: string;
+      } = {},
+    ): Promise<{ graph: HierarchyGraph; suggestion: OrderSuggestion }> =>
+      request('/mapping-agent/suggest-order', {
+        method: 'POST',
+        body: JSON.stringify({ selected_objects, destination_credentials, ...opts }),
+      }),
+
+    /** The deterministic launch gate, without starting anything. */
+    preflight: (body: {
+      source_type: string;
+      selected_objects: string[];
+      source_credentials?: Record<string, string>;
+      destination_credentials?: Record<string, string>;
+    }): Promise<PreflightResult> =>
+      request('/mapping-agent/preflight', { method: 'POST', body: JSON.stringify(body) }),
+
+    /**
+     * What the agent changed, and what it only wanted to say.
+     *
+     * Filterable by session or by mapping: the mapping editor is opened on a
+     * mapping rather than a run, so it has a name and no session id.
+     * `scope: 'latest'` returns only the current migration attempt.
+     */
+    changes: (
+      filter: string | { session_id?: string; mapping_name?: string; scope?: 'all' | 'latest' },
+    ): Promise<AgentChange[]> => {
+      const { session_id, mapping_name, scope } =
+        typeof filter === 'string'
+          ? { session_id: filter, mapping_name: undefined, scope: undefined }
+          : filter;
+      const params = new URLSearchParams();
+      if (session_id) params.set('session_id', session_id);
+      if (mapping_name) params.set('mapping_name', mapping_name);
+      if (scope) params.set('scope', scope);
+      return request(`/mapping-agent/changes?${params.toString()}`);
+    },
+
+    /** Delete the session's notices from attempts before the current one. */
+    discardEarlierNotices: (session_id: string): Promise<{ discarded: number }> =>
+      request(`/mapping-agent/changes/notices?session_id=${encodeURIComponent(session_id)}`, {
+        method: 'DELETE',
+      }),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),

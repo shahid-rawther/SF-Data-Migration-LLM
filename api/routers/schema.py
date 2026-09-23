@@ -12,8 +12,12 @@ from pydantic import BaseModel
 
 from api import sources as source_registry
 from api import connections_db
-from api.compat_engine import get_destination_fields, get_destination_records
-from services.internal import prerequisites_service, schema_cache
+from api.compat_engine import (
+    find_destination_records,
+    get_destination_fields,
+    get_destination_records,
+)
+from services.internal import hierarchy_service, prerequisites_service, schema_cache
 
 router = APIRouter(prefix="/schema", tags=["schema"])
 
@@ -61,6 +65,19 @@ class PrerequisitesRequest(BaseModel):
     max_nodes: int = 25
 
 
+class HierarchyRequest(BaseModel):
+    # The Salesforce objects the migration will write into.
+    selected_objects: list[str]
+    credentials: dict = {}
+    connection_id: str | None = None
+    # Narrows the mappings consulted to one source pack; blank means all.
+    source_type: str | None = None
+    # How many levels of parents above the selection to walk, and the ceiling on
+    # objects returned. Both guard against a lookup chain that reaches the org.
+    max_depth: int = 4
+    max_nodes: int = 60
+
+
 class SourceValuesRequest(BaseModel):
     source_type: str = "servicenow"
     credentials: dict = {}
@@ -80,12 +97,30 @@ class DestinationFieldsRequest(BaseModel):
     object_name: str
     credentials: dict = {}
     connection_id: str | None = None
+    # Narrows every picklist to what this record type will actually accept.
+    # Without it the describe's union comes back, which overstates the choices
+    # available to a mapping that has already pinned a record type.
+    record_type_id: str | None = None
 
 
 class DestinationRecordsRequest(BaseModel):
     object_name: str
     name_field: str = "Name"
     limit: int = 200
+    credentials: dict = {}
+    connection_id: str | None = None
+
+
+class DestinationRecordSearchRequest(BaseModel):
+    object_name: str
+    name_field: str = "Name"
+    # Deliberately small: this runs only when someone asks for it, and a long
+    # list is narrowed by searching rather than by scrolling.
+    limit: int = 10
+    search: str = ""
+    # The mapping's destination object, used to scope targets whose rows are
+    # meaningless unscoped — RecordType being the obvious one.
+    for_object: str = ""
     credentials: dict = {}
     connection_id: str | None = None
 
@@ -150,6 +185,25 @@ def prerequisites(body: PrerequisitesRequest):
     )
 
 
+@router.post("/destination-hierarchy")
+def destination_hierarchy(body: HierarchyRequest):
+    """Return the ancestor graph above a selection of Salesforce objects.
+
+    Parents only, ranked so that every object sits below everything it depends
+    on, with a parent-first order derived from the graph itself.
+    """
+    if not body.selected_objects:
+        raise HTTPException(status_code=400, detail="Provide 'selected_objects'")
+    creds = _resolve_credentials(body.credentials, body.connection_id)
+    return hierarchy_service.build_hierarchy(
+        body.selected_objects,
+        creds,
+        source_type=body.source_type,
+        max_depth=body.max_depth,
+        max_nodes=body.max_nodes,
+    )
+
+
 @router.post("/source-values")
 def source_values(body: SourceValuesRequest):
     """List a source field's known values (e.g. ServiceNow choices) for the value-map editor."""
@@ -176,7 +230,9 @@ def destination_objects(body: DestinationObjectsRequest):
 @router.post("/destination-fields")
 def destination_fields(body: DestinationFieldsRequest):
     creds = _resolve_credentials(body.credentials, body.connection_id)
-    fields = get_destination_fields(body.object_name, creds)
+    fields = get_destination_fields(
+        body.object_name, creds, body.record_type_id or ""
+    )
     return {"object_name": body.object_name, "fields": fields}
 
 
@@ -188,3 +244,22 @@ def destination_records(body: DestinationRecordsRequest):
         body.object_name, creds, name_field=body.name_field, limit=body.limit
     )
     return {"object_name": body.object_name, "records": records}
+
+
+@router.post("/destination-record-search")
+def destination_record_search(body: DestinationRecordSearchRequest):
+    """Look up a short, honest page of records for an on-demand picker.
+
+    Unlike ``/destination-records`` this reports the total, so the caller can
+    say "10 of 143" instead of presenting a truncated list as the whole set.
+    """
+    creds = _resolve_credentials(body.credentials, body.connection_id)
+    result = find_destination_records(
+        body.object_name,
+        creds,
+        name_field=body.name_field,
+        limit=body.limit,
+        search=body.search,
+        for_object=body.for_object,
+    )
+    return {"object_name": body.object_name, **result}

@@ -35,7 +35,7 @@ _MODEL_DEFAULTS: dict[str, dict[str, str]] = {
     },
 }
 
-DEFAULT_REGION = "us-west-2"
+DEFAULT_REGION = "us-east-1"
 
 
 def _text(name: str, default: str = "") -> str:
@@ -82,6 +82,9 @@ class AgentSettings:
     repair_enabled: bool
     preflight_enforce: bool
     autowire_enabled: bool
+    # Ask the model to review even when the deterministic checks found nothing
+    # they recognise, so an edge case nobody wrote a rule for is still reported.
+    review_always: bool
     field_match_enabled: bool
     # Caps how many unmatched fields from each side are shown to the model, so a
     # wide table costs a predictable number of tokens.
@@ -130,6 +133,7 @@ class AgentSettings:
             "repair_max_attempts": self.repair_max_attempts,
             "preflight_enforce": self.preflight_enforce,
             "autowire_enabled": self.autowire_enabled,
+            "review_always": self.review_always,
             "field_match_enabled": self.field_match_enabled,
             "has_credentials": self.has_credentials,
         }
@@ -178,7 +182,8 @@ def load_settings() -> AgentSettings:
         repair_enabled=_flag("AGENT_REPAIR_ENABLED", True),
         preflight_enforce=_flag("AGENT_PREFLIGHT_ENFORCE", True),
         autowire_enabled=_flag("AGENT_AUTOWIRE", True),
+        review_always=_flag("AGENT_REVIEW_ALWAYS", True),
         field_match_enabled=_flag("AGENT_FIELD_MATCH", True),
-        field_match_max_fields=_integer("AGENT_FIELD_MATCH_MAX_FIELDS", 150),
+        field_match_max_fields=_integer("AGENT_FIELD_MATCH_MAX_FIELDS", 250),
         field_match_min_confidence=_decimal("AGENT_FIELD_MATCH_MIN_CONFIDENCE", 0.5),
     )

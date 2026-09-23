@@ -158,8 +158,8 @@
             error summaries. They never read record payloads in bulk, never write to Salesforce, and
             never modify staged files.</li>
           <li><strong>Humans own field-to-field mapping.</strong> Choosing that a source field belongs
-            in a particular Salesforce field remains a human decision, supported by the existing
-            auto-suggest.</li>
+            in a particular Salesforce field remains a human decision, supported by a model-assisted
+            pass that proposes pairings and never writes one.</li>
           <li><strong>Agents own relationship correctness and error repair, end to end.</strong>
             Identifier remapping, identifier maps, load ordering, missing parents, and post-load
             failures. They do not hand a list of problems back to an engineer to wire up — they wire it

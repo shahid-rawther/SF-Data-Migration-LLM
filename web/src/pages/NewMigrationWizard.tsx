@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest } from '../api/client';
+import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, DeferredLookupNotice, PreflightResult } from '../api/client';
 import { CredentialForm } from '../components/CredentialForm';
+import { DestinationHierarchy } from '../components/DestinationHierarchy';
+import { DestinationObjectSelector } from '../components/DestinationObjectSelector';
 import { SourceTableSelector } from '../components/SourceTableSelector';
 import { TableMappingCard } from '../components/TableMappingCard';
 import type { TableMappingState } from '../components/TableMappingCard';
@@ -31,6 +33,9 @@ export function NewMigrationWizard() {
   const [sourceTables, setSourceTables] = useState<string[]>([]);
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
+  // The destination side of the selection. It drives the dependency hierarchy
+  // and the order advice; the per-mapping target is still chosen in step 4.
+  const [selectedSfObjects, setSelectedSfObjects] = useState<string[]>([]);
   const [sfObjects, setSfObjects] = useState<{ name: string; label: string }[]>([]);
   const [loadingSfObjects, setLoadingSfObjects] = useState(false);
   const [tableMappings, setTableMappings] = useState<TableMappingState[]>([]);
@@ -38,9 +43,7 @@ export function NewMigrationWizard() {
   const [options, setOptions] = useState({
     start_date: '',
     end_date: '',
-    source_batch_size: 5000,
     service_now_batch_size: 5000,
-    salesforce_batch_size: 1000,
     disable_load: false,
   });
   const [validating, setValidating] = useState(false);
@@ -58,6 +61,13 @@ export function NewMigrationWizard() {
   const [checkingCompat, setCheckingCompat] = useState(false);
   const [compatReport, setCompatReport] = useState<CompatibilityReport | null>(null);
   const [compatError, setCompatError] = useState<string | null>(null);
+  // Lookups this run will load empty because the objects reference each other,
+  // read before launch so the deferral is expected rather than discovered later.
+  const [deferredLookups, setDeferredLookups] = useState<DeferredLookupNotice[]>([]);
+  // What the launch gate found. Shown here because the gate also runs when the
+  // migration starts, and a blocker discovered then is a refusal to launch with
+  // no opportunity to fix it first.
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [expandedCompatObj, setExpandedCompatObj] = useState<string | null>(null);
 
   // Custom field creation state
@@ -121,8 +131,15 @@ export function NewMigrationWizard() {
     if (!sourceConnName.trim() || !selectedSource) return;
     setSavingSourceConn(true);
     try {
-      await api.connections.create(sourceConnName.trim(), selectedSource.id, sourceCreds);
+      const created = await api.connections.create(
+        sourceConnName.trim(),
+        selectedSource.id,
+        sourceCreds,
+      );
       setSourceConnSaved(true);
+      // Adopt the connection just saved, so the session records it and can
+      // reach this source again without the credentials it will never see.
+      setSelectedSourceConn(created.id);
       const updated = await api.connections.list(selectedSource.id);
       setSavedSourceConns(updated);
     } catch (e: unknown) {
@@ -136,8 +153,9 @@ export function NewMigrationWizard() {
     if (!destConnName.trim()) return;
     setSavingDestConn(true);
     try {
-      await api.connections.create(destConnName.trim(), 'salesforce', destCreds);
+      const created = await api.connections.create(destConnName.trim(), 'salesforce', destCreds);
       setDestConnSaved(true);
+      setSelectedDestConn(created.id);
       const updated = await api.connections.list('salesforce');
       setSavedDestConns(updated);
     } catch (e: unknown) {
@@ -187,8 +205,11 @@ export function NewMigrationWizard() {
       const res = await api.schema.sourceTables(selectedSource.id, sourceCreds);
       setSourceTables(res.tables);
       if (res.tables.length === 0) {
+        // Reaching here now means the call succeeded and the answer really was
+        // nothing, so the cause is access rather than reachability — anything
+        // that stopped the request reports its own reason in the catch below.
         setTableLoadError(
-          'The source returned 0 tables. The instance may be hibernating or the user lacks read access to sys_db_object.',
+          'The source answered, but listed no tables. This usually means the account cannot read the table catalogue.',
         );
       }
     } catch (err) {
@@ -330,6 +351,21 @@ export function NewMigrationWizard() {
     return counts;
   }, [tableMappings]);
 
+  /**
+   * Distinct tables extraction will visit — driving tables and join tables
+   * together, deduplicated the same way the extraction controller does it.
+   * The row limit is applied to each of these independently, so this is the
+   * multiplier that turns the number in the box into a total.
+   */
+  const sourceTableCount = useMemo(() => {
+    const tables = new Set<string>();
+    tableMappings.forEach((m) => {
+      if (m.sourceTable) tables.add(m.sourceTable);
+      m.joinTables.forEach((t) => t && tables.add(t));
+    });
+    return Math.max(tables.size, 1);
+  }, [tableMappings]);
+
   const otherMappingsContext = useMemo(
     () =>
       tableMappings
@@ -461,6 +497,22 @@ export function NewMigrationWizard() {
     } finally {
       setCheckingCompat(false);
     }
+
+    // Separate from the compatibility check and deliberately not fatal: not
+    // knowing what will be deferred is no reason to stop someone launching.
+    try {
+      const gate = await api.agents.preflight({
+        source_type: selectedSource.id,
+        selected_objects: mappingNames,
+        source_credentials: sourceCreds,
+        destination_credentials: destCreds,
+      });
+      setDeferredLookups(gate.deferred ?? []);
+      setPreflight(gate);
+    } catch {
+      setDeferredLookups([]);
+      setPreflight(null);
+    }
   };
 
   const openCreateFieldDialog = (sfObject: string, field: { destination_field: string; suggested_custom_field: string; source_field: string; suggested_field_type?: string }) => {
@@ -572,7 +624,12 @@ export function NewMigrationWizard() {
     setDestValidationMsg(null);
     setDiagnostics(null);
     setExpandDetails(false);
-    if (s === 3 && sourceTables.length === 0) loadSourceTables();
+    if (s === 3) {
+      if (sourceTables.length === 0) loadSourceTables();
+      // Both sides are chosen on this step now, so the object list has to be
+      // there before step 4 rather than on entry to it.
+      if (sfObjects.length === 0) loadSfObjects();
+    }
     if (s === 4) {
       syncTableMappings(selectedTables);
       if (sfObjects.length === 0) loadSfObjects();
@@ -581,6 +638,7 @@ export function NewMigrationWizard() {
       await saveMappingsToDb();
       setCompatReport(null);
       setCompatError(null);
+      setDeferredLookups([]);
     }
     setStep(s);
   };
@@ -595,11 +653,11 @@ export function NewMigrationWizard() {
         destination_type: 'salesforce',
         source_credentials: sourceCreds,
         destination_credentials: destCreds,
+        // Only a real id: 'new' is the marker for the inline credential form.
+        source_connection_id: selectedSourceConn === 'new' ? '' : selectedSourceConn,
+        destination_connection_id: selectedDestConn === 'new' ? '' : selectedDestConn,
         selected_objects: mappingNames,
-        options: {
-          ...options,
-          service_now_batch_size: options.source_batch_size,
-        },
+        options,
       });
       navigate(`/migrations/${res.session_id}`);
     } catch (e: unknown) {
@@ -609,14 +667,11 @@ export function NewMigrationWizard() {
     }
   };
 
-  // Mapping-heavy steps (field mapping, compatibility) need more horizontal
-  // room on larger displays; form-like steps stay narrow for readability.
-  const isWideStep = step === 4 || step === 5;
   return (
-    <div style={{ ...pageStyle, maxWidth: isWideStep ? 1400 : 820 }}>
+    <div style={pageStyle}>
       {/* Stepper */}
       <div style={stepperStyle}>
-        {(['Select Source', 'Destination', 'Select Tables', 'Map Fields', 'Compatibility', 'Review & Run'] as const).map(
+        {(['Select Source', 'Destination', 'Select Objects', 'Map Fields', 'Compatibility', 'Review & Run'] as const).map(
           (label, i) => {
             const stepNum = (i + 1) as Step;
             return (
@@ -946,35 +1001,71 @@ export function NewMigrationWizard() {
           </div>
         )}
 
-        {/* Step 3 — Select Source Tables (live) */}
+        {/* Step 3 — Select what to migrate, on both sides */}
         {step === 3 && (
           <div>
-            <h2 style={h2}>Select Source Tables</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
-              Select the {selectedSource?.name ?? 'source'} tables you want to migrate.
-              {!loadingTables && ` ${selectedTables.length} of ${sourceTables.length} selected.`}
+            <h2 style={h2}>Select Objects</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
+              Choose the {selectedSource?.name ?? 'source'} tables to read from, and the Salesforce
+              objects you are migrating into. The Salesforce side is what the dependency hierarchy
+              below is worked out from.
             </p>
-            {tableLoadError && (
-              <div style={{
-                padding: 12, marginBottom: 12, borderRadius: 8,
-                background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
-              }}>
-                {tableLoadError}
-                <button
-                  onClick={loadSourceTables}
-                  disabled={loadingTables}
-                  style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 12 }}
-                >
-                  Retry
-                </button>
+
+            <div style={selectionPanel}>
+              <div style={selectionHeader}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+                  Source — {selectedSource?.name ?? 'source'} tables
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                  {!loadingTables && `${selectedTables.length} of ${sourceTables.length} selected`}
+                </span>
               </div>
-            )}
-            <SourceTableSelector
-              tables={sourceTables}
-              selected={selectedTables}
-              onChange={setSelectedTables}
-              loading={loadingTables}
+              {tableLoadError && (
+                <div style={{
+                  padding: 12, marginBottom: 12, borderRadius: 8,
+                  background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
+                }}>
+                  {tableLoadError}
+                  <button
+                    onClick={loadSourceTables}
+                    disabled={loadingTables}
+                    style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              <SourceTableSelector
+                tables={sourceTables}
+                selected={selectedTables}
+                onChange={setSelectedTables}
+                loading={loadingTables}
+              />
+            </div>
+
+            <div style={{ ...selectionPanel, marginTop: 16 }}>
+              <div style={selectionHeader}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+                  Destination — Salesforce objects
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                  {selectedSfObjects.length} selected
+                </span>
+              </div>
+              <DestinationObjectSelector
+                objects={sfObjects}
+                selected={selectedSfObjects}
+                onChange={setSelectedSfObjects}
+                loading={loadingSfObjects}
+              />
+            </div>
+
+            <DestinationHierarchy
+              selectedObjects={selectedSfObjects}
+              destCreds={destCreds}
+              sourceType={selectedSource?.id}
             />
+
             <div style={navRow}>
               <button onClick={() => goStep(2)} style={secondaryBtn}>← Back</button>
               <button
@@ -1462,24 +1553,25 @@ export function NewMigrationWizard() {
                   style={inputStyle}
                 />
               </div>
-              <div>
-                <label style={labelStyle}>Records Per Table (extraction limit)</label>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Rows to pull from each source table</label>
                 <input
                   type="number"
                   min={1}
-                  value={options.source_batch_size}
-                  onChange={(e) => setOptions((o) => ({ ...o, source_batch_size: +e.target.value }))}
+                  value={options.service_now_batch_size}
+                  onChange={(e) =>
+                    setOptions((o) => ({ ...o, service_now_batch_size: +e.target.value }))
+                  }
                   style={inputStyle}
                 />
-              </div>
-              <div>
-                <label style={labelStyle}>Salesforce Batch Size</label>
-                <input
-                  type="number"
-                  value={options.salesforce_batch_size}
-                  onChange={(e) => setOptions((o) => ({ ...o, salesforce_batch_size: +e.target.value }))}
-                  style={inputStyle}
-                />
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '6px 0 0' }}>
+                  Applies to each table separately, so {options.service_now_batch_size || 0} across{' '}
+                  {sourceTableCount === 1 ? '1 table' : `${sourceTableCount} tables`} stages up to{' '}
+                  <strong>
+                    {((options.service_now_batch_size || 0) * sourceTableCount).toLocaleString()} rows
+                  </strong>
+                  . A later run continues after the rows already migrated rather than repeating them.
+                </p>
               </div>
             </div>
 
@@ -1632,6 +1724,77 @@ export function NewMigrationWizard() {
               </div>
             )}
 
+            {/* References this run cannot fill while creating the records */}
+            {deferredLookups.length > 0 && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: '#eff6ff', border: '1px solid #bfdbfe',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>
+                  {deferredLookups.length} reference{deferredLookups.length === 1 ? '' : 's'} will be
+                  attached after the load, not during it
+                </div>
+                <div style={{ fontSize: 12, color: '#1e3a8a', marginBottom: 8, lineHeight: 1.55 }}>
+                  These lookups have nothing to point at while the records are being created —
+                  either the objects reference each other, so whichever goes first has no
+                  counterpart yet, or the object being pointed at has not been migrated at all.
+                  Those records will load with the field empty and the missing link recorded.
+                  You will be told how many are affected when this run finishes, and again when
+                  a later run migrates what they are waiting for. Filling them is always
+                  offered, never automatic.
+                </div>
+                {deferredLookups.map((d, i) => (
+                  <div key={`df-${i}`} style={{ fontSize: 12, color: '#1e3a8a', marginBottom: 3 }}>
+                    <b>{d.destination_object}.{d.field}</b>
+                    <span style={{ color: '#3b82f6' }}>
+                      {' '}— {d.reason === 'self_reference'
+                        ? 'points at its own object'
+                        : d.reason === 'parent_not_migrated'
+                          ? d.buildable
+                            ? `waiting on ${d.awaiting_object || 'another object'}${
+                                d.awaiting?.length ? ` — run ${d.awaiting.join(', ')} to fill them` : ''
+                              }`
+                            : `waiting on ${d.awaiting_object || 'another object'}, which nothing migrates yet`
+                          : 'circular reference'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* What the launch gate found, before it can refuse the launch */}
+            {preflight && (preflight.blockers.length > 0 || preflight.warnings.length > 0) && (
+              <div style={{
+                padding: 14, marginBottom: 16, borderRadius: 8,
+                background: preflight.blockers.length > 0 ? '#fef2f2' : '#fffbeb',
+                border: `1px solid ${preflight.blockers.length > 0 ? '#fca5a5' : '#fcd34d'}`,
+              }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, marginBottom: 8,
+                  color: preflight.blockers.length > 0 ? '#991b1b' : '#92400e',
+                }}>
+                  {preflight.blockers.length > 0
+                    ? `${preflight.blockers.length} issue${preflight.blockers.length === 1 ? '' : 's'} will stop this migration from starting`
+                    : `${preflight.warnings.length} thing${preflight.warnings.length === 1 ? '' : 's'} worth checking before you launch`}
+                </div>
+                {[...preflight.blockers, ...preflight.warnings].map((f, i) => (
+                  <div
+                    key={`pf-${i}`}
+                    style={{
+                      fontSize: 12, marginBottom: 6, lineHeight: 1.55,
+                      color: i < preflight.blockers.length ? '#7f1d1d' : '#78350f',
+                    }}
+                  >
+                    <b>
+                      {f.mapping}
+                      {f.field ? `.${f.field}` : ''}
+                    </b>{' '}
+                    — {f.detail}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Type mismatch warnings banner */}
             {compatReport && compatReport.objects.some((o) => o.type_mismatches > 0) && (
               <div style={{
@@ -1686,11 +1849,17 @@ export function NewMigrationWizard() {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const pageStyle: React.CSSProperties = { maxWidth: 820, margin: '0 auto', padding: '32px 24px', transition: 'max-width 0.2s ease' };
+const pageStyle: React.CSSProperties = { padding: '32px 32px', transition: 'max-width 0.2s ease' };
 const h2: React.CSSProperties = { margin: '0 0 20px', fontSize: 20, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 };
 const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 };
 const navRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', marginTop: 24 };
+const selectionPanel: React.CSSProperties = {
+  border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff',
+};
+const selectionHeader: React.CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12,
+};
 const primaryBtn: React.CSSProperties = {
   padding: '10px 22px', background: '#2563eb', color: '#fff', border: 'none',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
@@ -1712,10 +1881,6 @@ function compatBg(pct: number): string {
 function compatBorder(pct: number): string {
   return pct >= COMPAT_HIGH ? '#86efac' : pct >= COMPAT_MID ? '#fcd34d' : '#f87171';
 }
-function compatIcon(pct: number): string {
-  return pct >= COMPAT_HIGH ? '✅' : pct >= COMPAT_MID ? '⚠️' : '❌';
-}
-
 const thStyle: React.CSSProperties = {
   padding: '6px 10px', textAlign: 'left', fontWeight: 600,
   borderBottom: '1px solid #d1d5db',

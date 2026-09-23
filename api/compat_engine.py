@@ -8,11 +8,13 @@ overall compatibility scores.
 from __future__ import annotations
 
 import difflib
+import html
 import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from common.logger import logger
 from config.settings import PATH_TO_MAPPING
 
 
@@ -189,11 +191,26 @@ class CompatibilityReport:
 
 # ── Salesforce schema helpers ──────────────────────────────────────────────────
 
-def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
-    """Return {field_name: normalised_type} for the given Salesforce object.
+@dataclass(frozen=True)
+class _SfSession:
+    instance_url: str
+    access_token: str
+    api_version: str
 
-    Falls back to an empty dict on any error so that the compat check
-    still produces a partial report without crashing.
+    @property
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.access_token}"}
+
+    def data_url(self, path: str) -> str:
+        return f"{self.instance_url}/services/data/{self.api_version}/{path}"
+
+
+def _sf_session(sf_credentials: dict) -> _SfSession | None:
+    """Exchange client credentials for an access token.
+
+    Returns None when the credentials are incomplete or refused, so every
+    caller can decide for itself whether that is an empty result or an error
+    worth reporting.
     """
     try:
         import requests
@@ -204,9 +221,8 @@ def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
         api_version = sf_credentials.get("api_version", "v60.0")
 
         if not (base_url and client_id and client_secret):
-            return {}
+            return None
 
-        # Obtain access token
         token_resp = requests.post(
             f"{base_url}/services/oauth2/token",
             data={
@@ -217,23 +233,43 @@ def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
             timeout=12,
         )
         if token_resp.status_code != 200:
-            return {}
-        access_token = token_resp.json().get("access_token", "")
-        instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
-
-        describe_resp = requests.get(
-            f"{instance_url}/services/data/{api_version}/sobjects/{sf_object}/describe",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=20,
+            return None
+        payload = token_resp.json()
+        return _SfSession(
+            instance_url=(payload.get("instance_url") or base_url).rstrip("/"),
+            access_token=payload.get("access_token", ""),
+            api_version=api_version,
         )
-        if describe_resp.status_code != 200:
-            return {}
-        return {
-            f["name"]: _norm_sf_type(f.get("type", ""))
-            for f in describe_resp.json().get("fields", [])
-        }
     except Exception:
-        return {}
+        return None
+
+
+def _safe_identifier(name: str, fallback: str = "") -> str:
+    """Strip anything that is not a SOQL identifier character."""
+    return "".join(c for c in name if c.isalnum() or c == "_") or fallback
+
+
+def _soql_literal(value: str) -> str:
+    """Escape a value for use inside a SOQL string literal.
+
+    A quote or backslash would otherwise break out of the literal, and ``%``
+    and ``_`` are LIKE wildcards — someone searching for ``a_b`` should not
+    match ``axb``.
+    """
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return escaped.replace("%", "\\%").replace("_", "\\_")
+
+
+def _get_sf_fields(sf_object: str, sf_credentials: dict) -> dict[str, str]:
+    """Return {field_name: normalised_type} for the given Salesforce object.
+
+    Falls back to an empty dict on any error so that the compat check
+    still produces a partial report without crashing.
+    """
+    return {
+        f["name"]: _norm_sf_type(f.get("type", ""))
+        for f in _sf_describe(sf_object, sf_credentials)
+    }
 
 
 def _sf_describe(sf_object: str, sf_credentials: dict) -> list[dict]:
@@ -244,31 +280,12 @@ def _sf_describe(sf_object: str, sf_credentials: dict) -> list[dict]:
     try:
         import requests
 
-        base_url = (sf_credentials.get("base_url") or "").rstrip("/")
-        client_id = sf_credentials.get("client_id", "")
-        client_secret = sf_credentials.get("client_secret", "")
-        api_version = sf_credentials.get("api_version", "v60.0")
-
-        if not (base_url and client_id and client_secret):
+        session = _sf_session(sf_credentials)
+        if not session:
             return []
-
-        token_resp = requests.post(
-            f"{base_url}/services/oauth2/token",
-            data={
-                "grant_type": "client_credentials",
-                "client_id": client_id,
-                "client_secret": client_secret,
-            },
-            timeout=12,
-        )
-        if token_resp.status_code != 200:
-            return []
-        access_token = token_resp.json().get("access_token", "")
-        instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
-
         describe_resp = requests.get(
-            f"{instance_url}/services/data/{api_version}/sobjects/{sf_object}/describe",
-            headers={"Authorization": f"Bearer {access_token}"},
+            session.data_url(f"sobjects/{sf_object}/describe"),
+            headers=session.headers,
             timeout=20,
         )
         if describe_resp.status_code != 200:
@@ -278,19 +295,124 @@ def _sf_describe(sf_object: str, sf_credentials: dict) -> list[dict]:
         return []
 
 
-def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
+def record_type_id_of(config: dict) -> str:
+    """The record type a mapping pins its records to, if it pins one.
+
+    Read from the mapping rather than asked for separately because the record
+    type is already a decision the expert made in the field mapper, and it is
+    the thing that decides which picklist values the load will actually accept.
+    """
+    for entry in config.get("fields") or []:
+        if entry.get("destination_field") != "RecordTypeId":
+            continue
+        constant = entry.get("constant_value") or entry.get("use_constant") or ""
+        return str(constant).strip()
+    return ""
+
+
+def _record_type_picklists(
+    sf_object: str, record_type_id: str, sf_credentials: dict
+) -> dict[str, dict]:
+    """Picklist values as one record type actually offers them.
+
+    The object describe returns the union across every record type, which is a
+    superset of what any single load may use — on an object with one record
+    type it can still be a superset, because a value can be left out of that
+    type's assignment. Writing a value the type does not offer is rejected, so
+    the describe alone cannot tell you whether a mapping will work.
+
+    Returns {} on any failure, which callers treat as "no better information
+    than the describe" rather than as an error: this endpoint is a refinement,
+    and losing it should narrow what we can check, not stop the run.
+    """
+    try:
+        import requests
+
+        session = _sf_session(sf_credentials)
+        if not session:
+            return {}
+        resp = requests.get(
+            f"{session.instance_url}/services/data/{session.api_version}"
+            f"/ui-api/object-info/{sf_object}/picklist-values/{record_type_id}",
+            headers=session.headers,
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            logger.info(
+                "[schema] no record-type picklists for %s/%s (HTTP %s); "
+                "falling back to the object describe",
+                sf_object,
+                record_type_id,
+                resp.status_code,
+            )
+            return {}
+        payload = resp.json().get("picklistFieldValues") or {}
+    except Exception:
+        return {}
+
+    scoped: dict[str, dict] = {}
+    for field_name, detail in payload.items():
+        # The UI API HTML-escapes labels and values, so a picklist entry like
+        # "Access & Accounts" arrives as "Access &amp; Accounts" and would look
+        # like a different value from the one the describe and the loader use.
+        values = [html.unescape(v.get("value", "")) for v in detail.get("values") or []]
+        controller_values = {
+            html.unescape(label): index
+            for label, index in (detail.get("controllerValues") or {}).items()
+        }
+        # validFor is a list of controller indexes per child value; invert it so
+        # a caller can ask "given this parent, which children are legal?"
+        valid_for: dict[str, list[str]] = {}
+        if controller_values:
+            by_index = {index: label for label, index in controller_values.items()}
+            for entry in detail.get("values") or []:
+                child = html.unescape(entry.get("value", ""))
+                for index in entry.get("validFor") or []:
+                    parent = by_index.get(index)
+                    if parent:
+                        valid_for.setdefault(parent, []).append(child)
+        scoped[field_name] = {
+            "values": values,
+            "controller_values": list(controller_values),
+            "valid_for": valid_for,
+        }
+    return scoped
+
+
+def get_destination_fields(
+    sf_object: str, sf_credentials: dict, record_type_id: str = ""
+) -> list[dict]:
     """Return rich field metadata for a Salesforce object.
 
     Each entry: {name, label, type, length, required, createable, updateable,
-    id_lookup, reference_to, picklist_values}. Used by the schema-discovery and
-    auto-suggest APIs.
+    id_lookup, reference_to, picklist_values} plus, for picklists,
+    {picklist_restricted, picklist_dependent, picklist_controller,
+    picklist_unavailable, picklist_valid_for}. Used by the schema-discovery and
+    field-matching APIs.
+
+    Passing ``record_type_id`` narrows ``picklist_values`` to what that record
+    type offers and reports the difference in ``picklist_unavailable``. Without
+    it the describe's union is returned, which is the right answer when no
+    record type has been chosen but is optimistic once one has.
     """
+    scoped = (
+        _record_type_picklists(sf_object, record_type_id, sf_credentials)
+        if record_type_id
+        else {}
+    )
+
     fields: list[dict] = []
     for f in _sf_describe(sf_object, sf_credentials):
         required = (not f.get("nillable", True)) and (not f.get("defaultedOnCreate", False))
-        fields.append({
-            "name": f.get("name", ""),
-            "label": f.get("label", f.get("name", "")),
+        name = f.get("name", "")
+        described = [
+            pv.get("value", "")
+            for pv in f.get("picklistValues", [])
+            if pv.get("active", True)
+        ]
+        entry = {
+            "name": name,
+            "label": f.get("label", name),
             "type": f.get("type", ""),
             "length": f.get("length", 0),
             "required": bool(required),
@@ -299,12 +421,26 @@ def get_destination_fields(sf_object: str, sf_credentials: dict) -> list[dict]:
             # Usable as an upsert key: External Id or a unique/standard id field.
             "id_lookup": bool(f.get("idLookup", False)),
             "reference_to": f.get("referenceTo", []),
-            "picklist_values": [
-                pv.get("value", "")
-                for pv in f.get("picklistValues", [])
-                if pv.get("active", True)
-            ],
-        })
+            "picklist_values": described,
+        }
+        if described:
+            # A restricted picklist rejects the row outright when handed a value
+            # outside the list; an unrestricted one stores whatever it is given.
+            # The two failure modes need different warnings, so the flag has to
+            # survive as far as the checks.
+            entry["picklist_restricted"] = bool(f.get("restrictedPicklist", False))
+            entry["picklist_dependent"] = bool(f.get("dependentPicklist", False))
+            entry["picklist_controller"] = f.get("controllerName") or ""
+            detail = scoped.get(name)
+            if detail:
+                usable = detail["values"]
+                entry["picklist_values"] = usable
+                entry["picklist_unavailable"] = [
+                    value for value in described if value not in set(usable)
+                ]
+                if detail["valid_for"]:
+                    entry["picklist_valid_for"] = detail["valid_for"]
+        fields.append(entry)
     return sorted(fields, key=lambda x: x["name"])
 
 
@@ -315,42 +451,25 @@ def get_destination_records(
 
     Powers the wizard reference picker (e.g. choose a Profile by name and store
     its Id as a per-field constant). Returns [] on any error so the UI degrades
-    gracefully. Mirrors the self-contained token+request flow of ``_sf_describe``.
+    gracefully. For a large object or one needing disambiguating columns, use
+    ``find_destination_records``, which reports a total and accepts a search.
     """
     try:
         import requests
 
-        base_url = (sf_credentials.get("base_url") or "").rstrip("/")
-        client_id = sf_credentials.get("client_id", "")
-        client_secret = sf_credentials.get("client_secret", "")
-        api_version = sf_credentials.get("api_version", "v60.0")
-
-        if not (base_url and client_id and client_secret):
+        session = _sf_session(sf_credentials)
+        if not session:
             return []
-
-        token_resp = requests.post(
-            f"{base_url}/services/oauth2/token",
-            data={
-                "grant_type": "client_credentials",
-                "client_id": client_id,
-                "client_secret": client_secret,
-            },
-            timeout=12,
-        )
-        if token_resp.status_code != 200:
-            return []
-        access_token = token_resp.json().get("access_token", "")
-        instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
 
         safe_limit = max(1, min(int(limit), 2000))
-        safe_name = "".join(c for c in name_field if c.isalnum() or c == "_") or "Name"
+        safe_name = _safe_identifier(name_field, "Name")
         query = (
             f"SELECT Id, {safe_name} FROM {sf_object} "
             f"ORDER BY {safe_name} LIMIT {safe_limit}"
         )
         query_resp = requests.get(
-            f"{instance_url}/services/data/{api_version}/query",
-            headers={"Authorization": f"Bearer {access_token}"},
+            session.data_url("query"),
+            headers=session.headers,
             params={"q": query},
             timeout=20,
         )
@@ -365,7 +484,159 @@ def get_destination_records(
         return []
 
 
-# ── Auto-suggest mapping ────────────────────────────────────────────────────────
+# ── On-demand reference value pickers ──────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ReferencePicker:
+    """A reference target whose rows are ambiguous without extra columns."""
+
+    extra_fields: tuple[str, ...] = ()
+    # Selecting these fails outright when the org lacks the feature, and that
+    # failure is the answer to the question, so it is reported not swallowed.
+    optional_fields: tuple[str, ...] = ()
+    # Filled from the mapping's destination object, so a picker opened on
+    # Account offers Account record types rather than every one in the org.
+    scope_field: str = ""
+
+
+REFERENCE_PICKERS: dict[str, ReferencePicker] = {
+    "RecordType": ReferencePicker(
+        extra_fields=("DeveloperName", "SobjectType"),
+        optional_fields=("IsPersonType",),
+        scope_field="SobjectType",
+    ),
+}
+
+
+def _rejected_fields(body: object, candidates: tuple[str, ...]) -> list[str]:
+    """Which of ``candidates`` a Salesforce INVALID_FIELD error named."""
+    if not isinstance(body, list):
+        return []
+    text = " ".join(
+        str(item.get("message", ""))
+        for item in body
+        if isinstance(item, dict) and item.get("errorCode") == "INVALID_FIELD"
+    )
+    return [name for name in candidates if name in text]
+
+
+def _error_message(status_code: int, body: object) -> str:
+    if isinstance(body, list) and body and isinstance(body[0], dict):
+        return str(body[0].get("message") or f"Salesforce returned {status_code}")
+    return f"Salesforce returned {status_code}"
+
+
+def find_destination_records(
+    sf_object: str,
+    sf_credentials: dict,
+    name_field: str = "Name",
+    limit: int = 10,
+    search: str = "",
+    for_object: str = "",
+) -> dict:
+    """Look up a small page of records, with the total so the page is honest.
+
+    ``get_destination_records`` returns the alphabetically first N and says
+    nothing about the rest, which reads as a complete list when it is not.
+    This reports ``total`` alongside a deliberately small page so the caller
+    can tell the operator to search instead of scroll, and surfaces errors
+    rather than collapsing them into an empty list.
+    """
+    result: dict = {
+        "records": [],
+        "total": 0,
+        "truncated": False,
+        "unavailable_fields": [],
+        "scoped_to": "",
+        "error": "",
+    }
+    try:
+        import requests
+
+        session = _sf_session(sf_credentials)
+        if not session:
+            result["error"] = (
+                "No usable Salesforce credentials. Pick a destination connection first."
+            )
+            return result
+
+        safe_object = _safe_identifier(sf_object)
+        if not safe_object:
+            result["error"] = "No destination object to look up."
+            return result
+
+        safe_name = _safe_identifier(name_field, "Name")
+        safe_limit = max(1, min(int(limit), 200))
+        picker = REFERENCE_PICKERS.get(safe_object, ReferencePicker())
+
+        clauses: list[str] = []
+        if picker.scope_field and for_object:
+            scope_field = _safe_identifier(picker.scope_field)
+            clauses.append(f"{scope_field} = '{_soql_literal(for_object)}'")
+            result["scoped_to"] = for_object
+        if search.strip():
+            clauses.append(f"{safe_name} LIKE '%{_soql_literal(search.strip())}%'")
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        def run(soql: str) -> tuple[int, object]:
+            resp = requests.get(
+                session.data_url("query"),
+                headers=session.headers,
+                params={"q": soql},
+                timeout=20,
+            )
+            try:
+                return resp.status_code, resp.json()
+            except ValueError:
+                return resp.status_code, None
+
+        extras = [_safe_identifier(f) for f in picker.extra_fields if _safe_identifier(f)]
+        optional = [_safe_identifier(f) for f in picker.optional_fields if _safe_identifier(f)]
+
+        # An org without a feature rejects the whole query rather than omitting
+        # the column, so retry without whichever optional field it named. Which
+        # one it refused is itself worth reporting.
+        payload: object = None
+        while True:
+            columns = ", ".join(["Id", safe_name, *extras, *optional])
+            status, payload = run(
+                f"SELECT {columns} FROM {safe_object}{where} "
+                f"ORDER BY {safe_name} LIMIT {safe_limit}"
+            )
+            if status == 200:
+                break
+            rejected = _rejected_fields(payload, tuple(optional))
+            if not rejected:
+                result["error"] = _error_message(status, payload)
+                return result
+            result["unavailable_fields"].extend(rejected)
+            optional = [f for f in optional if f not in rejected]
+
+        selected = [*extras, *optional]
+        for row in (payload or {}).get("records", []):
+            result["records"].append({
+                "id": row.get("Id", ""),
+                "name": row.get(safe_name, "") or "",
+                "extra": {f: row.get(f) for f in selected if row.get(f) is not None},
+            })
+
+        count_status, count_payload = run(f"SELECT COUNT() FROM {safe_object}{where}")
+        if count_status == 200 and isinstance(count_payload, dict):
+            result["total"] = int(count_payload.get("totalSize") or 0)
+        else:
+            # Without a count the page cannot claim to be complete.
+            result["total"] = len(result["records"])
+            result["truncated"] = len(result["records"]) >= safe_limit
+            return result
+
+        result["truncated"] = result["total"] > len(result["records"])
+        return result
+    except Exception as exc:  # noqa: BLE001 — requests raises many shapes
+        result["error"] = f"The lookup failed: {exc}"
+        return result
+
+
+# ── Source type normalisation ───────────────────────────────────────────────────
 
 # Generic source type → normalised type, mirrors _norm_sf_type for the SF side.
 _SOURCE_TYPE_MAP: dict[str, str] = {
@@ -389,215 +660,6 @@ _SOURCE_TYPE_MAP: dict[str, str] = {
 
 def _norm_source_type(src_type: str) -> str:
     return _SOURCE_TYPE_MAP.get((src_type or "").lower(), "string")
-
-
-def _short_name(field_name: str) -> str:
-    """Return the comparable short name (strip table prefix and __c suffix)."""
-    base = field_name.split(".")[-1]
-    return base.replace("__c", "").replace("_", "").lower()
-
-
-def auto_suggest_mapping(
-    source_type: str,
-    source_table: str,
-    salesforce_object: str,
-    source_credentials: dict,
-    destination_credentials: dict,
-    other_mappings: list[dict] | None = None,
-) -> dict:
-    """Generate a draft mapping config by matching source fields to Salesforce
-    fields using name similarity and type compatibility.
-
-    ``other_mappings`` is an optional list of dicts with keys
-    ``source_table``, ``sf_object``, ``mapping_name`` describing the other
-    tables being mapped in the same wizard session.  When a source field is a
-    reference to one of those tables, a ``generic_lookup`` transform is emitted
-    instead of a plain name match.
-
-    Returns a mapping dict in the same shape as the JSON mapping files, with an
-    extra per-field `confidence` (0-1) and `match_reason` for UI review.
-    """
-    import difflib
-    from api import sources as source_registry
-
-    provider = source_registry.get(source_type)
-    source_fields = (
-        provider.get_table_fields(source_table, source_credentials) if provider else []
-    )
-    dest_fields = get_destination_fields(salesforce_object, destination_credentials)
-
-    # Build a lookup from SN table -> (sf_object, mapping_name) using
-    # the other mappings context provided by the wizard.
-    ref_target_map: dict[str, dict] = {}
-    for om in (other_mappings or []):
-        sn_table = om.get("source_table", "")
-        if sn_table:
-            ref_target_map[sn_table] = om
-
-    # Index source reference fields by their reference_table for quick access.
-    src_ref_by_table: dict[str, list] = {}
-    for sf in source_fields:
-        ref_tbl = getattr(sf, "reference_table", "")
-        if sf.field_type == "reference" and ref_tbl:
-            src_ref_by_table.setdefault(ref_tbl, []).append(sf)
-
-    # Index source fields by their comparable short name for quick lookup.
-    src_by_short: dict[str, list] = {}
-    for sf in source_fields:
-        src_by_short.setdefault(_short_name(sf.name), []).append(sf)
-    src_short_names = list(src_by_short.keys())
-
-    # Track which source fields have already been emitted as reference lookups
-    # so they are not duplicated by the normal name-matching loop.
-    emitted_source_fields: set[str] = set()
-
-    suggested_fields: list[dict] = []
-
-    # ── Pass 1: reference-field lookups ─────────────────────────────────────
-    for ref_table, ref_fields in src_ref_by_table.items():
-        target_om = ref_target_map.get(ref_table)
-        if not target_om:
-            continue
-        target_sf_obj = target_om.get("sf_object", "")
-        target_mapping = target_om.get("mapping_name", "")
-        if not target_sf_obj:
-            continue
-        lookup_table_name = f"{ref_table}_{target_sf_obj}_{target_mapping}"
-        for src_f in ref_fields:
-            src_short = _short_name(src_f.name)
-            # Try to find a matching destination field (reference type or name match)
-            dest_match = None
-            for dest in dest_fields:
-                if not dest.get("createable"):
-                    continue
-                d_short = _short_name(dest["name"])
-                if d_short == src_short:
-                    dest_match = dest
-                    break
-                ref_to = dest.get("reference_to") or []
-                if target_sf_obj in ref_to:
-                    d_short_loose = _short_name(dest["name"])
-                    if difflib.SequenceMatcher(None, d_short_loose, src_short).ratio() > 0.5:
-                        dest_match = dest
-                        break
-            if not dest_match:
-                continue
-            field_entry: dict = {
-                "source_field": src_f.name,
-                "destination_field": dest_match["name"],
-                "confidence": 0.85,
-                "match_reason": f"reference lookup -> {ref_table}",
-                "transformation_function": "generic_lookup",
-                "transformation_params": {"lookup_tables": [lookup_table_name], "default": ""},
-            }
-            suggested_fields.append(field_entry)
-            emitted_source_fields.add(src_f.name)
-
-    # ── Pass 2: normal name matching ────────────────────────────────────────
-    for dest in dest_fields:
-        if not dest.get("createable"):
-            continue
-        dest_name = dest["name"]
-        dest_short = _short_name(dest_name)
-        dest_norm_type = _norm_sf_type(dest.get("type", ""))
-
-        confidence = 0.0
-        match_reason = ""
-        matched_source = ""
-
-        # 1. Exact short-name match
-        if dest_short in src_by_short:
-            matched_source = src_by_short[dest_short][0].name
-            confidence = 0.95
-            match_reason = "name match"
-        else:
-            # 2. Fuzzy name match
-            close = difflib.get_close_matches(dest_short, src_short_names, n=1, cutoff=0.6)
-            if close:
-                matched_source = src_by_short[close[0]][0].name
-                ratio = difflib.SequenceMatcher(None, dest_short, close[0]).ratio()
-                confidence = round(0.6 + 0.3 * ratio, 2)
-                match_reason = "fuzzy name match"
-
-        if not matched_source:
-            continue
-        if matched_source in emitted_source_fields:
-            continue
-
-        # Adjust confidence by type compatibility.
-        src_field = src_by_short[_short_name(matched_source)][0]
-        src_norm_type = _norm_source_type(src_field.field_type)
-        transformation_function = ""
-        transformation_params = None
-
-        if src_norm_type == dest_norm_type:
-            pass
-        elif dest_norm_type in ("", "string"):
-            pass
-        elif dest_norm_type == "datetime" and src_norm_type in ("datetime", "date"):
-            transformation_function = "generic_format_datetime"
-            transformation_params = {"input_format": "%Y-%m-%d %H:%M:%S", "output_format": "%Y-%m-%dT%H:%M:%S.000+0000"}
-        elif dest_norm_type == "string" and dest.get("length", 0) > 0:
-            src_len_hint = 255
-            if src_len_hint > dest["length"]:
-                transformation_function = "generic_truncate"
-                transformation_params = {"max_length": dest["length"]}
-        elif dest.get("picklist_values"):
-            transformation_function = "generic_value_map"
-            transformation_params = {"map": {}, "default": ""}
-            confidence = round(confidence * 0.8, 2)
-            match_reason += "; picklist — fill value map"
-        else:
-            coercion = get_type_coercion(src_field.field_type, dest.get("type", ""))
-            if coercion.get("coercible"):
-                transformation_function = coercion["transform"]
-                transformation_params = coercion["params"]
-                confidence = round(confidence * 0.8, 2)
-                match_reason += "; auto-coerced type"
-            else:
-                confidence = round(confidence * 0.7, 2)
-                match_reason += "; type may need coercion"
-
-        type_warning = ""
-        if src_norm_type != dest_norm_type and dest_norm_type not in ("", "string"):
-            coercion_info = get_type_coercion(src_field.field_type, dest.get("type", ""))
-            if not coercion_info.get("compatible"):
-                type_warning = coercion_info.get("warning", "")
-
-        field_entry = {
-            "source_field": matched_source,
-            "destination_field": dest_name,
-            "confidence": confidence,
-            "match_reason": match_reason,
-        }
-        if transformation_function:
-            field_entry["transformation_function"] = transformation_function
-        if transformation_params is not None:
-            field_entry["transformation_params"] = transformation_params
-        if type_warning:
-            field_entry["type_warning"] = type_warning
-        suggested_fields.append(field_entry)
-
-    suggested_fields.sort(key=lambda f: f["confidence"], reverse=True)
-
-    return {
-        "name": salesforce_object,
-        "source_type": source_type,
-        "destination_object": salesforce_object,
-        "source_tables": [source_table],
-        "salesforce_object": salesforce_object,
-        "servicenow_tables": [source_table],
-        "operation": "insert",
-        "joins": [],
-        "filters": [],
-        "priority": 9999,
-        "fields": suggested_fields,
-        "_meta": {
-            "source_field_count": len(source_fields),
-            "destination_field_count": len(dest_fields),
-            "suggested_count": len(suggested_fields),
-        },
-    }
 
 
 def _load_mapping_file(object_name: str) -> dict:
@@ -836,7 +898,9 @@ def check_compatibility(
         if explicit_mappings:
             dest_meta = {
                 f["name"]: f
-                for f in get_destination_fields(sf_object, destination_credentials)
+                for f in get_destination_fields(
+                    sf_object, destination_credentials, record_type_id_of(config)
+                )
             }
 
             def _has_value(fm: dict) -> bool:
@@ -887,9 +951,14 @@ def check_compatibility(
                         ),
                     })
 
-            # 3) Picklist destinations with no/partial value map (non-blocking).
-            #    A plain copy or an empty generic_value_map means source values that
-            #    don't match the Salesforce picklist get blanked at load time.
+            # 3) Picklist destinations the load will not accept as configured.
+            #    What goes wrong depends on the field: a restricted picklist
+            #    rejects the whole row, an unrestricted one quietly stores an
+            #    off-list value, and a value the record type does not offer is
+            #    rejected however valid it looks in the describe.
+            mapped_by_field = {
+                fm.get("destination_field", ""): fm for fm in explicit_mappings
+            }
             for fm in explicit_mappings:
                 dest_name = fm.get("destination_field", "")
                 meta = dest_meta.get(dest_name)
@@ -900,17 +969,26 @@ def check_compatibility(
                     continue
                 if not fm.get("source_field"):
                     continue
+
+                restricted = meta.get("picklist_restricted")
+                consequence = (
+                    "those rows are rejected"
+                    if restricted
+                    else "the source value is stored even though it is not in the picklist"
+                )
                 transform_fn = fm.get("transformation_function", "")
                 params = fm.get("transformation_params") or {}
                 value_map = params.get("map") if isinstance(params, dict) else None
+
                 if transform_fn == "generic_value_map":
                     if not value_map:
                         picklist_warnings.append({
                             "mapping": obj_name,
                             "field": dest_name,
                             "reason": (
-                                f"Picklist '{dest_name}' has an empty value map — source "
-                                "values will be blanked. Map values in Step 4."
+                                f"Picklist '{dest_name}' has an empty value map, so no "
+                                f"source value reaches a valid entry and {consequence}. "
+                                "Map values in Step 4."
                             ),
                         })
                     else:
@@ -921,7 +999,22 @@ def check_compatibility(
                                 "field": dest_name,
                                 "reason": (
                                     f"Picklist '{dest_name}' has {len(unmapped)} unmapped "
-                                    "source value(s); those rows will be blanked."
+                                    f"source value(s); for those rows {consequence}."
+                                ),
+                            })
+                        unavailable = set(meta.get("picklist_unavailable") or [])
+                        offered = {
+                            str(v) for v in value_map.values() if v and str(v) in unavailable
+                        }
+                        if offered:
+                            picklist_warnings.append({
+                                "mapping": obj_name,
+                                "field": dest_name,
+                                "reason": (
+                                    f"Picklist '{dest_name}' is mapped to "
+                                    f"{', '.join(sorted(offered))}, which the chosen record "
+                                    "type does not offer even though the field defines them. "
+                                    "Those rows are rejected."
                                 ),
                             })
                 elif not transform_fn:
@@ -929,9 +1022,24 @@ def check_compatibility(
                         "mapping": obj_name,
                         "field": dest_name,
                         "reason": (
-                            f"Picklist '{dest_name}' is a raw source copy — values that "
-                            "don't match the Salesforce picklist will be blanked. Add a "
-                            "value map in Step 4."
+                            f"Picklist '{dest_name}' is a raw source copy — where the "
+                            f"source value is not already a valid entry, {consequence}. "
+                            "Add a value map in Step 4."
+                        ),
+                    })
+
+                # A dependent picklist is only valid alongside its controller, so
+                # setting the child while leaving the parent to a default is a
+                # rejection waiting to happen.
+                controller = meta.get("picklist_controller") or ""
+                if controller and controller not in mapped_by_field:
+                    picklist_warnings.append({
+                        "mapping": obj_name,
+                        "field": dest_name,
+                        "reason": (
+                            f"Picklist '{dest_name}' is controlled by '{controller}', "
+                            f"which is not mapped. A value for '{dest_name}' is only "
+                            f"accepted alongside a '{controller}' it is valid for."
                         ),
                     })
 

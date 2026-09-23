@@ -1,10 +1,10 @@
 """Model-assisted field matching for the mapping step.
 
-The deterministic suggester in ``api.compat_engine`` pairs fields whose names
-look alike. It cannot pair ``u_caller_id`` with ``ContactId``, because nothing
-about those two strings is similar — only their meaning is. This module hands
-the leftovers of that pass to a model, which reads names, labels and types as a
-human would and proposes the semantic pairs.
+This is the only suggester. Name similarity alone was never enough — nothing
+about ``u_caller_id`` resembles ``ContactId``, only their meaning does — so the
+model reads names, labels and types as a human would and proposes the whole
+draft, from the fields whose names already agree to the ones that only agree in
+meaning.
 
 The model only ever proposes. Every proposal is re-checked here against the
 source table and the live destination describe: both fields have to exist, the
@@ -35,24 +35,30 @@ SYSTEM_PROMPT = """\
 You map fields from a source ITSM system onto Salesforce fields for a data \
 migration.
 
-A deterministic name-similarity pass has already run. You are given only what it \
-could not pair: source fields with no destination yet, and destination fields \
-with nothing feeding them. Your job is to find the pairs where the names differ \
-but the meaning is the same — for example a source field `u_caller_id` labelled \
-"Caller" belongs in `ContactId`, and `opened_at` belongs in `CreatedDate`.
+You are given the source fields that have no destination yet and the \
+destination fields with nothing feeding them. Pair up everything that holds the \
+same real-world fact.
+
+Work in two sweeps. First take the pairs whose names already agree, allowing \
+for the conventions each system uses — `short_description` belongs in \
+`Subject`, `sys_created_on` in `CreatedDate`. These are the cheapest to get \
+right, so do not skip them. Then look for the pairs a name comparison would \
+never find, where only the meaning matches: a source field `u_caller_id` \
+labelled "Caller" belongs in `ContactId`.
 
 Rules:
 - Only use field names exactly as they appear in the lists you are given. Never \
 invent, abbreviate or reformat a name.
 - Propose a pair only when the two fields hold the same real-world fact. Two \
-fields being the same data type is not a reason to pair them.
+fields being the same data type is not a reason to pair them, and neither is a \
+loose resemblance between two names.
 - Each source field and each destination field may appear at most once.
 - Prefer leaving a field unmapped over a speculative pair. An unmapped field \
 costs a person one decision; a wrong pair corrupts data.
 - Set confidence honestly: above 0.8 when the meaning is unambiguous, 0.5 to 0.8 \
 when it is a reasonable reading of the labels, below 0.5 when you are guessing.
 - Write the rationale for a migration engineer who cannot see this prompt. Say \
-what the two fields mean, not that the names are similar.
+what fact the two fields hold, not that the names look alike.
 
 Call submit_field_matches exactly once with everything you found. If nothing \
 matches, submit an empty list.
@@ -426,9 +432,9 @@ def suggest(
     settings: AgentSettings | None = None,
     client: AgentClient | None = None,
 ) -> FieldMatchReport:
-    """Propose semantic field pairs the name-similarity pass could not find."""
+    """Propose field pairs for everything the draft has not already mapped."""
     from api import sources as source_registry
-    from api.compat_engine import get_destination_fields
+    from api.compat_engine import get_destination_fields, record_type_id_of
 
     settings = settings or load_settings()
     report = FieldMatchReport(
@@ -441,7 +447,14 @@ def suggest(
         return report
 
     source_fields = provider.get_table_fields(source_table, source_credentials)
-    destination_fields = get_destination_fields(destination_object, destination_credentials)
+    # If the draft already pins a record type, match against the values that
+    # record type accepts. Showing the model the describe's union invites it to
+    # propose a pairing the load will refuse.
+    destination_fields = get_destination_fields(
+        destination_object,
+        destination_credentials,
+        record_type_id_of({"fields": existing_fields or []}),
+    )
     if not destination_fields:
         report.error = (
             f"{destination_object} could not be described, so matches cannot be "

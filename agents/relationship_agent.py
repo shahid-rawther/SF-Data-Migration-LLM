@@ -57,6 +57,15 @@ Your job:
 
 - Call get_findings first. It is the pre-computed work list, with the parent \
 mappings that could resolve each item and whether it blocks launch.
+- Treat that list as a starting point, not the full extent of what can go wrong. \
+It comes from fixed rules, so it only contains the edge cases someone thought to \
+write a check for. You are here for the ones nobody did. If you see anything else \
+that would silently lose, truncate, duplicate or misattach data — a lookup that \
+will resolve against the wrong parent, a field whose meaning does not match the \
+one it is mapped to, an operation that would overwrite rather than add, an \
+assumption the mapping makes that the schema does not support — say so, even \
+though nothing in the list mentions it. An unreported surprise is the worst \
+outcome here; a notice that turns out to be unnecessary costs almost nothing.
 - Investigate with the other tools where a finding is ambiguous. Reference \
 fields can point at several objects; check which one the source field actually \
 holds and which mapping loads it.
@@ -98,6 +107,11 @@ class RelationshipReport:
     remaining_blockers: list[dict] = field(default_factory=list)
     has_cycle: bool = False
     model_invoked: bool = False
+    # True when the model was asked to look despite the checks finding nothing.
+    reviewed: bool = False
+    # Why that review did not happen, when it was meant to. Never an error: the
+    # run is sound without it, it just went unreviewed.
+    review_skipped: str = ""
     usage: dict = field(default_factory=dict)
     stop_reason: str = ""
     tool_calls: list[str] = field(default_factory=list)
@@ -119,6 +133,8 @@ class RelationshipReport:
             "remaining_blockers": self.remaining_blockers,
             "has_cycle": self.has_cycle,
             "model_invoked": self.model_invoked,
+            "reviewed": self.reviewed,
+            "review_skipped": self.review_skipped,
             "usage": self.usage,
             "stop_reason": self.stop_reason,
             "tool_calls": self.tool_calls,
@@ -127,7 +143,13 @@ class RelationshipReport:
 
 
 def _needs_agent(findings: list[Finding]) -> bool:
-    """Whether anything in the findings actually calls for a decision."""
+    """Whether anything in the findings actually calls for a decision.
+
+    Only ever a lower bound. The detector recognises the edge cases it has rules
+    for, so "nothing to decide" means "nothing this code knows to look for" —
+    which is why :func:`analyze` can still ask the model to review, on the
+    strength of that difference.
+    """
     decidable = {
         detector.RAW_REFERENCE,
         detector.UNMAPPED_REQUIRED_REFERENCE,
@@ -138,6 +160,7 @@ def _needs_agent(findings: list[Finding]) -> bool:
         detector.TYPE_MISMATCH,
         detector.PICKLIST_UNMAPPED,
         detector.DEPENDENCY_CYCLE,
+        detector.DEFERRABLE_CYCLE,
     }
     return any(finding.kind in decidable for finding in findings)
 
@@ -158,13 +181,21 @@ def _build_prompt(context: MigrationContext, findings: list[Finding]) -> str:
         if finding.kind
         not in (detector.LOOKUP_WIRED, detector.JUNCTION_OBJECT, detector.NO_EXTERNAL_ID)
     ]
+    remit = (
+        "The checks below found nothing they recognise. That is not the same as "
+        "nothing being wrong, so review the mappings yourself and submit a notice "
+        "for anything that would lose or corrupt data. Submit an empty list if "
+        "the migration looks sound."
+        if not work_list
+        else "Investigate what you need to, then call submit_resolutions once."
+    )
     return (
         f"Source system: {context.source_type}\n"
         f"Mappings in this migration:\n{json.dumps(inventory, indent=2)}\n\n"
         f"Findings that may need a decision ({len(work_list)}, of which "
         f"{sum(1 for f in findings if f.blocking)} block launch):\n"
         f"{json.dumps(work_list, indent=2)}\n\n"
-        "Investigate what you need to, then call submit_resolutions once."
+        f"{remit}"
     )
 
 
@@ -211,36 +242,55 @@ def analyze(
     report.findings = [finding.to_dict() for finding in findings]
 
     accepted: list = []
-    if _needs_agent(findings):
+    # The detector only recognises what it has rules for, so "no findings" is a
+    # statement about the rules rather than about the migration. Reviewing anyway
+    # costs one call and is the only way an unanticipated edge case gets reported.
+    needed = _needs_agent(findings)
+    review_only = not needed and settings.review_always and settings.has_credentials
+
+    if needed or review_only:
+        loop = None
         try:
             loop = _run_agent(context, findings, settings)
         except AgentError as exc:
-            logger.error("[agent] relationship pass failed: %s", exc)
-            report.error = str(exc)
-            report.remaining_blockers = [
-                finding.to_dict() for finding in detector.blocking(findings)
-            ]
-            return report
-        report.model_invoked = True
-        report.usage = loop.usage
-        report.stop_reason = loop.stop_reason
-        report.tool_calls = loop.tool_calls
-        if loop.submission is None:
-            report.error = (
-                "The agent finished without submitting a resolution "
-                f"(stop reason: {loop.stop_reason})"
-            )
-            report.summary = loop.final_text
-            report.remaining_blockers = [
-                finding.to_dict() for finding in detector.blocking(findings)
-            ]
-            return report
+            # A review the detector did not ask for is a bonus pass. Losing it to
+            # an unreachable model must not also cost the load ordering, which is
+            # computed without the model and is what the run actually needs.
+            if needed:
+                logger.error("[agent] relationship pass failed: %s", exc)
+                report.error = str(exc)
+                report.remaining_blockers = [
+                    finding.to_dict() for finding in detector.blocking(findings)
+                ]
+                return report
+            logger.warning("[agent] review pass unavailable, continuing: %s", exc)
+            report.review_skipped = str(exc)
 
-        summary, raw = resolution_rules.parse_submission(loop.submission)
-        report.summary = summary or loop.final_text
-        outcome = resolution_rules.validate(context, raw)
-        accepted = outcome.accepted
-        report.rejected = outcome.rejected
+        if loop is not None:
+            report.model_invoked = True
+            report.usage = loop.usage
+            report.stop_reason = loop.stop_reason
+            report.tool_calls = loop.tool_calls
+            if loop.submission is None:
+                message = (
+                    "The agent finished without submitting a resolution "
+                    f"(stop reason: {loop.stop_reason})"
+                )
+                report.summary = loop.final_text
+                if needed:
+                    report.error = message
+                    report.remaining_blockers = [
+                        finding.to_dict() for finding in detector.blocking(findings)
+                    ]
+                    return report
+                report.review_skipped = message
+            else:
+                summary, raw = resolution_rules.parse_submission(loop.submission)
+                report.summary = summary or loop.final_text
+                outcome = resolution_rules.validate(context, raw)
+                accepted = outcome.accepted
+                report.rejected = outcome.rejected
+                report.reviewed = review_only
     else:
         report.summary = (
             "No relationship or datatype problem needed a decision; the load order "
@@ -273,21 +323,27 @@ def analyze(
     remaining = detector.blocking(detector.detect(context, draft_configs=draft))
     report.remaining_blockers = [finding.to_dict() for finding in remaining]
 
-    if effective_autonomy == AUTONOMY_APPLY and changes:
-        wiring.persist(draft, list(draft))
-        report.change_ids = audit.record_changes(
-            run_id, changes, session_id=session_id
-        )
+    if effective_autonomy == AUTONOMY_APPLY:
+        # Notices are journalled alongside the writes but do not themselves make
+        # the configs dirty, so a run that only had something to say does not
+        # rewrite every mapping.
+        written = [change for change in changes if change.applied]
+        if written:
+            wiring.persist(draft, list(draft))
+            context.configs = draft
+        if changes:
+            report.change_ids = audit.record_changes(
+                run_id, changes, session_id=session_id
+            )
         report.applied = True
-        context.configs = draft
         logger.info(
-            "[agent] relationship run %s applied %d change(s) across %d mapping(s)",
+            "[agent] relationship run %s applied %d change(s) and raised %d "
+            "notice(s) across %d mapping(s)",
             run_id,
-            len(changes),
+            len(written),
+            len(changes) - len(written),
             len(draft),
         )
-    elif effective_autonomy == AUTONOMY_APPLY:
-        report.applied = True  # nothing needed changing
 
     return report
 

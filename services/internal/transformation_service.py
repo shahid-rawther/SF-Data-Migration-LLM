@@ -34,6 +34,11 @@ from tools.reconciliation import reconciliation_tracker
 _TRANSFORM_MODULES: dict[str, object] = {}
 
 
+def _servicenow_transform_module():
+    """The ServiceNow transforms, which also serve as the shared fallback."""
+    return importlib.import_module("helpers.transformation_helper")
+
+
 def _get_transform_module(source_type: str):
     """Resolve the transformation module for the given source type.
 
@@ -47,7 +52,7 @@ def _get_transform_module(source_type: str):
     if source_type == "jsm":
         mod = importlib.import_module("integrations.jira.transformations")
     else:
-        mod = transformation_helper
+        mod = _servicenow_transform_module()
 
     _TRANSFORM_MODULES[source_type] = mod
     return mod
@@ -59,13 +64,31 @@ def _resolve_transform_func(func_name: str, source_type: str):
     mod = _get_transform_module(source_type)
     if hasattr(mod, func_name):
         return getattr(mod, func_name)
-    if mod is not transformation_helper and hasattr(transformation_helper, func_name):
-        return getattr(transformation_helper, func_name)
+    servicenow = _servicenow_transform_module()
+    if mod is not servicenow and hasattr(servicenow, func_name):
+        return getattr(servicenow, func_name)
     return None
 
 
+def transform_exists(func_name: str, source_type: str) -> bool:
+    """Whether a named transform can be resolved for a source system.
 
-def transform_table(job_id: int, table_mappings: dict):
+    A mapping naming one that cannot fails the whole batch part way through the
+    transform, after the extract has already run, so callers use this to find
+    out before a migration starts rather than during it.
+    """
+    if not func_name:
+        return True
+    if func_name in GENERIC_TRANSFORMS:
+        return True
+    try:
+        return _resolve_transform_func(func_name, source_type or "servicenow") is not None
+    except Exception:  # noqa: BLE001 — an unimportable module means unresolvable
+        return False
+
+
+def transform_table(job_id: int, table_mappings: dict) -> dict:
+    """Transform every batch of one table. Returns what was discarded overall."""
     executer = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     source_type = table_mappings.get("source_type", "servicenow")
     tables_path = PATH_TO_DOWNLOADS / source_type
@@ -103,6 +126,8 @@ def transform_table(job_id: int, table_mappings: dict):
                 )
             )
 
+        rows_dropped = 0
+        by_reason: dict[str, int] = {}
         for future in tqdm.tqdm(
             as_completed(futures),
             total=len(futures),
@@ -110,7 +135,10 @@ def transform_table(job_id: int, table_mappings: dict):
             ncols=120,
         ):
             try:
-                future.result()
+                outcome = future.result() or {}
+                rows_dropped += int(outcome.get("rows_dropped") or 0)
+                for reason, count in (outcome.get("by_reason") or {}).items():
+                    by_reason[reason] = by_reason.get(reason, 0) + count
             except Exception as e:
                 logger.exception("Transformation batch failed", exc_info=e)
                 jobs_service.update_job_table_status(job_table_id, "failed")
@@ -127,10 +155,25 @@ def transform_table(job_id: int, table_mappings: dict):
         logger.info(f"Reconciliation report written to {report_path}")
 
     logger.info(f"Transformation: Table: {job_table}...Done")
+    return {
+        "object": dest_object,
+        "rows_dropped": rows_dropped,
+        "by_reason": by_reason,
+    }
 
 
 
-def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings: dict):
+def transform_and_save_batch(
+    batch_path: Path, job_table_id: int, table_mappings: dict
+) -> dict:
+    """Transform one batch and persist it. Returns what the batch discarded.
+
+    The count is reported rather than only written to the error CSV because a
+    dropped row is invisible to the load, and therefore to the progress counters
+    that are derived from the load — a run that discarded every record would
+    otherwise finish looking clean.
+    """
+    no_rows_dropped: dict = {"rows_dropped": 0, "by_reason": {}}
 
     transformations_path = PATH_TO_TRANSFORMATION / "csv"
     transformations_hash_path = PATH_TO_TRANSFORMATION / "hash"
@@ -143,7 +186,7 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
         logger.info(
             f"Transformation: {job_table_id}: Batch Number: {batch_number} skipped as per configuration"
         )
-        return
+        return no_rows_dropped
 
     job_table_batch_id = jobs_service.get_or_create_job_table_batch(
         job_table_id, batch_size, batch_number, "transformation"
@@ -152,7 +195,7 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
     logger.info(f"Transformation: Batch Number: {batch_number} Status: Pending")
     if jobs_service.is_job_table_batch_success(job_table_batch_id):
         logger.info(f"Transformation: Batch Number: {batch_number} Status: Skipped")
-        return
+        return no_rows_dropped
 
     logger.info(f"Transformation: Batch Number: {batch_number} Status: In Progress")
     jobs_service.update_job_table_batch_status(job_table_batch_id, "in-progress")
@@ -166,7 +209,7 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
             transformation_name if transformation_name else salesforce_object_name
         )
 
-        transformations, transformation_hashes, skipped_rows = transform_batch(
+        transformations, transformation_hashes, skipped_rows, deferred_rows = transform_batch(
             batch_path, table_mappings
         )
 
@@ -177,6 +220,17 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
                 / f"{len(skipped_rows)}_errors.csv"
             )
             save_as_csv(error_batch_path, skipped_rows)
+
+        # The record of what the backfill pass has to attach. Written under a
+        # fixed name so a re-transform of the batch replaces it rather than
+        # accumulating a second copy alongside it.
+        if deferred_rows:
+            save_as_csv(
+                salesforce_object_transformation_path
+                / batch_path.stem
+                / "deferred.csv",
+                deferred_rows,
+            )
 
         # ================== INSERT ================================================
         if transformations["insert"]:
@@ -225,6 +279,17 @@ def transform_and_save_batch(batch_path: Path, job_table_id: int, table_mappings
 
     logger.info(f"Transformation: Batch Number: {batch_number} Status: Success")
     jobs_service.update_job_table_batch_status(job_table_batch_id, "success")
+
+    # One skipped_rows entry is one field, so the distinct source ids are what
+    # says how many records were actually lost.
+    by_reason: dict[str, int] = {}
+    for entry in skipped_rows:
+        reason = str(entry.get("reason") or "unknown")
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+    return {
+        "rows_dropped": len({entry[SERVICE_NOW_ID_COLUMN] for entry in skipped_rows}),
+        "by_reason": by_reason,
+    }
 
 
 def extract_unique_source_fields(fields: list[dict]) -> list[str]:
@@ -278,6 +343,9 @@ def transform_batch(batch_path: Path, table_mappings: dict):
     # Rows dropped during transformation are collected here (EC-12/EC-14) so the
     # caller can persist them to an error CSV instead of losing them to a log line.
     skipped_rows: list[dict] = []
+    # Rows that loaded with a deferred lookup left empty. These are what the
+    # backfill pass has to come back and attach.
+    deferred_rows: list[dict] = []
     removable_extra_fields = [field['destination_field'] for field in fields if field.get("ignore_on_update")]
 
     join_tables = []
@@ -335,6 +403,15 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             constant = field.get("use_constant")
             constant_value = field.get("constant_value")
             skip_if_not_found = field.get("skip_if_not_found")
+            # A lookup in a reference cycle cannot resolve on the pass that
+            # creates the records, because the object it points at has no
+            # destination ids yet. Such a field is attempted anyway — it may
+            # resolve from an earlier batch — but it must never cost the row,
+            # and where it comes back empty the row is noted for the follow-up
+            # update rather than silently left unattached.
+            deferred = bool(field.get("defer_to_backfill")) and operation == "insert"
+            if deferred:
+                skip_if_not_found = False
             if constant_value is not None:
                 # Per-migration literal chosen in the wizard (UI-specific, no env).
                 salesforce_object[destination_field] = constant_value
@@ -356,6 +433,26 @@ def transform_batch(batch_path: Path, table_mappings: dict):
                         )
                     else:
                         salesforce_object.update(func(destination_field, *field_values))
+                    if deferred and not salesforce_object.get(destination_field):
+                        # Only a row whose source actually held a reference has
+                        # anything to come back for; one that was empty at the
+                        # source is correctly empty at the destination.
+                        source_value = next(
+                            (
+                                str(v)
+                                for v in field_values
+                                if v is not None and not pd.isna(v) and str(v).strip()
+                            ),
+                            "",
+                        )
+                        if source_value:
+                            # Recorded, not skipped: the record still loads, and
+                            # the reference is attached by the backfill pass.
+                            deferred_rows.append({
+                                SERVICE_NOW_ID_COLUMN: row[source_id_column],
+                                "destination_field": destination_field,
+                                "source_value": source_value,
+                            })
                     if skip_if_not_found:
                         if not salesforce_object[destination_field]:
                             skip_row = True
@@ -458,4 +555,14 @@ def transform_batch(batch_path: Path, table_mappings: dict):
             "%d missing-reference row(s)",
             len(skipped_rows), salesforce_object_name, error_count, missing_ref_count,
         )
-    return transformations, transformation_hashes, skipped_rows
+    if deferred_rows:
+        by_field: dict[str, int] = {}
+        for entry in deferred_rows:
+            by_field[entry["destination_field"]] = by_field.get(entry["destination_field"], 0) + 1
+        logger.info(
+            "[Transformation] %s | batch=%s | deferred for backfill: %s",
+            salesforce_object_name,
+            batch_path.stem,
+            ", ".join(f"{field}={count}" for field, count in sorted(by_field.items())),
+        )
+    return transformations, transformation_hashes, skipped_rows, deferred_rows

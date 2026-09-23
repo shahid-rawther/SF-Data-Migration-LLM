@@ -9,6 +9,7 @@ import type {
 import { FieldMapper } from './FieldMapper';
 import { PrerequisiteNotice } from './PrerequisiteNotice';
 import { SearchableSelect } from './SearchableSelect';
+import { SemanticMatchPanel } from './SemanticMatchPanel';
 import type { SelectOption } from './SearchableSelect';
 
 export type JoinType = 'left' | 'right' | 'inner' | 'full';
@@ -96,10 +97,10 @@ export function TableMappingCard({
   canRemove,
 }: Props) {
   const [loadingFields, setLoadingFields] = useState(false);
-  const [suggesting, setSuggesting] = useState(false);
   const [matching, setMatching] = useState(false);
   const [matchReport, setMatchReport] = useState<SemanticSuggestReport | null>(null);
   const [matchError, setMatchError] = useState('');
+  const [fieldsError, setFieldsError] = useState('');
   const [expanded, setExpanded] = useState(true);
 
   const patch = useCallback(
@@ -251,8 +252,21 @@ export function TableMappingCard({
   };
 
   const loadFields = async () => {
-    if (!state.sfObject) return;
+    if (!state.sourceTable) {
+      setFieldsError('Pick a source table first.');
+      return;
+    }
+    if (!state.sfObject) {
+      // There is one card per source table, each with its own dropdown and its
+      // own button, so name the table rather than saying "a destination object".
+      setFieldsError(
+        `This card ("${state.sourceTable}") has no Salesforce Object set. ` +
+          'Choose one in the "Salesforce Object" dropdown just above.',
+      );
+      return;
+    }
     setLoadingFields(true);
+    setFieldsError('');
     try {
       const [srcRes, dstRes] = await Promise.all([
         api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }),
@@ -264,51 +278,32 @@ export function TableMappingCard({
         destFields: dstRes.fields,
         fieldsLoaded: true,
       });
+      // A describe that reaches the system but returns nothing is a 200 with an
+      // empty list, so an unreadable table and a healthy one look the same from
+      // here. Name whichever side came back empty rather than opening an empty
+      // mapping table and leaving the reason to the console.
+      const empty = [
+        srcRes.fields.length === 0 ? `source table "${state.sourceTable}"` : '',
+        dstRes.fields.length === 0 ? `destination object "${state.sfObject}"` : '',
+      ].filter(Boolean);
+      if (empty.length > 0) {
+        setFieldsError(
+          `No fields came back for ${empty.join(' or ')}. The connection answered, ` +
+            'so this is usually a name that does not exist in that system, or ' +
+            'credentials without read access to it.',
+        );
+      }
     } catch (err) {
       console.error('Failed to load fields', err);
+      setFieldsError(err instanceof Error ? err.message : 'Failed to load fields');
     } finally {
       setLoadingFields(false);
     }
   };
 
-  const autoSuggest = async () => {
-    if (!state.sfObject) return;
-    setSuggesting(true);
-    try {
-      const result = await api.mappings.autoSuggest({
-        source_type: sourceType,
-        source_table: state.sourceTable,
-        salesforce_object: state.sfObject,
-        source_credentials: sourceCreds,
-        destination_credentials: destCreds,
-        other_mappings: otherMappings,
-      });
-      const srcFields =
-        state.sourceFields.length > 0
-          ? state.sourceFields
-          : await buildMergedSourceFields(
-              (await api.schema.sourceFields(sourceType, sourceCreds, { table: state.sourceTable }))
-                .fields,
-            );
-      patch({
-        fields: result.fields ?? [],
-        sourceFields: srcFields,
-        destFields:
-          state.destFields.length > 0
-            ? state.destFields
-            : (await api.schema.destinationFields(state.sfObject, destCreds)).fields,
-        fieldsLoaded: true,
-      });
-    } catch (err) {
-      console.error('Auto-suggest failed', err);
-    } finally {
-      setSuggesting(false);
-    }
-  };
-
-  // Asks the model for pairs whose names differ but whose meaning matches
-  // (u_caller_id -> ContactId). Runs on whatever auto-suggest left unmapped and
-  // appends its proposals for review; nothing already on screen is overwritten.
+  // Asks the model to pair the fields that are still unmapped, by meaning
+  // rather than by name (u_caller_id -> ContactId). It appends its proposals
+  // for review; nothing already on screen is overwritten.
   const semanticMatch = async () => {
     if (!state.sfObject) return;
     setMatching(true);
@@ -729,21 +724,16 @@ export function TableMappingCard({
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            {/* Stays clickable without a destination object so the click can say
+                what is missing; a disabled button is indistinguishable from one
+                that ran and found nothing. */}
             <button
               type="button"
-              disabled={!state.sfObject || loadingFields}
+              disabled={loadingFields}
               onClick={loadFields}
               style={actionBtn}
             >
               {loadingFields ? 'Loading...' : 'Load Fields'}
-            </button>
-            <button
-              type="button"
-              disabled={!state.sfObject || suggesting}
-              onClick={autoSuggest}
-              style={{ ...actionBtn, background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
-            >
-              {suggesting ? 'Suggesting...' : 'Auto-suggest'}
             </button>
             <button
               type="button"
@@ -752,7 +742,7 @@ export function TableMappingCard({
               title={
                 state.fieldsLoaded
                   ? 'Ask the model to pair the remaining fields by meaning rather than name'
-                  : 'Load or auto-suggest fields first'
+                  : 'Load fields first'
               }
               style={{ ...actionBtn, background: '#faf5ff', color: '#7c3aed', borderColor: '#e9d5ff' }}
             >
@@ -760,39 +750,23 @@ export function TableMappingCard({
             </button>
           </div>
 
-          {matchError && (
-            <div style={matchPanel('#fef2f2', '#fecaca', '#b91c1c')}>{matchError}</div>
-          )}
-
-          {matchReport && !matchError && (
-            <div style={matchPanel('#faf5ff', '#e9d5ff', '#5b21b6')}>
-              <strong>
-                {matchReport.matches.length > 0
-                  ? `${matchReport.matches.length} semantic match${
-                      matchReport.matches.length === 1 ? '' : 'es'
-                    } added for review`
-                  : 'No semantic matches found'}
-              </strong>
-              {matchReport.summary && <p style={{ margin: '6px 0 0' }}>{matchReport.summary}</p>}
-              <p style={{ margin: '6px 0 0', color: '#6b7280' }}>
-                Compared {matchReport.considered_source_fields} unmapped source field(s) against{' '}
-                {matchReport.considered_destination_fields} writable destination field(s).
-                {matchReport.truncated && ' The lists were capped, so run again after accepting these.'}
-              </p>
-              {matchReport.rejected.length > 0 && (
-                <details style={{ marginTop: 6 }}>
-                  <summary style={{ cursor: 'pointer' }}>
-                    {matchReport.rejected.length} proposal(s) discarded by schema checks
-                  </summary>
-                  <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#6b7280' }}>
-                    {matchReport.rejected.map((r, i) => (
-                      <li key={i}>{r.reason}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
+          {fieldsError && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#b91c1c',
+                borderRadius: 6,
+                padding: '8px 10px',
+                fontSize: 12,
+                marginBottom: 12,
+              }}
+            >
+              {fieldsError}
             </div>
           )}
+
+          <SemanticMatchPanel report={matchReport} error={matchError} />
 
           {/* Field mapping table */}
           {state.fieldsLoaded && (
@@ -812,7 +786,7 @@ export function TableMappingCard({
 
           {!state.fieldsLoaded && state.sfObject && (
             <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
-              Click "Load Fields" or "Auto-suggest" to configure field mappings.
+              Click "Load Fields" to configure field mappings.
             </p>
           )}
         </div>
@@ -821,19 +795,6 @@ export function TableMappingCard({
   );
 }
 
-const matchPanel = (
-  background: string,
-  border: string,
-  color: string,
-): React.CSSProperties => ({
-  background,
-  border: `1px solid ${border}`,
-  color,
-  borderRadius: 8,
-  padding: '10px 12px',
-  fontSize: 12,
-  marginBottom: 12,
-});
 
 const cardStyle: React.CSSProperties = {
   border: '1px solid #e5e7eb',

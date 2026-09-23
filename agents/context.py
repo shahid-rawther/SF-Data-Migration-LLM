@@ -28,8 +28,14 @@ class MigrationContext:
     destination_credentials: dict = field(default_factory=dict)
     configs: dict[str, dict] = field(default_factory=dict)
 
-    _destination_cache: dict[str, list[dict]] = field(default_factory=dict, repr=False)
+    # Keyed by (object, record type) because a record type changes which
+    # picklist values the object will accept, so the two describes are not
+    # interchangeable.
+    _destination_cache: dict[tuple[str, str], list[dict]] = field(
+        default_factory=dict, repr=False
+    )
     _source_cache: dict[str, list[dict]] = field(default_factory=dict, repr=False)
+    _catalog: dict[str, list[str]] | None = field(default=None, repr=False)
 
     # ── construction ───────────────────────────────────────────────────────
 
@@ -70,21 +76,95 @@ class MigrationContext:
                 return name
         return ""
 
+    def available_mappings_for_object(self, object_name: str) -> list[str]:
+        """Mappings that could populate an object but are not in this run.
+
+        The selection is only what this run happens to cover. A mapping that
+        exists but was not chosen can still be added to the session later, which
+        is what separates a reference worth deferring from one that will never
+        resolve.
+        """
+        if self._catalog is None:
+            from services.internal.mappings_service import index_by_destination_object
+
+            self._catalog = {
+                destination: [entry["name"] for entry in entries]
+                for destination, entries in index_by_destination_object(
+                    self.source_type
+                ).items()
+            }
+        selected = set(self.mapping_names)
+        return [
+            name
+            for name in self._catalog.get(object_name) or []
+            if name not in selected
+        ]
+
+    def known_mapping_object(self, mapping_name: str) -> str:
+        """The destination object of any mapping, whether or not it is selected."""
+        selected = self.destination_object(mapping_name)
+        if selected:
+            return selected
+        # Populates the catalog on first use; the object name is the key.
+        self.available_mappings_for_object("")
+        for destination, names in (self._catalog or {}).items():
+            if mapping_name in names:
+                return destination
+        return ""
+
+    def references_back(self, target_object: str, origin_object: str) -> bool:
+        """Whether ``target_object`` carries a lookup pointing at ``origin_object``.
+
+        Mutual references are the shape that has no parent-first order, so this
+        is what distinguishes a parent that could simply load first from one that
+        has to be attached after the fact.
+        """
+        if not target_object or not origin_object:
+            return False
+        return any(
+            origin_object in (entry.get("reference_to") or [])
+            for entry in self.reference_fields(target_object)
+            if entry.get("createable")
+        )
+
     # ── destination schema ─────────────────────────────────────────────────
 
-    def destination_fields(self, object_name: str) -> list[dict]:
-        if object_name in self._destination_cache:
-            return self._destination_cache[object_name]
+    def record_type_id(self, mapping_name: str) -> str:
+        """The record type a mapping pins its records to, if it pins one."""
+        from api.compat_engine import record_type_id_of
+
+        return record_type_id_of(self.configs.get(mapping_name) or {})
+
+    def destination_fields(
+        self, object_name: str, record_type_id: str | None = None
+    ) -> list[dict]:
+        """Field metadata, narrowed to the record type this run will load with.
+
+        The record type is inferred from whichever selected mapping targets the
+        object, so every caller gets the stricter picklist values without having
+        to know that record types exist. When two mappings write the same object
+        under different record types the first is used; that is a real
+        ambiguity, but it is rarer than the mistake of validating against the
+        describe's union and passing a value the load then rejects.
+        """
+        if record_type_id is None:
+            owner = self.mapping_for_destination_object(object_name)
+            record_type_id = self.record_type_id(owner) if owner else ""
+        key = (object_name, record_type_id)
+        if key in self._destination_cache:
+            return self._destination_cache[key]
         from api.compat_engine import get_destination_fields
 
-        fields = get_destination_fields(object_name, self.destination_credentials)
+        fields = get_destination_fields(
+            object_name, self.destination_credentials, record_type_id
+        )
         if not fields:
             logger.warning(
                 "[agent] destination describe for %s returned nothing; "
                 "schema validation will refuse writes against it",
                 object_name,
             )
-        self._destination_cache[object_name] = fields
+        self._destination_cache[key] = fields
         return fields
 
     def destination_field(self, object_name: str, field_name: str) -> dict | None:

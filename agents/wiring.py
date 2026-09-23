@@ -327,11 +327,26 @@ def apply_resolutions(
     Returns the change records and a list of resolutions that could not be
     applied, each with the reason. One bad resolution is skipped rather than
     abandoning the rest of the run.
+
+    An advisory resolution changes nothing but is still recorded, unapplied, so
+    that something the agent thought worth saying survives the run instead of
+    living only in a log line.
     """
     changes: list[ChangeRecord] = []
     rejected: list[dict] = []
     for resolution in resolutions:
         if resolution.is_advisory:
+            changes.append(
+                ChangeRecord(
+                    agent=agent,
+                    kind=resolution.kind,
+                    mapping_name=resolution.mapping,
+                    field_name=resolution.field,
+                    rationale=resolution.rationale,
+                    severity=resolution.severity,
+                    applied=False,
+                )
+            )
             continue
         applier = _APPLIERS.get(resolution.kind)
         if applier is None:

@@ -21,6 +21,13 @@ class CreateCustomFieldRequest(BaseModel):
     field_type: str = "Text"  # Text, Number, TextArea, Checkbox, Date, DateTime, LongTextArea
     length: int = 255
     description: str = ""
+    # Mark the field as an external id, which is what lets a load upsert on it
+    # and so recognise records it created on an earlier run instead of inserting
+    # duplicates. Salesforce only permits this on Text, Number and Email.
+    external_id: bool = False
+    # Enforced by the destination rather than by us. Without it two source
+    # records could share a key and the upsert would silently collapse them.
+    unique: bool = False
 
 
 class CreateCustomFieldResponse(BaseModel):
@@ -188,6 +195,20 @@ def create_custom_field(body: CreateCustomFieldRequest):
 
     if body.description:
         field_metadata["Metadata"]["description"] = body.description
+
+    if body.external_id or body.unique:
+        if sf_type not in ("Text", "Number", "Email"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Salesforce only allows an external id or unique constraint on "
+                    f"Text, Number and Email fields, not {sf_type}."
+                ),
+            )
+        # An external id must be indexed, and Salesforce derives that index from
+        # these flags, so both are set here rather than left to a later edit.
+        field_metadata["Metadata"]["externalId"] = bool(body.external_id)
+        field_metadata["Metadata"]["unique"] = bool(body.unique)
 
     headers = {
         "Authorization": f"Bearer {access_token}",

@@ -9,6 +9,7 @@ runtime can execute a migration without importing any hardcoded ITSM code.
 Every transform returns ``{destination_field: value}`` and accepts the incoming
 source value(s) plus an optional ``params`` dict.
 """
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -224,6 +225,228 @@ def generic_lookup(destination_field: str, value=None, params: dict | None = Non
     return {destination_field: sales_force_id if sales_force_id else params.get("default", "")}
 
 
+RULE_OPERATORS = (
+    "equals",
+    "not_equals",
+    "contains",
+    "not_contains",
+    "starts_with",
+    "ends_with",
+    "is_empty",
+    "is_not_empty",
+    "in",
+    "not_in",
+    "matches",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+)
+
+# Operators that ignore the comparison value entirely, so the editor knows not
+# to ask for one.
+RULE_OPERATORS_WITHOUT_VALUE = ("is_empty", "is_not_empty")
+
+
+def _as_list(value) -> list[str]:
+    """Read a condition's comparison value as a list of strings."""
+    if isinstance(value, (list, tuple, set)):
+        return [_clean_value(v) for v in value]
+    raw = _clean_value(value)
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _numeric_pair(left: str, right: str):
+    """Both sides as floats, or None when either is not a number."""
+    try:
+        return float(left), float(right)
+    except (TypeError, ValueError):
+        return None
+
+
+def _test_condition(condition: dict, values: dict, case_insensitive: bool) -> bool:
+    """Evaluate one condition against the row's source values."""
+    operator = str(condition.get("op") or condition.get("operator") or "").strip()
+    if operator not in RULE_OPERATORS:
+        raise ValueError(f"Unknown condition operator: {operator or '(missing)'}")
+
+    field = str(condition.get("field") or "").strip()
+    actual = values.get(field)
+    if actual is None:
+        # Accept either the qualified name used in the mapping ("incident.state")
+        # or the bare column, because the two are written interchangeably.
+        actual = values.get(field.split(".")[-1], "")
+    actual = _clean_value(actual)
+
+    if operator == "is_empty":
+        return not actual
+    if operator == "is_not_empty":
+        return bool(actual)
+
+    expected_raw = condition.get("value", "")
+
+    def fold(text: str) -> str:
+        return text.lower() if case_insensitive else text
+
+    if operator in ("in", "not_in"):
+        candidates = [fold(v) for v in _as_list(expected_raw)]
+        present = fold(actual) in candidates
+        return present if operator == "in" else not present
+
+    if operator == "matches":
+        pattern = _clean_value(expected_raw)
+        if not pattern:
+            return False
+        flags = re.IGNORECASE if case_insensitive else 0
+        try:
+            return bool(re.search(pattern, actual, flags))
+        except re.error as exc:
+            raise ValueError(f"Invalid regular expression: {pattern}") from exc
+
+    expected = _clean_value(expected_raw)
+
+    if operator in ("gt", "gte", "lt", "lte"):
+        # Numbers and dates both need ordering. Try numeric first, then fall back
+        # to string ordering, which is correct for ISO-style timestamps.
+        pair = _numeric_pair(actual, expected)
+        left, right = pair if pair else (fold(actual), fold(expected))
+        if operator == "gt":
+            return left > right
+        if operator == "gte":
+            return left >= right
+        if operator == "lt":
+            return left < right
+        return left <= right
+
+    left, right = fold(actual), fold(expected)
+    if operator == "equals":
+        return left == right
+    if operator == "not_equals":
+        return left != right
+    if operator == "contains":
+        return right in left
+    if operator == "not_contains":
+        return right not in left
+    if operator == "starts_with":
+        return left.startswith(right)
+    return left.endswith(right)
+
+
+def _rule_matches(rule: dict, values: dict, case_insensitive: bool) -> bool:
+    """A rule matches when every 'all' condition holds and any 'any' one does."""
+    all_of = rule.get("all") or []
+    any_of = rule.get("any") or []
+    if not all_of and not any_of:
+        # A rule with no conditions is the catch-all the editor writes for an
+        # unconditional fill, so it matches rather than being ignored.
+        return True
+    if all_of and not all(
+        _test_condition(c, values, case_insensitive) for c in all_of
+    ):
+        return False
+    if any_of and not any(
+        _test_condition(c, values, case_insensitive) for c in any_of
+    ):
+        return False
+    return True
+
+
+def _rule_output(outcome: dict, destination_field: str, values: dict) -> str:
+    """Produce the value a matched rule sets, literal or via a transform."""
+    if not isinstance(outcome, dict):
+        return _clean_value(outcome)
+
+    transform_name = str(outcome.get("transform") or "").strip()
+    if not transform_name:
+        return _clean_value(outcome.get("value", ""))
+
+    if transform_name == "generic_rules":
+        raise ValueError("generic_rules cannot be used as its own output transform")
+    func = GENERIC_TRANSFORMS.get(transform_name)
+    if func is None:
+        raise ValueError(f"Unknown output transform: {transform_name}")
+
+    source = str(outcome.get("from") or "").strip()
+    if source:
+        incoming = values.get(source)
+        if incoming is None:
+            incoming = values.get(source.split(".")[-1], "")
+    else:
+        incoming = outcome.get("value", "")
+
+    produced = func(destination_field, incoming, params=outcome.get("params") or {})
+    return _clean_value(produced.get(destination_field, ""))
+
+
+def _name_values(values: tuple, inputs: list) -> dict[str, str]:
+    """Attach the configured column names to the positional values."""
+    named: dict[str, str] = {}
+    for index, value in enumerate(values):
+        cleaned = _clean_value(value)
+        if index < len(inputs):
+            name = str(inputs[index])
+            named[name] = cleaned
+            named.setdefault(name.split(".")[-1], cleaned)
+    return named
+
+
+def rules_trace(destination_field: str, *values, params: dict | None = None):
+    """Which rule decided a row, and the value it produced.
+
+    Returns ``(index, value)``, where index is the position of the matching rule
+    or ``-1`` when none matched and ``otherwise`` decided it.
+
+    Exists so that a preview can attribute rows to the rule that claimed them
+    without re-implementing any of the matching. A second implementation would
+    eventually disagree with this one, and the preview would then be describing a
+    fill that is not the one about to run.
+    """
+    params = params or {}
+    named = _name_values(values, params.get("inputs") or [])
+    case_insensitive = bool(params.get("case_insensitive", True))
+
+    for index, rule in enumerate(params.get("rules") or []):
+        if _rule_matches(rule, named, case_insensitive):
+            outcome = rule.get("then", rule.get("set", {}))
+            return index, _rule_output(outcome, destination_field, named)
+
+    otherwise = params.get("otherwise") or {}
+    return -1, _rule_output(otherwise, destination_field, named)
+
+
+def generic_rules(destination_field: str, *values, params: dict | None = None):
+    """Choose a value by testing conditions against named source columns.
+
+    params: {
+        "inputs": ["incident.state", "incident.priority"],  # aligned with *values
+        "rules": [
+            {"all": [{"field": "incident.state", "op": "equals", "value": "7"}],
+             "then": {"value": "Closed"}},
+            {"any": [{"field": "incident.priority", "op": "in", "value": ["1", "2"]}],
+             "then": {"transform": "generic_truncate",
+                      "from": "incident.short_description",
+                      "params": {"max_length": 80}}},
+        ],
+        "otherwise": {"value": ""},
+        "case_insensitive": true
+    }
+
+    The runtime hands transforms positional values with no names attached, so
+    ``inputs`` carries the column names in the same order the mapping lists them
+    in ``source_field``. That is what lets a condition name the column it tests
+    instead of guessing at a position.
+
+    Rules are tried in order and the first match wins, so the editor can put the
+    specific cases above the general ones. When nothing matches, ``otherwise``
+    decides: a value fills the column, and an empty one paired with
+    ``skip_if_not_found`` on the field leaves the record untouched.
+    """
+    _, value = rules_trace(destination_field, *values, params=params)
+    return {destination_field: value}
+
+
 # Registry of all schema-driven transforms, keyed by the name used in mapping
 # configs. The transformation-service resolver consults this first so wizard
 # mappings never need to import the legacy transformations module.
@@ -236,4 +459,5 @@ GENERIC_TRANSFORMS = {
     "generic_strip_html": generic_strip_html,
     "generic_length_guard": generic_length_guard,
     "generic_lookup": generic_lookup,
+    "generic_rules": generic_rules,
 }

@@ -171,28 +171,35 @@ def get_source_table_fields(
 def get_destination_object_fields(
     sf_object: str,
     credentials: dict,
+    record_type_id: str = "",
     *,
     refresh: bool = False,
 ) -> list[dict]:
-    """Return a Salesforce object's field metadata, describing on a cache miss."""
+    """Return a Salesforce object's field metadata, describing on a cache miss.
+
+    A record type is part of the cache identity, not just an argument: it
+    changes which picklist values come back, so a scoped describe served from
+    an unscoped entry would report choices the load then rejects.
+    """
     if not sf_object:
         return []
     from api.compat_engine import get_destination_fields
 
     key = connection_key(credentials)
+    entry = f"{sf_object}@{record_type_id}" if record_type_id else sf_object
     if not refresh:
-        cached = _read(SCOPE_DESTINATION, "salesforce", key, sf_object)
+        cached = _read(SCOPE_DESTINATION, "salesforce", key, entry)
         if cached is not None:
             return cached
 
     try:
-        fields = get_destination_fields(sf_object, credentials)
+        fields = get_destination_fields(sf_object, credentials, record_type_id)
     except Exception:
         logger.warning("Describe failed for Salesforce %s", sf_object, exc_info=True)
         return []
 
     if fields:
-        _write(SCOPE_DESTINATION, "salesforce", key, sf_object, fields)
+        _write(SCOPE_DESTINATION, "salesforce", key, entry, fields)
     return fields
 
 

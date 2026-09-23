@@ -68,4 +68,11 @@ if _DIST.exists():
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
         index = _DIST / "index.html"
-        return FileResponse(str(index))
+        # The shell names a content-hashed bundle, so a cached copy pins the tab
+        # to a build whose asset a rebuild has already deleted. The assets stay
+        # cacheable -- their names change -- but the page that points at them
+        # has to be re-read every time.
+        return FileResponse(
+            str(index),
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )

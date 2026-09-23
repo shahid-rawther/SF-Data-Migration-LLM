@@ -1,6 +1,10 @@
-# ITSM Data Migration — ServiceNow → Salesforce
+# ITSM Data Migration — ServiceNow / Jira Service Management → Salesforce
 
-Migrate ITSM records from **ServiceNow** to **Salesforce** via a guided web UI or a CLI.
+Migrate ITSM records into **Salesforce** via a guided web UI or a CLI. The pipeline is staged —
+every selected table is extracted to local storage first, then transformed and loaded — and a
+selectively agentic layer on top of it resolves relationship edge cases and repairs load errors.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture.
 
 ---
 
@@ -14,20 +18,31 @@ pip install -r requirements.txt
 
 ### 2. Configure environment variables
 
-Create a `.env` file in the project root:
+Copy [`.env.example`](.env.example) to `.env` and fill it in. It documents every setting with the
+reasoning behind the default. The three groups that matter:
 
 ```ini
-# ServiceNow
+# Source and destination credentials (also configurable per-connection in the UI)
 SERVICE_NOW_BASE_URL=https://myinstance.service-now.com
 SERVICE_NOW_USERNAME=admin
 SERVICE_NOW_PASSWORD=secret
-
-# Salesforce
 SALESFORCE_BASE_URL=https://myorg.salesforce.com
 SALESFORCE_CLIENT_ID=...
 SALESFORCE_CLIENT_SECRET=...
 SALESFORCE_API_VERSION=v60.0
+
+# Agent layer (Amazon Bedrock). Omit entirely to run the pipeline deterministically.
+BEDROCK_PROVIDER=boto3
+BEDROCK_REGION=us-east-1
+AGENT_AUTONOMY=apply          # or `preview` to analyse without writing mapping configs
+
+# Resumable sessions. Omit to run without checkpoints.
+MIGRATION_S3_BUCKET=
+MIGRATION_S3_REGION=us-east-1
 ```
+
+> `python-dotenv` reads plain `KEY=value` lines. A `set ` or `export ` prefix makes the line
+> unparseable and the variable is silently dropped.
 
 ### 3. Start the API server
 
@@ -61,14 +76,17 @@ python server.py  # serves both API + UI on port 8000
 
 | Feature | Description |
 |---------|-------------|
-| **Dashboard** | Overview of all migration sessions with live status |
-| **New Migration Wizard** | 4-step wizard: source → destination → objects → options |
-| **Object Selection** | Checkbox tree grouped by category; select all / deselect all per category |
-| **Credential Validation** | "Test Connection" button validates credentials before creating a session |
-| **Progress View** | Real-time progress bars (overall + per phase: extraction / transformation / loading) |
-| **Start / Pause / Resume / Stop** | Full lifecycle control of a running migration |
-| **Live Activity Log** | Streaming log messages via Server-Sent Events |
-| **History** | List of all completed / failed / stopped sessions |
+| **Dashboard** | All migration sessions with live status, plus reminders for deferred references that have become fillable |
+| **New Migration Wizard** | 6 steps: source → destination → objects → map fields → compatibility → review and run |
+| **Object Selection** | Source tables and Salesforce objects, with a tree of everything the chosen objects depend on and a drawer describing any object's fields |
+| **Field Mapping** | Per-table mapping editor with model-assisted field matching, transforms, joins and filters |
+| **Compatibility + Preflight** | Type and coverage report, execution order, inline custom-field creation, and the agent launch gate |
+| **Progress View** | Real-time progress bars per phase (preparation / extraction / transformation / loading / repair) over SSE |
+| **Agent Notices** | What the agent wired, with per-item revert, and the concerns it raised with a suggested next step |
+| **Backfill Panel** | References that loaded empty, with per-item approval and a second pass to fill them |
+| **Session Objects** | Add objects to an existing session and run only the outstanding work |
+| **Start / Pause / Resume / Stop / Retry** | Full lifecycle control, plus resume from an S3 checkpoint |
+| **History** | Completed / failed / stopped sessions with a per-object status report |
 
 ---
 
@@ -90,27 +108,55 @@ python app.py --op transform-load-attachments
 itsm-data-migration-snow-sf/
 ├── api/                         # FastAPI application
 │   ├── main.py                  # App bootstrap, CORS, static file serving
-│   ├── migration_manager.py     # Session lifecycle (start/pause/resume/stop)
+│   ├── migration_manager.py     # Run phases, progress events, agent + preflight hooks
+│   ├── compat_engine.py         # Compatibility report and deterministic dependency order
 │   ├── cancellation_token.py    # Thread-safe cancel/pause signal
-│   ├── session_db.py            # migration_sessions table helpers
-│   ├── routers/
-│   │   ├── sources.py           # GET /sources, POST /validate-credentials, …
-│   │   └── migrations.py        # POST /migrations, SSE /progress, …
-│   └── sources/
-│       ├── base.py              # SourceProvider abstract class
-│       └── servicenow.py        # ServiceNow implementation
+│   ├── session_db.py            # migration_sessions helpers, incremental selection
+│   ├── routers/                 # migrations, mappings, schema, compat, transforms,
+│   │                            # agents, connections, sources
+│   └── sources/                 # SourceProvider base + per-source implementations
+│
+├── agents/                      # Selectively agentic layer — never touches record data
+│   ├── bedrock_client.py        # Two transports, tool loop, token budgets
+│   ├── config.py                # Env-driven settings, autonomy levels
+│   ├── context.py               # Cached schema + draft mapping context
+│   ├── detector.py              # Deterministic finding vocabulary
+│   ├── relationship_agent.py    # Resolve edge cases, wire them, assign load order
+│   ├── repair_agent.py          # Patch a field transform from load errors
+│   ├── resolutions.py           # Validate model submissions before wiring
+│   ├── wiring.py                # The only path that mutates a mapping config
+│   ├── preflight.py             # Deterministic launch gate
+│   ├── audit.py                 # Change journal and per-item revert
+│   ├── summary.py               # Human-readable "what the agent just did"
+│   ├── field_matcher.py         # Semantic field pairing — proposals only
+│   └── order_advisor.py         # Advisory migration order for the hierarchy view
+│
+├── services/
+│   ├── internal/                # backfill, checkpoint, hierarchy, staging,
+│   │                            # session_status, transformation, workspace
+│   └── external/                # db_client, s3_client
 │
 ├── web/                         # React + TypeScript frontend (Vite)
 │   └── src/
 │       ├── api/client.ts        # Typed API client
-│       ├── components/          # ProgressBar, ObjectSelector, MigrationControls, …
-│       ├── pages/               # Dashboard, NewMigrationWizard, MigrationDetail, History
+│       ├── components/          # FieldMapper, AgentNoticesPanel, BackfillPanel,
+│       │                        # SessionObjectsPanel, DestinationHierarchy, …
+│       ├── pages/               # Dashboard, NewMigrationWizard, MappingEditor,
+│       │                        # MigrationDetail, History
 │       └── hooks/               # useMigrationProgress (SSE), useSourceObjects
 │
-├── controllers/                 # Existing ETL controllers (unchanged)
-├── services/                    # Existing service layer (unchanged)
+├── data/
+│   ├── downloads/               # Staged source extract — the staging boundary
+│   ├── staging/                 # Extract manifests
+│   ├── transformations/         # Transform output, incl. deferred.csv per batch
+│   ├── results/                 # Per-batch load results
+│   └── database/sql/schema/     # 001–009 DDL
+│
+├── controllers/                 # ETL controllers
+├── integrations/                # ServiceNow, JSM, Salesforce adapters + plugin routers
 ├── config/settings.py           # Configuration constants
-├── app.py                       # CLI entry point (unchanged)
+├── docs/                        # ARCHITECTURE.md + narrative HTML/PDF/DOCX
+├── app.py                       # CLI entry point
 └── server.py                    # uvicorn launcher for the web API
 ```
 
@@ -132,7 +178,9 @@ To add Jira, Remedy, or any other source:
 
 ## API Reference
 
-Interactive docs available at `http://localhost:8000/docs` when the server is running.
+Interactive docs available at `http://localhost:8000/docs` when the server is running. The full
+surface is catalogued in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#13-api-surface); the endpoints
+you are most likely to reach for:
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -143,7 +191,16 @@ Interactive docs available at `http://localhost:8000/docs` when the server is ru
 | GET | `/api/migrations/` | List sessions |
 | GET | `/api/migrations/{id}` | Get session details |
 | POST | `/api/migrations/{id}/start` | Start migration |
-| POST | `/api/migrations/{id}/pause` | Pause between batches |
-| POST | `/api/migrations/{id}/resume` | Resume |
-| POST | `/api/migrations/{id}/stop` | Cancel |
+| POST | `/api/migrations/{id}/pause` \| `/resume` \| `/stop` \| `/retry` | Lifecycle control |
 | GET | `/api/migrations/{id}/progress` | SSE stream of progress events |
+| GET | `/api/migrations/{id}/status` | Per-object status report |
+| POST | `/api/migrations/{id}/objects` | Add objects to an existing session |
+| GET | `/api/migrations/{id}/run-plan` | What a run would execute vs skip |
+| POST | `/api/migrations/{id}/run-remaining` | Run only outstanding objects |
+| POST | `/api/migrations/{id}/resume-from-checkpoint` | Restore from S3 and continue |
+| GET | `/api/migrations/backfill` | Deferred references awaiting a second pass |
+| POST | `/api/migrations/backfill/{id}/decision` \| `/run` | Approve or skip; execute |
+| POST | `/api/mapping-agent/analyze-relationships` | Resolve and wire relationship edge cases |
+| POST | `/api/mapping-agent/preflight` | Run the launch gate without starting anything |
+| GET | `/api/mapping-agent/changes` | What the agent applied and what it flagged |
+| POST | `/api/mapping-agent/changes/{id}/revert` | Revert one agent change |

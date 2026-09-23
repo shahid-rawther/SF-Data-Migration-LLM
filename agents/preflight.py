@@ -31,6 +31,10 @@ class PreflightResult:
     has_cycle: bool = False
     checked: bool = False
     note: str = ""
+    # Lookups this run will deliberately load empty because no order resolves
+    # them, each to be offered as a backfill afterwards. Told up front so the
+    # deferral is expected rather than discovered in the final report.
+    deferred: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -42,7 +46,42 @@ class PreflightResult:
             "has_cycle": self.has_cycle,
             "checked": self.checked,
             "note": self.note,
+            "deferred": self.deferred,
+            "deferred_notice": self.deferred_notice(),
         }
+
+    def deferred_notice(self) -> str:
+        """What to tell someone before they launch, or empty if nothing applies."""
+        if not self.deferred:
+            return ""
+        fields = ", ".join(
+            f"{d['destination_object']}.{d['field']}" for d in self.deferred[:4]
+        )
+        more = f" and {len(self.deferred) - 4} more" if len(self.deferred) > 4 else ""
+        notice = (
+            f"{len(self.deferred)} lookup{'' if len(self.deferred) == 1 else 's'} "
+            f"({fields}{more}) cannot be filled while the records are created, "
+            "because the objects involved reference each other. Those records will "
+            "load with the field empty, and you will be asked to approve a second "
+            "pass that attaches them once everything is in."
+        )
+        # An awaited mapping outside the selection changes what "once everything
+        # is in" means: the second pass cannot run at all until it is added.
+        awaited = sorted(
+            {
+                name
+                for entry in self.deferred
+                for name in entry.get("awaiting") or []
+            }
+        )
+        if awaited:
+            notice += (
+                f" {', '.join(awaited)} {'is' if len(awaited) == 1 else 'are'} not "
+                "in this migration, so those references stay empty until you add "
+                f"{'it' if len(awaited) == 1 else 'them'} to the session and run "
+                "again."
+            )
+        return notice
 
     def message(self) -> str:
         lines = [
@@ -103,6 +142,10 @@ def run(
         result.order = analysis.get("order", [])
         result.has_cycle = bool(analysis.get("has_cycle"))
         result.ok = not result.blockers
+
+        from services.internal import backfill_service
+
+        result.deferred = backfill_service.pending_notice(context.mapping_names)
     except Exception as exc:  # noqa: BLE001 — a gate fault must not block a run
         logger.warning("[agent] preflight could not complete (non-blocking): %s", exc)
         result.note = f"Preflight did not complete: {exc}"

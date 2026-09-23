@@ -600,23 +600,58 @@ def load_batch(job_table_id:int, table_batch_id: int, batch_path: Path, operatio
                 servicenow_hash_path, salesforce_hash
             )
 
-        if not id_mappings and salesforce_hash:
-            id_mappings = _match_id_mappings_by_recomputed_hash(
+        # Every record the destination accepted should end up with an id mapping.
+        # Where fewer matched, the rest are rows the loader altered before upload
+        # — a blanked restricted picklist value, a forced insert value — so the
+        # hash computed at transform time no longer describes what was sent. The
+        # fallback recomputes those hashes the same way. It runs whenever any row
+        # is unmatched rather than only when all of them are: a partial match
+        # used to leave the remainder unmapped, which silently breaks every child
+        # lookup and backfill that needs those ids.
+        if salesforce_hash and len(id_mappings) < len(success_data):
+            recovered = _match_id_mappings_by_recomputed_hash(
                 batch_path, servicenow_hash_path, salesforce_hash, success_data,
                 picklist_values, insert_force_values,
             )
-            if id_mappings:
+            # The primary pass matched on an untouched hash, so where the two
+            # disagree it is the one to trust; the fallback only fills gaps.
+            seen_sys_ids = {entry[SERVICE_NOW_ID_COLUMN] for entry in id_mappings}
+            claimed_sf_ids = {entry[SALESFORCE_ID_COLUMN] for entry in id_mappings}
+            added = 0
+            for entry in recovered:
+                if entry[SERVICE_NOW_ID_COLUMN] in seen_sys_ids:
+                    continue
+                # One destination record cannot stand for two source records.
+                if entry[SALESFORCE_ID_COLUMN] in claimed_sf_ids:
+                    continue
+                id_mappings.append(entry)
+                seen_sys_ids.add(entry[SERVICE_NOW_ID_COLUMN])
+                claimed_sf_ids.add(entry[SALESFORCE_ID_COLUMN])
+                added += 1
+            if added:
                 logger.info(
-                    "Recovered %d ID mappings via recomputed-hash fallback for %s",
-                    len(id_mappings), id_mapping_table_name,
+                    "Recovered %d additional ID mapping(s) via recomputed-hash "
+                    "fallback for %s (%d of %d loaded record(s) now mapped)",
+                    added, id_mapping_table_name, len(id_mappings), len(success_data),
                 )
+
+        if len(id_mappings) < len(success_data):
+            logger.error(
+                "%s: %d of %d loaded record(s) could not be mapped back to a "
+                "source id. Children referencing them cannot be linked.",
+                id_mapping_table_name, len(success_data) - len(id_mappings),
+                len(success_data),
+            )
 
         insert_id_mappings(id_mapping_table_name, id_mappings)
 
         # Post-insert update: restore real values for fields that were forced during insert
         if insert_force_values and success_data:
             _post_insert_update(
-                salesforce_object, batch_path, success_data, insert_force_values, valid_fields
+                salesforce_object, batch_path, success_data, insert_force_values, valid_fields,
+                # Pairs the restore on the source's own key rather than on the
+                # order the results came back in.
+                match_field=external_id_field,
             )
 
     failed = salesforce_client.get_results(job_id, "failedResults")
@@ -644,17 +679,78 @@ def _get_insert_force_values(salesforce_object: str) -> dict | None:
     return _INSERT_FORCE_CONFIG.get(salesforce_object)
 
 
+def build_post_insert_update_csv(
+    original_csv_path: Path,
+    success_data: list[dict],
+    force_values: dict,
+    match_field: str = "",
+) -> tuple[str, int]:
+    """The CSV restoring real values to records inserted with forced ones.
+
+    Returns ``(csv_content, row_count)``; a count of zero means every record
+    genuinely wanted the forced value and there is nothing to send.
+
+    Rows are paired on ``match_field`` — the mapping's external id — because
+    Salesforce does not promise that the bulk result echoes rows in the order
+    they were uploaded. Pairing them by position, which is what this did before,
+    is silently wrong the first time that order differs: each record is then
+    assigned another record's value, and nothing downstream can detect it.
+    Position is still the fallback where no external id is declared, since a
+    misordered restore is no worse than none, but it is warned about.
+
+    Split out from the job it feeds so the decision can be inspected without
+    sending anything to the destination.
+    """
+    forced_fields = list(force_values.keys())
+    with open(original_csv_path, newline="", encoding="utf-8") as f:
+        source_rows = list(csv.DictReader(f))
+
+    paired: list[tuple[str, dict]] = []
+    if match_field and all(row.get(match_field) for row in source_rows):
+        by_key = {
+            record[match_field]: record
+            for record in success_data
+            if record.get(match_field) and record.get("sf__Id")
+        }
+        for row in source_rows:
+            record = by_key.get(row.get(match_field, ""))
+            if record:
+                paired.append((record["sf__Id"], row))
+    else:
+        if match_field:
+            logger.warning(
+                "Cannot pair post-insert updates on '%s' — not every row carries it; "
+                "falling back to upload order",
+                match_field,
+            )
+        for idx, record in enumerate(success_data):
+            if record.get("sf__Id") and idx < len(source_rows):
+                paired.append((record["sf__Id"], source_rows[idx]))
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["Id"] + forced_fields)
+    writer.writeheader()
+    written = 0
+    for sf_id, source_row in paired:
+        values = {field: source_row.get(field, "") for field in forced_fields}
+        # A record whose real value is the forced one needs no update.
+        if all(values[field] == force_values[field] for field in forced_fields):
+            continue
+        writer.writerow({"Id": sf_id, **values})
+        written += 1
+
+    return output.getvalue(), written
+
+
 def _post_insert_update(
     salesforce_object: str,
     original_csv_path: Path,
     success_data: list[dict],
     force_values: dict,
     valid_fields: set | None,
+    match_field: str = "",
 ):
-    """
-    After inserting records with forced field values, update them with the real values.
-    Reads the original CSV to get real values, matches by row order to success_data (which has sf__Id).
-    """
+    """Restore the real values of fields that were forced during insert."""
     if not success_data:
         return
 
@@ -663,38 +759,19 @@ def _post_insert_update(
         f"[{salesforce_object}] Post-insert update: restoring {forced_fields} for {len(success_data)} records"
     )
 
-    # Read original values from the source CSV (same order as uploaded)
-    original_values = []
-    remove_columns = {HASH_KEY_NAME}
-    with open(original_csv_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            vals = {field: row.get(field, "") for field in forced_fields}
-            original_values.append(vals)
-
-    # Build update CSV: Id + forced fields with real values
-    output = io.StringIO()
-    update_fields = ["Id"] + forced_fields
-    writer = csv.DictWriter(output, fieldnames=update_fields)
-    writer.writeheader()
-
-    for idx, record in enumerate(success_data):
-        sf_id = record.get("sf__Id")
-        if not sf_id:
-            continue
-        if idx < len(original_values):
-            row = {"Id": sf_id}
-            row.update(original_values[idx])
-            # Skip if the real value equals the forced value (no update needed)
-            if all(row.get(f) == force_values[f] for f in forced_fields):
-                continue
-            writer.writerow(row)
-
-    csv_content = output.getvalue()
-    # Check if there are any rows to update (beyond the header)
-    if csv_content.count("\n") <= 1:
-        logger.info(f"[{salesforce_object}] No status updates needed — all records already have forced value")
+    csv_content, row_count = build_post_insert_update_csv(
+        original_csv_path, success_data, force_values, match_field
+    )
+    if not row_count:
+        logger.info(
+            f"[{salesforce_object}] No {'/'.join(forced_fields)} updates needed — "
+            f"every record's real value is the forced one"
+        )
         return
+    logger.info(
+        f"[{salesforce_object}] Restoring {'/'.join(forced_fields)} on {row_count} "
+        f"of {len(success_data)} record(s)"
+    )
 
     # Create and run update job
     try:

@@ -48,6 +48,17 @@ class RepairRequest(BaseModel):
     autonomy: str | None = None
 
 
+class SuggestOrderRequest(BaseModel):
+    # Salesforce objects the migration will write into.
+    selected_objects: list[str] = []
+    destination_credentials: dict = {}
+    destination_connection_id: str | None = None
+    # Narrows the mappings consulted to one source pack; blank means all.
+    source_type: str | None = None
+    max_depth: int = 4
+    max_nodes: int = 60
+
+
 class PreflightRequest(BaseModel):
     source_type: str = "servicenow"
     selected_objects: list[str] = []
@@ -120,6 +131,34 @@ def plan(body: AnalyzeRequest):
     return report.to_dict()
 
 
+@router.post("/suggest-order")
+def suggest_order(body: SuggestOrderRequest):
+    """Advise on the order to migrate a selection of Salesforce objects in.
+
+    The graph and its parent-first order are computed deterministically; the
+    model reads them and returns a sequence with its reasoning, which is checked
+    back against the graph. Both orders are returned, so a suggestion that
+    conflicts with the dependencies is visible as such rather than followed.
+    """
+    from agents import order_advisor
+    from services.internal import hierarchy_service
+
+    if not body.selected_objects:
+        raise HTTPException(status_code=400, detail="selected_objects is required")
+
+    graph = hierarchy_service.build_hierarchy(
+        body.selected_objects,
+        _resolve_credentials(body.destination_credentials, body.destination_connection_id),
+        source_type=body.source_type,
+        max_depth=body.max_depth,
+        max_nodes=body.max_nodes,
+    )
+    return {
+        "graph": graph,
+        "suggestion": order_advisor.suggest_order(graph).to_dict(),
+    }
+
+
 @router.post("/preflight")
 def preflight_check(body: PreflightRequest):
     """The deterministic launch gate, without starting a migration."""
@@ -170,22 +209,62 @@ def repair(body: RepairRequest):
     return report.to_dict()
 
 
+def _attempt_started_at(session_id: str) -> str:
+    """When the session's most recent migration attempt began.
+
+    ``started_at`` is restamped every time a migration is launched, so it is the
+    boundary between what the agents said about this attempt and what they said
+    about a mapping that has since been changed. Blank for a session that has
+    never run, which callers read as "no boundary, show everything".
+    """
+    from api import session_db
+
+    session = session_db.get_session(session_id)
+    return (session or {}).get("started_at") or ""
+
+
 @router.get("/changes")
 def list_changes(
     run_id: str | None = None,
     session_id: str | None = None,
     mapping_name: str | None = None,
     include_reverted: bool = True,
+    scope: str = "all",
 ):
-    """Every mapping change an agent made, newest first."""
+    """Every mapping change an agent made, newest first.
+
+    ``scope=latest`` narrows to the current migration attempt. Without it a
+    session accumulates the notices of every attempt in one undated list, where
+    a finding already fixed reads as though it were still true.
+    """
     from agents import audit
 
+    since = (
+        _attempt_started_at(session_id)
+        if scope == "latest" and session_id
+        else ""
+    )
     return audit.list_changes(
         run_id=run_id,
         session_id=session_id,
         mapping_name=mapping_name,
         include_reverted=include_reverted,
+        since=since or None,
     )
+
+
+@router.delete("/changes/notices")
+def discard_superseded_notices(session_id: str):
+    """Drop the session's notices from attempts before the current one."""
+    from agents import audit
+
+    started_at = _attempt_started_at(session_id)
+    if not started_at:
+        return {"session_id": session_id, "discarded": 0}
+    return {
+        "session_id": session_id,
+        "discarded": audit.discard_notices(session_id, started_at),
+    }
 
 
 @router.post("/changes/{change_id}/revert")

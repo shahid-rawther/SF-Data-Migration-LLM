@@ -1,8 +1,8 @@
-"""Mappings router — CRUD + auto-suggest for dynamic field mappings.
+"""Mappings router — CRUD + model-assisted field matching for dynamic mappings.
 
 Mappings are stored in the mapping_configs DB table (seeded from the shipped
 JSON files). This router lets the Mapping Editor list, view, create, update,
-delete, validate and auto-generate mappings without code changes.
+delete, validate and draft mappings without code changes.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api import connections_db
-from api.compat_engine import auto_suggest_mapping, get_destination_fields
+from api.compat_engine import get_destination_fields
 from services.internal import mappings_service
 
 router = APIRouter(prefix="/mappings", tags=["mappings"])
@@ -38,7 +38,7 @@ class CreateMappingRequest(BaseModel):
     priority: int | None = None
 
 
-class AutoSuggestRequest(BaseModel):
+class SemanticSuggestRequest(BaseModel):
     source_type: str = "servicenow"
     source_table: str
     salesforce_object: str
@@ -47,13 +47,28 @@ class AutoSuggestRequest(BaseModel):
     destination_credentials: dict = {}
     destination_connection_id: str | None = None
     other_mappings: list[dict] = []
-
-
-class SemanticSuggestRequest(AutoSuggestRequest):
     # The draft already on screen. Fields it uses are excluded from the run, so
-    # the model only sees what name matching could not pair.
+    # the model only sees what is still unmapped.
     existing_fields: list[dict] = []
     operation: str = "insert"
+
+
+class ValueMapSuggestRequest(BaseModel):
+    source_type: str = "servicenow"
+    source_table: str
+    source_field: str
+    salesforce_object: str
+    destination_field: str
+    source_credentials: dict = {}
+    source_connection_id: str | None = None
+    destination_credentials: dict = {}
+    destination_connection_id: str | None = None
+    # The draft on screen. It supplies the record type, the controlling field's
+    # own mapping, and any values a person has already paired by hand.
+    existing_fields: list[dict] = []
+    # Values the editor has already loaded, so asking for suggestions does not
+    # re-query the source. Omit to have them fetched.
+    source_values: list[dict] | None = None
 
 
 class ValidateRequest(BaseModel):
@@ -72,24 +87,9 @@ def list_mappings(source_type: str | None = None):
     return mappings_service.list_mapping_configs(source_type=source_type)
 
 
-@router.post("/auto-suggest")
-def auto_suggest(body: AutoSuggestRequest):
-    src_creds = _resolve_credentials(body.source_credentials, body.source_connection_id)
-    dest_creds = _resolve_credentials(body.destination_credentials, body.destination_connection_id)
-    draft = auto_suggest_mapping(
-        source_type=body.source_type,
-        source_table=body.source_table,
-        salesforce_object=body.salesforce_object,
-        source_credentials=src_creds,
-        destination_credentials=dest_creds,
-        other_mappings=body.other_mappings,
-    )
-    return draft
-
-
 @router.post("/semantic-suggest")
 def semantic_suggest(body: SemanticSuggestRequest):
-    """Ask the model for field pairs whose names differ but whose meaning matches.
+    """Ask the model to pair source and destination fields by meaning.
 
     Returns proposals only; the wizard decides what to keep.
     """
@@ -116,9 +116,71 @@ def semantic_suggest(body: SemanticSuggestRequest):
     return report.to_dict()
 
 
+@router.post("/suggest-value-map")
+def suggest_value_map(body: ValueMapSuggestRequest):
+    """Ask the model to pair a source column's values with a picklist's values.
+
+    Returns proposals only; the value-map editor decides what to keep.
+    """
+    from agents.config import load_settings
+    from agents.value_matcher import suggest
+
+    settings = load_settings()
+    if not settings.field_match_enabled:
+        raise HTTPException(400, "Model-assisted matching is disabled (AGENT_FIELD_MATCH)")
+
+    src_creds = _resolve_credentials(body.source_credentials, body.source_connection_id)
+    dest_creds = _resolve_credentials(
+        body.destination_credentials, body.destination_connection_id
+    )
+    report = suggest(
+        source_type=body.source_type,
+        source_table=body.source_table,
+        source_field=body.source_field,
+        destination_object=body.salesforce_object,
+        destination_field=body.destination_field,
+        source_credentials=src_creds,
+        destination_credentials=dest_creds,
+        existing_fields=body.existing_fields,
+        source_values=body.source_values,
+        settings=settings,
+    )
+    return report.to_dict()
+
+
 @router.post("/import-from-json")
 def import_from_json(body: ImportRequest):
     return mappings_service.import_json_mappings(overwrite=body.overwrite)
+
+
+@router.get("/lookup-resolution")
+def lookup_resolution(destination_object: str, source_type: str | None = None):
+    """Where a lookup to ``destination_object`` can get its destination ids.
+
+    A lookup field does not point at an object, it reads an ``id_mappings``
+    table that some other mapping writes when it loads. The editor cannot derive
+    that table name — it is built from the *parent's* driving table, destination
+    object and transformation name, none of which a child mapping knows — so it
+    asks here rather than guessing. Guessing was the old behaviour and it
+    produced a table name that could never exist, which made every such lookup
+    resolve empty.
+
+    The reply also decides how an unresolved reference should behave. A
+    candidate means something can populate the table later, so the field is
+    worth deferring and filling in a second pass; no candidate means the field
+    can only ever be blank, which the caller should say plainly instead of
+    promising a backfill that can never run.
+    """
+    target = (destination_object or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="destination_object is required")
+
+    candidates = mappings_service.lookup_targets_for_object(target, source_type)
+    return {
+        "destination_object": target,
+        "candidates": candidates,
+        "resolvable": bool(candidates),
+    }
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────

@@ -115,30 +115,30 @@
         <tbody>
           <tr>
             <td><strong>Amazon Bedrock</strong></td>
-            <td>Model access in <strong>us-west-2 (Oregon)</strong> for two models, both requested by their <strong>US geo inference ID</strong>:
-              <code>us.anthropic.claude-sonnet-5</code> (relationship agent) and
-              <code>us.anthropic.claude-haiku-4-5-20251001-v1:0</code> (repair agent)</td>
-            <td>Runs both agents and is the only new capability the project needs. Sonnet 5 handles the relationship reasoning and Haiku 4.5 the narrower repair task at lower cost; both model IDs are application configuration, so either can be changed without a rebuild.</td>
+            <td>Model access in <strong>us-east-1 (N. Virginia)</strong> for two models:
+              <code>anthropic.claude-sonnet-5</code> (relationship agent) and
+              <code>anthropic.claude-haiku-4-5</code> (repair agent)</td>
+            <td>Runs both agents and is the only new capability the project needs. Sonnet 5 handles the relationship reasoning and Haiku 4.5 the narrower repair task at lower cost; both model IDs are application configuration, so either can be changed without a rebuild. Both models have been confirmed reachable in us-east-1 and are <em>not</em> served in us-east-2 or us-west-2, which is what fixes the region for the project.</td>
           </tr>
           <tr>
             <td><strong>Bedrock IAM permissions</strong></td>
-            <td><code>bedrock:InvokeModel</code>, <code>bedrock:InvokeModelWithResponseStream</code>, <code>bedrock:Converse</code>, <code>bedrock:ConverseStream</code> — scoped to the two inference-profile ARNs <em>and</em> the underlying foundation-model ARNs in the US geo member regions (us-east-1, us-east-2, us-west-2)</td>
-            <td>How the application calls the models. Neither model is offered for in-region inference in Oregon, so the geo profile is required rather than optional; because it routes across the member regions, a policy naming only the profile ARN is denied at call time and both halves are needed.</td>
+            <td><code>bedrock:InvokeModel</code>, <code>bedrock:InvokeModelWithResponseStream</code>, <code>bedrock:Converse</code>, <code>bedrock:ConverseStream</code> — scoped to the two foundation-model ARNs in us-east-1</td>
+            <td>How the application calls the models. In-region access in us-east-1 keeps this to a single pair of ARNs. If cross-region failover is wanted later, the same actions can be extended to the US geo inference profile, which additionally requires naming the underlying foundation-model ARNs in each member region — not needed for the initial build.</td>
           </tr>
           <tr>
             <td><strong>EC2</strong></td>
-            <td>One general-purpose Linux instance in <strong>us-west-2</strong> — 2 vCPU / 8 GB as a starting point, right-sized after the first client run</td>
-            <td>Hosts the API, the wizard and the migration worker. Migrations run for hours and hold staged data in flight, so they need a persistent instance rather than a request-scoped process.</td>
+            <td>One general-purpose Linux instance in <strong>us-east-1</strong> — 2 vCPU / 8 GB as a starting point, right-sized after the first client run</td>
+            <td>Hosts the API, the wizard and the migration worker. Migrations run for hours and hold staged data in flight, so they need a persistent instance rather than a request-scoped process. Local disk sized to the largest expected extract, since the staged source data is held on the instance.</td>
           </tr>
           <tr>
             <td><strong>S3</strong></td>
-            <td>One private bucket in <strong>us-west-2</strong>, default encryption on, versioning on, lifecycle expiry on staged data</td>
-            <td>Holds the staged extract: all selected source data lands on our side before any transform runs. Repairs and retries re-read from the bucket instead of re-querying the client's source system, which is what keeps a failed load recoverable. Same region as the instance to avoid cross-region transfer charges and latency.</td>
+            <td>One private bucket in <strong>us-east-1</strong>, public access blocked, default encryption on, versioning on</td>
+            <td>Holds the checkpoint that makes a migration resumable: the map of source records already written to the destination, the batch state and the resolved mapping configuration. A session interrupted part way through an object continues from that record rather than restarting, and a replacement instance can recover prior runs from the bucket. Extracted source data is deliberately <em>not</em> stored here — it stays on the instance, so the bucket holds kilobytes of progress rather than gigabytes of client data. Versioning gives checkpoint history; same region as the instance avoids cross-region transfer charges and latency on every save.</td>
           </tr>
           <tr>
             <td><strong>EC2 instance IAM role</strong></td>
-            <td><code>s3:GetObject</code>, <code>s3:PutObject</code>, <code>s3:ListBucket</code> on that bucket, plus the Bedrock actions above</td>
-            <td>Lets the instance reach the bucket and the model without long-lived access keys on disk.</td>
+            <td><code>s3:GetObject</code>, <code>s3:PutObject</code>, <code>s3:DeleteObject</code> on that bucket's prefix, plus <code>s3:ListBucket</code> and <code>s3:GetBucketVersioning</code> on the bucket, plus the Bedrock actions above</td>
+            <td>Lets the instance reach the bucket and the models without long-lived access keys on disk. Delete and list are needed to retire a completed session's checkpoint and to enumerate recoverable sessions.</td>
           </tr>
           <tr>
             <td><strong>CloudWatch</strong></td>
@@ -149,7 +149,9 @@
       </table>
 
       <div class="callout">
-        <strong>Cost.</strong> EC2 and S3 are ordinary hosting for the tool and are sized by data volume.
+        <strong>Cost.</strong> EC2 is ordinary hosting for the tool and is sized by data volume, since the
+        staged extract sits on its disk. S3 is negligible: checkpoints are progress records rather than
+        data, so a bucket serving many migrations stays in the kilobytes-to-megabytes range.
         Bedrock is usage-based and driven by schema size rather than data volume, because the agents read
         field definitions and dependency graphs, never records — order of magnitude, under one hundred
         dollars for the whole build and under two dollars per migration, held there by a per-session

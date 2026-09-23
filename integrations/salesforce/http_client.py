@@ -386,6 +386,13 @@ class SalesforceClient:
         session.headers.update({"Content-Type": "application/json"})
         response = self._send_with_retry(lambda: session.get(url), what="get_results")
         response.raise_for_status()
+        # These results are UTF-8, but the response declares text/csv with no
+        # charset, and requests falls back to ISO-8859-1 for that. Decoding the
+        # bytes that way turns every non-ASCII character into mojibake ("—"
+        # becomes "â€”"), which corrupts the saved result files and makes the
+        # id-mapping hash of an echoed record unmatchable against the one
+        # computed before upload.
+        response.encoding = "utf-8"
         content = response.text
         return content
 

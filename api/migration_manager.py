@@ -75,6 +75,12 @@ class ProgressEvent:
     message: str = ""
     records_by_object: dict = field(default_factory=dict)
     load_errors: dict = field(default_factory=dict)
+    # References loaded empty because no order could resolve them, each awaiting
+    # a decision before the follow-up update runs.
+    pending_backfill: list = field(default_factory=list)
+    # Deferrals recorded by *earlier* sessions that this run has just made
+    # fillable, by loading the object they were waiting on.
+    unblocked_backfill: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -91,6 +97,8 @@ class ProgressEvent:
             "message": self.message,
             "records_by_object": self.records_by_object,
             "load_errors": self.load_errors,
+            "pending_backfill": self.pending_backfill,
+            "unblocked_backfill": self.unblocked_backfill,
         }
 
 
@@ -101,6 +109,9 @@ class SessionState:
     progress: ProgressEvent | None = None
     subscribers: list[asyncio.Queue] = field(default_factory=list)
     loop: asyncio.AbstractEventLoop | None = None
+    # Arguments for the most recent checkpoint, so pause and stop can persist
+    # resume state without reaching into the runner's local variables.
+    checkpoint_args: dict | None = None
 
 
 class MigrationManager:
@@ -144,6 +155,9 @@ class MigrationManager:
         state.token.pause()
         session_db.update_session_status(session_id, "paused")
         self._emit_status_change(session_id, "paused")
+        # A pause is the most likely point for the process to be shut down, so
+        # the resume state is written before control returns to the caller.
+        self._checkpoint_from_state(session_id, state)
 
     def resume_migration(self, session_id: str) -> None:
         state = self._get_state(session_id)
@@ -156,6 +170,7 @@ class MigrationManager:
         state.token.cancel()
         session_db.update_session_status(session_id, "stopped")
         self._emit_status_change(session_id, "stopped")
+        self._checkpoint_from_state(session_id, state)
 
     def get_status(self, session_id: str) -> dict | None:
         with self._lock:
@@ -242,6 +257,32 @@ class MigrationManager:
             return
         updated = ProgressEvent(**{**state.progress.__dict__, "status": status})
         self._emit(session_id, updated)
+
+    # ------------------------------------------------------------------
+    # Checkpointing
+    # ------------------------------------------------------------------
+
+    def _checkpoint(self, session_id: str, state: SessionState, **kwargs) -> None:
+        """Persist enough state to continue this session from where it is.
+
+        Called wherever the amount of completed work has changed, so a session
+        interrupted between two calls resumes from the earlier one instead of
+        from the beginning. Storage failures are logged, never raised: losing a
+        checkpoint slows a resume down, but failing the migration would lose the
+        run outright.
+        """
+        from services.internal import checkpoint_service
+
+        state.checkpoint_args = kwargs
+        checkpoint_service.save_quietly(session_id, **kwargs)
+
+    def _checkpoint_from_state(self, session_id: str, state: SessionState) -> None:
+        """Re-save using the last known arguments, for pause and stop."""
+        if not state.checkpoint_args:
+            return
+        from services.internal import checkpoint_service
+
+        checkpoint_service.save_quietly(session_id, **state.checkpoint_args)
 
     def _prepare_relationships(
         self,
@@ -333,6 +374,8 @@ class MigrationManager:
             context=context,
         )
         summary["preflight"] = gate.to_dict()
+        if gate.deferred:
+            logger.warning("[migration] %s", gate.deferred_notice())
         if not gate.has_cycle:
             summary["order"] = gate.order
         return summary
@@ -454,7 +497,7 @@ class MigrationManager:
                 try:
                     workspace_service.clean_transformed_state([mapping_name])
                     execution_cache.clear()
-                    transformation_controller.start_trasformation(
+                    retransform = transformation_controller.start_trasformation(
                         jobs_service.create_new_job("transformation"), [mapping_name]
                     )
                     retry_result = destination_plugin.start_loading(
@@ -468,11 +511,20 @@ class MigrationManager:
                     )
                     break
 
+                # A repair can fix the load error and still leave the row behind,
+                # by making a transform that now discards it. That has to stay in
+                # the failed count, or the retry looks like a clean success.
+                retransform_dropped = sum(
+                    int(entry.get("rows_dropped") or 0)
+                    for entry in (
+                        (retransform or {}).get("discarded_by_object") or {}
+                    ).values()
+                )
                 retry_counts = (retry_result.get("by_object") or {}).get(result_key, {})
                 counts = {
                     "processed": counts.get("processed", 0)
                     + retry_counts.get("processed", 0),
-                    "failed": retry_counts.get("failed", 0),
+                    "failed": retry_counts.get("failed", 0) + retransform_dropped,
                 }
                 by_object[result_key] = counts
                 retry_errors = (retry_result.get("errors_by_object") or {}).get(
@@ -540,6 +592,9 @@ class MigrationManager:
             with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration FAILED: {exc}\n")
             logger.exception("Migration session %s failed: %s", session_id, exc)
             session_db.mark_session_failed(session_id)
+            # Whatever loaded before the failure is still in the destination, so
+            # the checkpoint is refreshed here to keep the retry incremental.
+            self._checkpoint_from_state(session_id, state)
             err_event = ProgressEvent(
                 session_id=session_id,
                 phase=state.progress.phase if state.progress else "",
@@ -566,6 +621,11 @@ class MigrationManager:
         extraction_job_number = jobs_service.create_new_job("extraction")
         transformation_job_number = jobs_service.create_new_job("transformation")
         loading_job_number = jobs_service.create_new_job("loading")
+        job_ids = [
+            extraction_job_number,
+            transformation_job_number,
+            loading_job_number,
+        ]
 
         selected_objects: list[str] = config.get("selected_objects", [])
         options: dict = config.get("options", {})
@@ -574,6 +634,11 @@ class MigrationManager:
         source_credentials: dict = config.get("source_credentials", {})
         destination_credentials: dict = config.get("destination_credentials", {})
         dry_run: bool = bool(options.get("disable_load", False))
+        # Caps rows pulled **per source table**, not per migration: the selected
+        # mappings' source tables are extracted independently, so N tables at a
+        # limit of 100 stages 100 rows each. Extraction also resumes past what is
+        # already in id_mappings, so a second run takes the next 100 rather than
+        # the same ones.
         record_limit: int | None = options.get("service_now_batch_size") or None
         token = state.token
 
@@ -638,6 +703,25 @@ class MigrationManager:
             [g[0] for g in ordered],
         )
 
+        # Objects a previous run of this session finished. Their rows are already
+        # in the destination and their ids are already in id_mappings, so a
+        # resume skips their transform and load entirely while children can
+        # still resolve lookups against them.
+        already_completed: list[str] = list(config.get("completed_objects") or [])
+        if already_completed:
+            ordered = [
+                [name for name in group if name not in already_completed]
+                for group in ordered
+            ]
+            ordered = [group for group in ordered if group]
+            logger.info(
+                "Resuming session %s — skipping %d object(s) completed earlier: %s",
+                session_id,
+                len(already_completed),
+                already_completed,
+            )
+
+        resolved_order = [name for group in ordered for name in group]
         total_groups = len(ordered)
 
         # Cumulative record counts
@@ -646,9 +730,29 @@ class MigrationManager:
         total_failed = 0
         records_by_object: dict[str, dict[str, int]] = {}
         load_errors_by_object: dict[str, list[str]] = {}
+        completed_objects: list[str] = list(already_completed)
 
         skip_extraction = config.get("skip_extraction", False)
         flat = [name for group in ordered for name in group]
+
+        def checkpoint(phase: str) -> None:
+            """Write resume state for wherever the run has got to."""
+            self._checkpoint(
+                session_id,
+                state,
+                progress={
+                    "phase": phase,
+                    "records_fetched": total_fetched,
+                    "records_processed": total_processed,
+                    "records_failed": total_failed,
+                },
+                order=resolved_order,
+                completed_objects=completed_objects,
+                records_by_object=records_by_object,
+                load_errors=load_errors_by_object,
+                job_ids=job_ids,
+                destination_type=destination_type,
+            )
 
         # Clear stale on-disk working state so a new run never picks up files from
         # a previous one. When extraction is being skipped the staged extract is
@@ -698,6 +802,7 @@ class MigrationManager:
                 extraction_job_number,
                 flat,
                 source_plugin=source_plugin,
+                record_limit=record_limit,
                 start_date=extract_start_date,
                 end_date=extract_end_date,
             )
@@ -720,6 +825,10 @@ class MigrationManager:
         staging_service.write_manifest(manifest, extraction_job_number)
         if not total_fetched:
             total_fetched = manifest.total_rows
+
+        # The first checkpoint worth having: from here the staged extract exists
+        # on disk, so a resume can skip straight to transform and load.
+        checkpoint("extraction")
 
         self._emit(
             session_id,
@@ -769,13 +878,56 @@ class MigrationManager:
                 ),
             )
 
-            _run_with_retry(
+            transform_result = _run_with_retry(
                 transformation_controller.start_trasformation,
                 transformation_job_number,
                 group,
                 what=f"transformation of {', '.join(group)}",
             )
             logger.info(f"[Migration] Transformation complete for group: {group}")
+
+            # A row dropped here never reaches the destination, so the load
+            # counters cannot see it. Counting it as failed is what stops a run
+            # that discarded every record from reporting a clean finish.
+            discarded = (transform_result or {}).get("discarded_by_object") or {}
+            for object_name, entry in discarded.items():
+                dropped = int(entry.get("rows_dropped") or 0)
+                if not dropped:
+                    continue
+                total_failed += dropped
+                counts = records_by_object.setdefault(object_name, {})
+                counts["discarded"] = counts.get("discarded", 0) + dropped
+                counts["failed"] = counts.get("failed", 0) + dropped
+                reasons = ", ".join(
+                    f"{count} {reason.replace('_', ' ')}"
+                    for reason, count in sorted(entry.get("by_reason", {}).items())
+                )
+                detail = (
+                    f"{dropped:,} {object_name} row(s) were discarded during "
+                    f"transformation and will not be loaded"
+                    + (f" — {reasons}" if reasons else "")
+                    + ". See the *_errors.csv for this batch."
+                )
+                logger.warning("[Migration] %s", detail)
+                load_errors_by_object.setdefault(object_name, []).append(detail)
+                self._emit(
+                    session_id,
+                    ProgressEvent(
+                        session_id=session_id,
+                        phase="transformation",
+                        object_name=object_name,
+                        batch_current=group_idx,
+                        batch_total=total_groups,
+                        records_fetched=total_fetched,
+                        records_processed=total_processed,
+                        records_failed=total_failed,
+                        overall_percent=overall,
+                        status="running",
+                        message=detail,
+                        records_by_object=records_by_object,
+                        load_errors=load_errors_by_object,
+                    ),
+                )
 
             if token.is_cancelled():
                 return
@@ -851,6 +1003,15 @@ class MigrationManager:
             # see the records that were just loaded into Salesforce.
             execution_cache.clear()
 
+            # Only an object with nothing left failing is treated as done; one
+            # that still has rejected rows is replayed on resume so the repair
+            # agent gets another attempt at them.
+            if load_result.get("records_failed", 0) == 0:
+                completed_objects.extend(
+                    name for name in group if name not in completed_objects
+                )
+            checkpoint("loading")
+
             self._emit(
                 session_id,
                 ProgressEvent(
@@ -873,6 +1034,30 @@ class MigrationManager:
             if token.is_cancelled():
                 return
 
+        # ── Deferred references: recorded, never filled automatically ────
+        # A lookup caught in a reference cycle was loaded empty on purpose,
+        # because no order would have resolved it. Now that every object is in,
+        # those rows can be attached — but that is an update against records
+        # already in the destination, so it is offered rather than done.
+        pending_backfill: list[dict] = []
+        unblocked_backfill: list[dict] = []
+        if not dry_run:
+            try:
+                from services.internal import backfill_service
+
+                pending_backfill = backfill_service.scan(session_id, flat)
+                # Loading an object is what ends someone else's wait, and that
+                # someone is usually an earlier session that cannot notice on
+                # its own. Checked after the scan so this run's own units are
+                # already current and only older ones can be reported.
+                unblocked_backfill = backfill_service.newly_fillable(
+                    exclude_session=session_id
+                )
+            except Exception as exc:  # noqa: BLE001 — never fail a finished run
+                logger.warning(
+                    "Could not work out what was deferred for backfill: %s", exc
+                )
+
         had_errors = (not dry_run) and total_failed > 0
         final_msg = (
             f"Dry run completed — {total_fetched:,} fetched, {total_processed:,} transformed"
@@ -881,9 +1066,35 @@ class MigrationManager:
         )
         if had_errors:
             final_msg += " (completed with errors)"
+        outstanding = [u for u in pending_backfill if u["status"] == "pending"]
+        if outstanding:
+            fields = ", ".join(
+                f"{u['destination_object']}.{u['field']}" for u in outstanding[:3]
+            )
+            total_rows = sum(u["rows_deferred"] for u in outstanding)
+            final_msg += (
+                f" · {len(outstanding)} reference{'' if len(outstanding) == 1 else 's'} "
+                f"left to attach on {total_rows:,} record(s) ({fields}"
+                f"{' and others' if len(outstanding) > 3 else ''}) — "
+                "review and approve the backfill to fill them"
+            )
+        if unblocked_backfill:
+            where = ", ".join(
+                f"{u['destination_object']}.{u['field']}" for u in unblocked_backfill[:3]
+            )
+            ready = sum(u["rows_resolvable"] for u in unblocked_backfill)
+            final_msg += (
+                f" · this run also unblocked {len(unblocked_backfill)} earlier "
+                f"deferral{'' if len(unblocked_backfill) == 1 else 's'} "
+                f"({where}{' and others' if len(unblocked_backfill) > 3 else ''}) — "
+                f"{ready:,} record(s) can now be attached"
+            )
         final_phase = "dry_run" if dry_run else "loading"
 
         session_db.mark_session_completed(session_id, had_errors=had_errors)
+        # Saved after the status is written, so the checkpoint records the run as
+        # finished and a later resume has nothing left to do.
+        checkpoint(final_phase)
         self._emit(
             session_id,
             ProgressEvent(
@@ -900,6 +1111,8 @@ class MigrationManager:
                 message=final_msg,
                 records_by_object=records_by_object,
                 load_errors=load_errors_by_object,
+                pending_backfill=outstanding,
+                unblocked_backfill=unblocked_backfill,
             ),
         )
 

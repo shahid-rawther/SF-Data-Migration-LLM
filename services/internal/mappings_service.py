@@ -386,8 +386,20 @@ def map_servicenow_to_salesforce(
 
             salesforce_id = sf_hash_lookup.get(hash_key)
             if not salesforce_id:
-                logger.error(f"No match found for SysId: {row[SERVICE_NOW_ID_COLUMN]}, Hash: {hash_key}")
-                continue  # no match found
+                # Expected, and not yet a failure. This pass matches on the hash
+                # computed at transform time, which no longer describes rows the
+                # loader altered before upload, so the caller runs a
+                # recomputed-hash fallback over exactly these rows. Logged at
+                # error level this produced one line per row for a condition that
+                # normally self-heals — the caller reports the aggregate, and
+                # only raises an error for a shortfall that survives the
+                # fallback.
+                logger.debug(
+                    "First-pass hash miss for SysId %s (hash %s); left to the fallback",
+                    row[SERVICE_NOW_ID_COLUMN],
+                    hash_key,
+                )
+                continue
 
             mappings.append(
                 {
@@ -559,6 +571,105 @@ def count_migrated_for_source_table(source_table: str) -> int:
         (f"{source_table}_%",),
     )
     return row[0] if row else 0
+
+
+def count_id_mappings(table_name: str) -> int:
+    """Count the ids held under one exact ``id_mappings`` table name.
+
+    Unlike :func:`count_migrated_for_source_table` this does not match a prefix,
+    because a lookup reads one specific table and a sibling mapping's ids are of
+    no use to it.
+    """
+    if not table_name:
+        return 0
+    row = db_client.fetch_one(
+        "SELECT COUNT(*) FROM id_mappings WHERE table_name = ?",
+        (table_name,),
+    )
+    return row[0] if row else 0
+
+
+def lookup_targets_for_object(
+    destination_object: str,
+    source_type: str | None = None,
+) -> list[dict]:
+    """Where a lookup to ``destination_object`` can get its destination ids.
+
+    A lookup field does not point at an object, it reads an ``id_mappings``
+    table, and that table's name is built from the *parent* mapping's driving
+    table, destination object and transformation name. A child mapping knows none
+    of those, so the name has to be resolved from the catalog rather than guessed
+    from the object name — guessing produces a name nothing ever writes.
+
+    Ordered most-populated first, so the caller can distinguish "resolves now"
+    from "resolves once that mapping runs" by reading the head of the list.
+    """
+    from agents import wiring
+
+    target = (destination_object or "").strip()
+    if not target:
+        return []
+
+    targets: list[dict] = []
+    for entry in index_by_destination_object(source_type=source_type).get(target, []):
+        config = get_mapping_config(entry["name"])
+        if not config:
+            continue
+        table = wiring.lookup_table_name(config)
+        if not table:
+            continue
+        targets.append(
+            {
+                "mapping_name": entry["name"],
+                "source_table": (entry["source_tables"] or [""])[0],
+                "lookup_table": table,
+                "migrated_count": count_id_mappings(table),
+            }
+        )
+
+    targets.sort(key=lambda c: (-c["migrated_count"], c["mapping_name"]))
+    return targets
+
+
+def destinations_for_source_table(
+    source_table: str,
+    source_type: str | None = None,
+) -> list[dict]:
+    """What a source table is migrated into, and how many of its ids are on hand.
+
+    The mirror of :func:`lookup_targets_for_object`: that one starts from the
+    destination object a field points at, this one from the source table a value
+    points at. Needed when the destination gives no clue — a text column names no
+    object, so the only way to say what its ids could resolve to is to ask what
+    the source table they came from becomes.
+    """
+    from agents import wiring
+
+    table = (source_table or "").strip()
+    if not table:
+        return []
+
+    results: list[dict] = []
+    for entry in summarise_mappings(source_type):
+        if table not in (entry["source_tables"] or []):
+            continue
+        if not entry["destination_object"]:
+            continue
+        config = get_mapping_config(entry["name"])
+        if not config:
+            continue
+        lookup_table = wiring.lookup_table_name(config)
+        results.append(
+            {
+                "mapping_name": entry["name"],
+                "destination_object": entry["destination_object"],
+                "lookup_table": lookup_table,
+                "migrated_count": count_id_mappings(lookup_table),
+            }
+        )
+
+    results.sort(key=lambda r: (-r["migrated_count"], r["mapping_name"]))
+    return results
 
 
 def sync_product_id_mappings(

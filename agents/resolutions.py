@@ -57,6 +57,7 @@ def _to_resolution(item: dict) -> Resolution:
         "external_id_field",
         "skip_if_unresolved",
         "default",
+        "suggested_action",
     ):
         if item.get(key) not in (None, ""):
             params[key] = item[key]
@@ -98,6 +99,12 @@ def validate(context: MigrationContext, raw_resolutions: list[dict]) -> Validati
         if resolution.kind == wiring.KIND_NOTICE:
             if resolution.mapping and resolution.mapping not in context.mapping_names:
                 outcome.reject(item, f"'{resolution.mapping}' is not in this migration")
+                continue
+            if not str(resolution.params.get("suggested_action") or "").strip():
+                outcome.reject(
+                    item,
+                    "A notice must include suggested_action — tell the person what to do",
+                )
                 continue
             outcome.accepted.append(resolution)
             continue
@@ -160,6 +167,7 @@ def _validate_kind(
     needs_source = resolution.kind in (
         wiring.KIND_LOOKUP_REFERENCE,
         wiring.KIND_SELF_REFERENCE_GUARD,
+        wiring.KIND_DEFERRED_LOOKUP,
         wiring.KIND_TYPE_COERCION,
         wiring.KIND_VALUE_MAP,
     )
@@ -209,6 +217,45 @@ def _validate_kind(
             )
         return ""
 
+    if resolution.kind == wiring.KIND_DEFERRED_LOOKUP:
+        if meta.get("type") != "reference":
+            return (
+                f"'{resolution.field}' is a {meta.get('type')} field, not a lookup, so "
+                "there is no reference to defer"
+            )
+        # Deferring costs a whole extra pass and leaves records temporarily
+        # incomplete, so it is only accepted where no load order would have
+        # worked: a lookup onto the mapping's own object, or onto a parent that
+        # is itself waiting on this mapping.
+        targets = set(meta.get("reference_to") or [])
+        parents = resolution.params.get("parent_mappings") or []
+        if not parents:
+            if destination_object not in targets:
+                return (
+                    "deferred_lookup with no parent mapping means a self-reference, "
+                    f"but '{resolution.field}' does not point back at "
+                    f"{destination_object}"
+                )
+            return ""
+        for parent in parents:
+            # Unlike a plain lookup_reference, the parent need not be in this
+            # run. Deferring exists precisely for a reference that cannot be
+            # filled yet, and an object added to the session later is one more
+            # reason it cannot: what matters is that the mapping exists and
+            # writes the object being pointed at.
+            parent_object = context.known_mapping_object(parent)
+            if not parent_object:
+                return (
+                    f"no mapping named '{parent}' writes a destination object, so "
+                    "its migrated ids cannot be resolved against"
+                )
+            if parent_object not in targets:
+                return (
+                    f"'{resolution.field}' points at {sorted(targets)}, so it cannot "
+                    f"resolve against '{parent}' which loads {parent_object}"
+                )
+        return ""
+
     if resolution.kind == wiring.KIND_CONSTANT_REFERENCE:
         constant = resolution.params.get("constant_value", "")
         if not constant:
@@ -240,18 +287,82 @@ def _validate_kind(
                 return "value_map needs at least one source value to map"
             allowed = set(meta.get("picklist_values") or [])
             if allowed:
-                unknown = sorted(
-                    {
-                        str(target)
-                        for target in value_map.values()
-                        if target and str(target) not in allowed
-                    }
-                )
+                targets = {str(t) for t in value_map.values() if t}
+                unknown = sorted(targets - allowed)
                 if unknown:
+                    # A value the field defines but the record type withholds is
+                    # a different mistake from one that does not exist, and says
+                    # so, because otherwise the model re-proposes it having
+                    # "verified" it against the object describe.
+                    withheld = sorted(
+                        set(unknown) & set(meta.get("picklist_unavailable") or [])
+                    )
+                    if withheld:
+                        return (
+                            f"{withheld} exist on '{resolution.field}' but the record "
+                            f"type this mapping loads with does not offer them; valid "
+                            f"choices are {sorted(allowed)[:8]}"
+                        )
                     return (
                         f"{unknown} are not valid values for picklist "
                         f"'{resolution.field}'"
                     )
+                invalid = _dependency_conflicts(context, config, meta, targets)
+                if invalid:
+                    return invalid
         return ""
+
+
+def _dependency_conflicts(
+    context, config: dict, meta: dict, targets: set[str]
+) -> str:
+    """Why a dependent picklist's targets cannot coexist with its controller.
+
+    A child value is legal only under certain parent values, so checking it
+    against the field's own list is not enough. What the parent will hold is
+    already decided by its own mapping, so the pairing can be settled here
+    rather than discovered one rejected row at a time.
+    """
+    valid_for = meta.get("picklist_valid_for") or {}
+    controller = meta.get("picklist_controller") or ""
+    if not valid_for or not controller:
+        return ""
+
+    parent_entry = next(
+        (
+            entry
+            for entry in config.get("fields") or []
+            if entry.get("destination_field") == controller
+        ),
+        None,
+    )
+    if not parent_entry:
+        return (
+            f"'{meta['name']}' is controlled by '{controller}', which this mapping "
+            f"does not set; map '{controller}' before giving '{meta['name']}' a value"
+        )
+
+    parent_constant = parent_entry.get("constant_value")
+    if parent_constant not in (None, ""):
+        parents = {str(parent_constant)}
+    else:
+        parent_params = parent_entry.get("transformation_params") or {}
+        parent_map = parent_params.get("map") if isinstance(parent_params, dict) else {}
+        parents = {str(v) for v in (parent_map or {}).values() if v}
+    # Nothing decided upstream yet, so there is no pairing to contradict.
+    if not parents:
+        return ""
+
+    reachable: set[str] = set()
+    for parent in parents:
+        reachable.update(valid_for.get(parent) or [])
+    orphaned = sorted(targets - reachable)
+    if orphaned:
+        return (
+            f"{orphaned} are not valid for any '{controller}' value this mapping "
+            f"produces ({sorted(parents)[:6]}); pick values that pair with the "
+            f"controller, or widen the '{controller}' map first"
+        )
+    return ""
 
     return f"No validation rule for kind '{resolution.kind}'"

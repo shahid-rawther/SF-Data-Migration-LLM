@@ -6,6 +6,11 @@ import { ProgressBar } from '../components/ProgressBar';
 import { MigrationControls } from '../components/MigrationControls';
 import { LogViewer } from '../components/LogViewer';
 import { StatusBadge } from '../components/StatusBadge';
+import { SessionStatusPanel } from '../components/SessionStatusPanel';
+import { BackfillPanel } from '../components/BackfillPanel';
+import { ColumnFillPanel } from '../components/ColumnFillPanel';
+import { AgentNoticesPanel } from '../components/AgentNoticesPanel';
+import { SessionObjectsPanel } from '../components/SessionObjectsPanel';
 import { useMigrationProgress } from '../hooks/useMigrationProgress';
 
 export function MigrationDetail() {
@@ -14,6 +19,7 @@ export function MigrationDetail() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>('pending');
   const [logs, setLogs] = useState<string[]>([]);
+  const [statusOpen, setStatusOpen] = useState(false);
 
   const { progress } = useMigrationProgress(
     session && ['running', 'paused'].includes(status) ? id ?? null : null,
@@ -49,6 +55,17 @@ export function MigrationDetail() {
   const overallPercent = liveProgress?.overall_percent ?? 0;
   const phase = liveProgress?.phase ?? session.phase ?? '';
 
+  // What was deferred only becomes knowable once the load has finished, so the
+  // panel is re-read when the run settles or when the run itself reports some.
+  const backfillRefreshKey =
+    (['completed', 'completed_with_errors', 'failed'].includes(status) ? 1 : 0) +
+    (liveProgress?.pending_backfill?.length ?? 0);
+
+  // What has loaded — and so what still needs running — only changes when a run
+  // settles, so the objects panel is rebuilt on each status transition rather
+  // than polled.
+  const objectsRefreshKey = status;
+
   const phasePercents = {
     extraction: phase === 'extraction' ? (liveProgress?.overall_percent ?? 0) * 3 : phase === 'transformation' || phase === 'loading' ? 100 : 0,
     transformation: phase === 'transformation' ? (liveProgress?.overall_percent ?? 0) * 3 - 100 : phase === 'loading' ? 100 : 0,
@@ -70,11 +87,22 @@ export function MigrationDetail() {
             <span style={{ fontSize: 12, color: '#9ca3af' }}>ID: {session.id}</span>
           </div>
         </div>
-        <MigrationControls sessionId={session.id} status={status} onStatusChange={(s) => {
-          setStatus(s);
-          if (s === 'running') setLogs([]);
-        }} />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button onClick={() => setStatusOpen(true)} style={statusBtn}>
+            Migration status
+          </button>
+          <MigrationControls sessionId={session.id} status={status} onStatusChange={(s) => {
+            setStatus(s);
+            if (s === 'running') setLogs([]);
+          }} />
+        </div>
       </div>
+
+      <SessionStatusPanel
+        sessionId={session.id}
+        open={statusOpen}
+        onClose={() => setStatusOpen(false)}
+      />
 
       {/* Overall progress */}
       <div style={cardStyle}>
@@ -130,6 +158,25 @@ export function MigrationDetail() {
           )}
         </div>
       )}
+
+      {/* Concerns the agent raised, including ones no fixed check looks for */}
+      <AgentNoticesPanel sessionId={session.id} refreshKey={backfillRefreshKey} />
+
+      {/* References the load left empty, waiting on a decision to attach them,
+          plus any from earlier runs that this one has just made fillable */}
+      <BackfillPanel
+        sessionId={session.id}
+        refreshKey={backfillRefreshKey}
+        unblocked={liveProgress?.unblocked_backfill ?? []}
+      />
+
+      {/* Putting a value into one column of an object that already migrated.
+          Not something owed by the run, so it sits quietly rather than asking */}
+      <ColumnFillPanel
+        sessionId={session.id}
+        sourceType={session.source_type}
+        refreshKey={backfillRefreshKey}
+      />
 
       {/* Per-object breakdown */}
       {liveProgress?.records_by_object && Object.keys(liveProgress.records_by_object).length > 0 && (
@@ -202,31 +249,17 @@ export function MigrationDetail() {
         </div>
       )}
 
-      {/* Selected objects */}
-      <div style={cardStyle}>
-        <h2 style={h2}>Selected Objects ({session.selected_objects.length})</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {session.selected_objects.map((name) => {
-            const isCurrent = liveProgress?.object === name;
-            return (
-              <span
-                key={name}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 20,
-                  fontSize: 12,
-                  background: isCurrent ? '#dbeafe' : '#f3f4f6',
-                  color: isCurrent ? '#1e40af' : '#374151',
-                  border: isCurrent ? '1px solid #93c5fd' : '1px solid transparent',
-                  fontWeight: isCurrent ? 600 : 400,
-                }}
-              >
-                {name}
-              </span>
-            );
-          })}
-        </div>
-      </div>
+      {/* The session's objects, where mappings are edited and more are added */}
+      <SessionObjectsPanel
+        key={objectsRefreshKey}
+        sessionId={session.id}
+        sourceType={session.source_type}
+        status={status}
+        onStarted={(s) => {
+          setStatus(s);
+          setLogs([]);
+        }}
+      />
 
       {/* Migration info */}
       <div style={cardStyle}>
@@ -255,7 +288,7 @@ export function MigrationDetail() {
   );
 }
 
-const pageStyle: React.CSSProperties = { maxWidth: 900, margin: '0 auto', padding: '32px 24px' };
+const pageStyle: React.CSSProperties = { padding: '32px 32px' };
 const h1: React.CSSProperties = { margin: '0 0 8px', fontSize: 22, fontWeight: 700 };
 const h2: React.CSSProperties = { margin: '0 0 16px', fontSize: 16, fontWeight: 700 };
 const cardStyle: React.CSSProperties = {
@@ -268,5 +301,9 @@ const statCardStyle: React.CSSProperties = {
 };
 const statLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', fontWeight: 500, marginBottom: 4 };
 const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#374151' };
+const statusBtn: React.CSSProperties = {
+  padding: '8px 14px', background: '#fff', border: '1px solid #d1d5db',
+  borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer',
+};
 const thStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px' };

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type {
@@ -10,8 +10,14 @@ import type {
   SavedConnection,
   Source,
   MappingValidationResult,
+  SemanticSuggestReport,
+  AgentChange,
 } from '../api/client';
 import { FieldMapper } from '../components/FieldMapper';
+import { SemanticMatchPanel } from '../components/SemanticMatchPanel';
+import { SearchableSelect } from '../components/SearchableSelect';
+import type { SelectOption } from '../components/SearchableSelect';
+import { DestinationHierarchy } from '../components/DestinationHierarchy';
 
 // ── Mappings list ───────────────────────────────────────────────────────────────
 
@@ -107,16 +113,35 @@ const EMPTY_CONFIG: MappingConfig = {
   filters: [],
 };
 
+/**
+ * Keep a stored value selectable even when the list does not offer it.
+ *
+ * The lists arrive after the mapping does, and a connection may not reach the
+ * object at all. Without this, opening a mapping would silently blank the table
+ * or object it was already pointing at.
+ */
+function withCurrent(options: SelectOption[], current: string): SelectOption[] {
+  if (!current || options.some((option) => option.value === current)) return options;
+  return [{ value: current, label: current }, ...options];
+}
+
 export function MappingEditor() {
   const { name: editName } = useParams<{ name: string }>();
   const isEdit = Boolean(editName);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // URL query params passed from the wizard (Step 4 "Customize Mappings")
+  // URL query params passed from the wizard (Step 4 "Customize Mappings") and
+  // from a session's object panel, which carries the same context so that
+  // editing a mapping mid-session never means choosing a connection again.
   const qpSource = searchParams.get('source') ?? '';
   const qpSrcConn = searchParams.get('srcConn') ?? '';
   const qpDestConn = searchParams.get('destConn') ?? '';
+  // The session this was opened from, if any. A mapping is global, but the
+  // errand is not: it was started to change what this session migrates, so it
+  // ends by going back there — and a mapping created along the way joins it,
+  // rather than being left to be found and added by hand.
+  const qpSession = searchParams.get('session') ?? '';
   const hasWizardContext = Boolean(qpSource && qpSrcConn && qpDestConn);
 
   const [availableSources, setAvailableSources] = useState<Source[]>([]);
@@ -132,12 +157,19 @@ export function MappingEditor() {
   const [sfConnId, setSfConnId] = useState(qpDestConn);
 
   const [sourceTables, setSourceTables] = useState<string[]>([]);
+  const [destObjects, setDestObjects] = useState<{ name: string; label: string }[]>([]);
   const [sourceFields, setSourceFields] = useState<SourceFieldInfo[]>([]);
   const [destFields, setDestFields] = useState<DestinationFieldInfo[]>([]);
+  // The Salesforce objects the session already writes into, so the hierarchy
+  // shows where this mapping's object sits among them rather than on its own.
+  const [sessionDestObjects, setSessionDestObjects] = useState<string[]>([]);
 
   const [busy, setBusy] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [validation, setValidation] = useState<MappingValidationResult | null>(null);
+  const [matchReport, setMatchReport] = useState<SemanticSuggestReport | null>(null);
+  const [matchError, setMatchError] = useState('');
+  const [notices, setNotices] = useState<AgentChange[]>([]);
 
   // Load available sources, connections, and existing mapping.
   useEffect(() => {
@@ -158,6 +190,21 @@ export function MappingEditor() {
     }
   }, [isEdit, editName]);
 
+  // Concerns the agent raised against this mapping, and any blocker it could
+  // not resolve. They gate the on-demand value pickers in the field mapper: a
+  // mapping nothing has complained about does not need them.
+  useEffect(() => {
+    if (!editName) return;
+    api.agents
+      .changes({ mapping_name: editName })
+      .then((all) =>
+        setNotices(
+          all.filter((c) => !c.reverted && (c.kind === 'notice' || c.severity === 'blocker')),
+        ),
+      )
+      .catch(() => setNotices([]));
+  }, [editName]);
+
   // Reload source connections when source type changes
   useEffect(() => {
     if (!hasWizardContext) {
@@ -166,21 +213,75 @@ export function MappingEditor() {
     }
   }, [selectedSourceType]);
 
+  // Reaching this page from a session's "Edit fields" carries no connection,
+  // and schema discovery has no credentials without one, so both field lists
+  // come back empty. Where there is only one connection there is no choice to
+  // make, so make it rather than leaving the pickers mysteriously bare.
+  useEffect(() => {
+    if (!sourceConnId && sourceConns.length === 1) setSourceConnId(sourceConns[0].id);
+  }, [sourceConns, sourceConnId]);
+
+  useEffect(() => {
+    if (!sfConnId && sfConns.length === 1) setSfConnId(sfConns[0].id);
+  }, [sfConns, sfConnId]);
+
   const sourceCreds = () => sourceConns.find((c) => c.id === sourceConnId)?.credentials ?? {};
   const sfCreds = () => sfConns.find((c) => c.id === sfConnId)?.credentials ?? {};
 
   const loadSourceTables = async () => {
-    setError(null);
+    if (!sourceConnId) return;
     setBusy('tables');
     try {
       const res = await api.schema.sourceTables(selectedSourceType, sourceCreds());
       setSourceTables(res.tables);
     } catch (e) {
-      setError((e as Error).message);
+      setSourceTables([]);
+      // Swallowed, this left the picker saying "check the source connection"
+      // whatever had gone wrong — including a hibernating instance or a network
+      // failure, neither of which the connection can be edited to fix.
+      setError(`Source tables could not be listed. ${(e as Error).message}`);
     } finally {
       setBusy('');
     }
   };
+
+  const loadDestObjects = async () => {
+    if (!sfConnId) return;
+    try {
+      const res = await api.schema.destinationObjects(sfCreds());
+      setDestObjects(res.objects.map(({ name, label }) => ({ name, label })));
+    } catch {
+      setDestObjects([]);
+    }
+  };
+
+  // Both sides are offered as pickers rather than as free text, so they have to
+  // be listed without being asked for. Typing an API name from memory is how a
+  // mapping ends up pointing at something that does not exist, and that failure
+  // otherwise surfaces at load time against real records.
+  useEffect(() => {
+    void loadSourceTables();
+  }, [selectedSourceType, sourceConnId, sourceConns]);
+
+  useEffect(() => {
+    void loadDestObjects();
+  }, [sfConnId, sfConns]);
+
+  // What else the session covers, for the hierarchy's benefit. Read once: the
+  // selection only changes by way of this page, which reloads on save.
+  useEffect(() => {
+    if (!qpSession) return;
+    api.migrations
+      .runPlan(qpSession)
+      .then((plan) =>
+        setSessionDestObjects(
+          [...plan.pending, ...plan.skipped]
+            .map((entry) => entry.destination_object)
+            .filter(Boolean),
+        ),
+      )
+      .catch(() => setSessionDestObjects([]));
+  }, [qpSession]);
 
   const loadSourceFields = async (table: string) => {
     if (!table) return;
@@ -204,30 +305,82 @@ export function MappingEditor() {
 
   const destObject = config.destination_object || config.salesforce_object || '';
 
-  const autoSuggest = async () => {
+  const tableOptions = useMemo(
+    () => withCurrent(sourceTables.map((table) => ({ value: table, label: table })), sourceTable),
+    [sourceTables, sourceTable],
+  );
+
+  const objectOptions = useMemo(
+    () =>
+      withCurrent(
+        destObjects.map(({ name: apiName, label }) => ({
+          value: apiName,
+          label: label && label !== apiName ? `${apiName} — ${label}` : apiName,
+        })),
+        destObject,
+      ),
+    [destObjects, destObject],
+  );
+
+  // This mapping's object, plus whatever else the session covers.
+  const hierarchyObjects = useMemo(() => {
+    const names = new Set(sessionDestObjects);
+    if (destObject) names.add(destObject);
+    return [...names].sort();
+  }, [sessionDestObjects, destObject]);
+
+  // Both pickers are driven by these lists, so they have to follow whatever the
+  // mapping and the chosen connection currently say. Loading them only in
+  // response to a keystroke in the inputs above meant a saved mapping opened
+  // with empty dropdowns beside fields that were already mapped, and choosing a
+  // connection afterwards did not fill them. Debounced because the source table
+  // and destination object are free text and each attempt is a describe call.
+  useEffect(() => {
+    const timer = setTimeout(() => loadSourceFields(sourceTable), 400);
+    return () => clearTimeout(timer);
+  }, [selectedSourceType, sourceTable, sourceConnId, sourceConns]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadDestFields(destObject), 400);
+    return () => clearTimeout(timer);
+  }, [destObject, sfConnId, sfConns]);
+
+  // Asks the model to pair whatever is still unmapped, by meaning rather than
+  // by name. It appends proposals for review; nothing on screen is overwritten.
+  const semanticMatch = async () => {
     if (!sourceTable || !destObject) {
       setError('Select a source table and a destination object first.');
       return;
     }
     setError(null);
+    setMatchError('');
+    setMatchReport(null);
     setBusy('suggest');
     try {
-      const draft = await api.mappings.autoSuggest({
+      const report = await api.mappings.semanticSuggest({
         source_type: selectedSourceType,
         source_table: sourceTable,
         salesforce_object: destObject,
         source_credentials: sourceCreds(),
         destination_credentials: sfCreds(),
+        existing_fields: config.fields,
+        operation: config.operation,
       });
+      setMatchReport(report);
+      if (report.error) setMatchError(report.error);
+      const taken = new Set(config.fields.map((f) => f.destination_field.toLowerCase()));
+      const additions = report.matches.filter(
+        (m) => !taken.has(m.destination_field.toLowerCase()),
+      );
       setConfig((c) => ({
         ...c,
-        source_tables: draft.source_tables?.length ? draft.source_tables : [sourceTable],
-        fields: draft.fields,
+        source_tables: c.source_tables?.length ? c.source_tables : [sourceTable],
+        fields: additions.length > 0 ? [...c.fields, ...additions] : c.fields,
       }));
       loadSourceFields(sourceTable);
       loadDestFields(destObject);
     } catch (e) {
-      setError((e as Error).message);
+      setMatchError((e as Error).message);
     } finally {
       setBusy('');
     }
@@ -254,7 +407,14 @@ export function MappingEditor() {
       } else {
         await api.mappings.create(name.trim(), payload, selectedSourceType);
       }
-      navigate('/mappings');
+      if (qpSession) {
+        // Adding is idempotent, so an edit that was already in the session is
+        // no different from a mapping that has just been created.
+        await api.migrations.addObjects(qpSession, [name.trim()]).catch(() => {});
+        navigate(`/migrations/${qpSession}`);
+      } else {
+        navigate('/mappings');
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -281,8 +441,11 @@ export function MappingEditor() {
   return (
     <div style={pageStyle}>
       <div style={{ marginBottom: 16 }}>
-        <Link to="/mappings" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}>
-          &larr; Back to mappings
+        <Link
+          to={qpSession ? `/migrations/${qpSession}` : '/mappings'}
+          style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}
+        >
+          &larr; {qpSession ? 'Back to the session' : 'Back to mappings'}
         </Link>
       </div>
       <h1 style={h1}>{isEdit ? `Edit mapping: ${editName}` : 'New mapping'}</h1>
@@ -333,7 +496,7 @@ export function MappingEditor() {
             </label>
           </div>
           <p style={hint}>
-            Connections supply credentials used for schema discovery and auto-suggest. Manage them on the
+            Connections supply credentials used for schema discovery and field matching. Manage them on the
             {' '}<Link to="/new" style={{ color: '#2563eb' }}>migration wizard</Link>.
           </p>
         </section>
@@ -342,7 +505,17 @@ export function MappingEditor() {
       {hasWizardContext && (
         <section style={card}>
           <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>
-            Using <strong>{qpSource}</strong> source connection from the migration wizard.
+            {qpSession ? (
+              <>
+                Using the <strong>{qpSource}</strong> source and Salesforce connections this
+                session already runs on. Saving returns you to it, with this object in the
+                session.
+              </>
+            ) : (
+              <>
+                Using <strong>{qpSource}</strong> source connection from the migration wizard.
+              </>
+            )}
           </p>
         </section>
       )}
@@ -357,54 +530,100 @@ export function MappingEditor() {
           </label>
           <label style={fieldLabel}>
             Source table
-            <input
-              list="all-source-tables"
+            <SearchableSelect
               value={sourceTable}
-              onChange={(e) => {
-                setSourceTable(e.target.value);
-                loadSourceFields(e.target.value);
-              }}
-              style={selectStyle}
-              placeholder="e.g. incident"
+              options={tableOptions}
+              placeholder={
+                busy === 'tables'
+                  ? 'Reading tables…'
+                  : sourceTables.length
+                    ? `-- pick one of ${sourceTables.length} tables --`
+                    : sourceConnId
+                      ? 'No tables — check the source connection'
+                      : 'Pick a source connection first'
+              }
+              onChange={setSourceTable}
+              style={{ minWidth: 260 }}
             />
-            <datalist id="all-source-tables">
-              {sourceTables.map((t) => <option key={t} value={t} />)}
-            </datalist>
           </label>
-          <button type="button" onClick={loadSourceTables} disabled={!sourceConnId || busy === 'tables'} style={secondaryBtn}>
-            {busy === 'tables' ? 'Loading\u2026' : 'List tables'}
-          </button>
           <label style={fieldLabel}>
             Destination object
-            <input
+            <SearchableSelect
               value={destObject}
-              onChange={(e) => setConfig((c) => ({ ...c, destination_object: e.target.value }))}
-              onBlur={(e) => loadDestFields(e.target.value)}
-              style={selectStyle}
-              placeholder="e.g. Case"
+              options={objectOptions}
+              placeholder={
+                destObjects.length
+                  ? `-- pick one of ${destObjects.length} objects --`
+                  : sfConnId
+                    ? 'No objects — check the Salesforce connection'
+                    : 'Pick a destination connection first'
+              }
+              onChange={(value) => setConfig((c) => ({ ...c, destination_object: value }))}
+              style={{ minWidth: 260 }}
             />
           </label>
+          <button
+            type="button"
+            onClick={() => {
+              void loadSourceTables();
+              void loadDestObjects();
+            }}
+            disabled={busy === 'tables'}
+            style={secondaryBtn}
+            title="Re-read both lists from the source and the org"
+          >
+            Refresh lists
+          </button>
         </div>
+
+        {/* Gated on the connection, not just the object: the walk describes
+            every object it visits, and a first attempt made before the
+            connection resolved would fail and not retry itself. */}
+        {sfConnId && hierarchyObjects.length > 0 && (
+          <DestinationHierarchy
+            selectedObjects={hierarchyObjects}
+            destCreds={sfCreds()}
+            destConnectionId={sfConnId}
+            sourceType={selectedSourceType}
+          />
+        )}
       </section>
 
-      {/* Step 3: auto-suggest + field mapper */}
+      {/* Step 3: model-assisted matching + field mapper */}
       <section style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ ...h3, margin: 0 }}>{hasWizardContext ? '2' : '3'}. Field mappings</h3>
-          <button type="button" onClick={autoSuggest} disabled={busy === 'suggest'} style={primaryBtnSm}>
-            {busy === 'suggest' ? 'Analyzing\u2026' : 'Auto-suggest'}
+          <button
+            type="button"
+            onClick={semanticMatch}
+            disabled={busy === 'suggest'}
+            title="Ask the model to pair the unmapped fields by meaning rather than name"
+            style={primaryBtnSm}
+          >
+            {busy === 'suggest' ? 'Matching\u2026' : 'AI match remaining'}
           </button>
         </div>
-        {config._meta && (
+        <SemanticMatchPanel report={matchReport} error={matchError} />
+        {(!sourceFields.length || !destFields.length) && (
           <p style={hint}>
-            Matched {config._meta.suggested_count} of {config._meta.destination_field_count} writable destination fields
-            {' '}from {config._meta.source_field_count} source fields.
+            {!sourceConnId || !sfConnId
+              ? 'Pick a source and a destination connection above to list the fields each side offers. Until then only the fields already mapped are shown.'
+              : `Could not read the field list for ${
+                  !sourceFields.length ? sourceTable || 'the source table' : destObject
+                }. Check the connection and that the name is right.`}
           </p>
         )}
         <FieldMapper
           fields={config.fields}
           sourceFields={sourceFields}
           destFields={destFields}
+          sfObject={destObject}
+          destCreds={sfCreds()}
+          sourceType={selectedSourceType}
+          sourceCreds={sourceCreds()}
+          sourceTable={sourceTable}
+          notices={notices}
+          onDestFieldsChange={setDestFields}
           onChange={setFields}
         />
       </section>
@@ -465,7 +684,7 @@ export function MappingEditor() {
 
 // ── Styles ───────────────────────────────────────────────────────────────────────
 
-const pageStyle: React.CSSProperties = { maxWidth: 1000, margin: '0 auto', padding: '32px 24px' };
+const pageStyle: React.CSSProperties = { padding: '32px 32px' };
 const h1: React.CSSProperties = { margin: '0 0 16px', fontSize: 24, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 16, fontWeight: 600 };
 const card: React.CSSProperties = {

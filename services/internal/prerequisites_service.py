@@ -24,6 +24,7 @@ walk ascends is what keeps the hierarchy finite and worth reading.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field as dataclass_field
+from typing import Iterable
 
 from services.internal import schema_cache
 from services.internal.mappings_service import (
@@ -72,26 +73,37 @@ class PrerequisiteNode:
     required_by_someone: bool = False
 
 
-def _ordered_components(
-    objects: list[str], edges: list[PrerequisiteEdge]
-) -> tuple[list[str], list[list[str]]]:
-    """Order parents before the objects that reference them, tolerating cycles.
+def dependency_map(
+    objects: list[str], pairs: Iterable[tuple[str, str]]
+) -> dict[str, set[str]]:
+    """``child -> parents`` for the pairs whose both ends are in ``objects``.
 
-    Mutually referencing objects are normal in Salesforce — an account has an
-    owner and a user has an account — so instead of failing, the graph is
-    condensed into strongly connected components. The components sort cleanly
-    even when their members do not, and each multi-object component is reported
-    so the caller can say which objects have to go together.
-
-    Tarjan emits a component only after every component it depends on, which is
-    exactly parent-first order.
+    Self-edges are dropped: an object cannot be loaded before itself, so a
+    self-reference is a field-level concern rather than an ordering one.
     """
     present = set(objects)
     dependencies: dict[str, set[str]] = {o: set() for o in objects}
-    for edge in edges:
-        if edge.from_object in present and edge.to_object in present:
-            if edge.from_object != edge.to_object:
-                dependencies[edge.from_object].add(edge.to_object)
+    for child, parent in pairs:
+        if child in present and parent in present and child != parent:
+            dependencies[child].add(parent)
+    return dependencies
+
+
+def condense(
+    objects: list[str], pairs: Iterable[tuple[str, str]]
+) -> list[list[str]]:
+    """Group the graph into strongly connected components, parents first.
+
+    Mutually referencing objects are normal in Salesforce — an account has an
+    owner and a user has an account — so instead of failing, the graph is
+    condensed. The components sort cleanly even when their members do not, and
+    each multi-object component tells the caller which objects have to go
+    together.
+
+    Tarjan emits a component only after every component it depends on, which is
+    exactly parent-first order. ``pairs`` are ``(child, parent)``.
+    """
+    dependencies = dependency_map(objects, pairs)
 
     counter = 0
     index: dict[str, int] = {}
@@ -144,6 +156,14 @@ def _ordered_components(
         if obj not in index:
             visit(obj)
 
+    return components
+
+
+def ordered_components(
+    objects: list[str], pairs: Iterable[tuple[str, str]]
+) -> tuple[list[str], list[list[str]]]:
+    """Parent-first order over ``objects``, plus the groups that cycle."""
+    components = condense(objects, pairs)
     order = [obj for component in components for obj in component]
     cycles = [c for c in components if len(c) > 1]
     return order, cycles
@@ -314,7 +334,9 @@ def build_prerequisites(
         frontier = next_frontier
         depth += 1
 
-    order, cycles = _ordered_components(list(nodes), edges)
+    order, cycles = ordered_components(
+        list(nodes), [(e.from_object, e.to_object) for e in edges]
+    )
 
     for edge in edges:
         parent = nodes.get(edge.to_object)

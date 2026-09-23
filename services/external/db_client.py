@@ -58,8 +58,30 @@ class DBClient:
             self._add_batch_operation_column(conn)
             self._add_results_column(conn)
             self._add_batch_salesforce_job_id_column(conn)
+            self._add_backfill_awaiting_object_column(conn)
             self._seed_mapping_configs(conn)
             conn.commit()
+
+    def _add_backfill_awaiting_object_column(self, conn: sqlite3.Connection):
+        """
+        Adds awaiting_object to backfill_units if it does not exist.
+
+        The schema file creates the table with the column, but only IF NOT
+        EXISTS, so a database that already has the table never picks it up.
+        """
+        cursor = conn.execute("PRAGMA table_info(backfill_units)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if not columns:
+            # Table not created yet; the schema file will include the column.
+            return
+
+        if "awaiting_object" not in columns:
+            conn.execute(
+                """
+                ALTER TABLE backfill_units
+                ADD COLUMN awaiting_object TEXT NOT NULL DEFAULT ''
+            """
+            )
 
     def _seed_mapping_configs(self, conn: sqlite3.Connection):
         """Seed mapping_configs from the JSON files shipped in PATH_TO_MAPPING.

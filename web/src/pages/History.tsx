@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { MigrationSession } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
+import { SessionStatusPanel } from '../components/SessionStatusPanel';
 
 export function History() {
   const [sessions, setSessions] = useState<MigrationSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFor, setStatusFor] = useState<string | null>(null);
 
   useEffect(() => {
     api.migrations.list().then(setSessions).finally(() => setLoading(false));
@@ -44,6 +46,9 @@ export function History() {
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <StatusBadge status={s.status} />
+              <button onClick={() => setStatusFor(s.id)} style={statusBtn}>
+                Status
+              </button>
               <Link
                 to={`/migrations/${s.id}`}
                 style={{ color: '#2563eb', fontSize: 13, textDecoration: 'none' }}
@@ -65,15 +70,27 @@ export function History() {
           </div>
         </div>
       ))}
+
+      {statusFor && (
+        <SessionStatusPanel
+          sessionId={statusFor}
+          open
+          onClose={() => setStatusFor(null)}
+        />
+      )}
     </div>
   );
 }
 
-const pageStyle: React.CSSProperties = { maxWidth: 900, margin: '0 auto', padding: '32px 24px' };
+const pageStyle: React.CSSProperties = { padding: '32px 32px' };
 const h1: React.CSSProperties = { margin: 0, fontSize: 22, fontWeight: 700 };
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
   padding: '16px 20px', marginBottom: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+};
+const statusBtn: React.CSSProperties = {
+  padding: '4px 10px', background: '#fff', border: '1px solid #d1d5db',
+  borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer',
 };
 const objectTag: React.CSSProperties = {
   padding: '2px 8px', borderRadius: 20, fontSize: 11,
