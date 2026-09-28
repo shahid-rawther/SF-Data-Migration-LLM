@@ -14,6 +14,7 @@ import type {
 } from '../api/client';
 import { SearchableSelect } from './SearchableSelect';
 import type { SelectOption } from './SearchableSelect';
+import { REMOTE_SEARCH_DEBOUNCE_MS, useDebouncedValue } from '../hooks/useDebouncedValue';
 
 const CREATE_NEW_SENTINEL = '__create_new__';
 
@@ -62,10 +63,10 @@ export function FieldMapper({
 
   return (
     <div>
-      <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+      <div style={{ overflowX: 'auto', border: '1px solid #e5e5e5', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+            <tr style={{ background: '#fafafa', textAlign: 'left' }}>
               <th style={th}>Source field</th>
               <th style={th}>Destination field</th>
               <th style={th}>Transform</th>
@@ -77,7 +78,7 @@ export function FieldMapper({
           <tbody>
             {fields.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...td, textAlign: 'center', color: '#9ca3af' }}>
+                <td colSpan={6} style={{ ...td, textAlign: 'center', color: '#a3a3a3' }}>
                   No field mappings yet. Use "AI match remaining" or add rows manually.
                 </td>
               </tr>
@@ -341,11 +342,12 @@ function FieldRow({
   // Opening runs immediately; typing is debounced so a search costs one query
   // per pause rather than one per keystroke. A picklist needs no query — its
   // values came with the describe — so opening one costs nothing.
+  const [debouncedRefSearch] = useDebouncedValue(refSearch, REMOTE_SEARCH_DEBOUNCE_MS);
+
   useEffect(() => {
     if (!valuesOpen || constantKind !== 'lookup') return;
-    const timer = setTimeout(() => { void loadRefValues(refSearch); }, refSearch ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [valuesOpen, refSearch, constantKind]); // eslint-disable-line react-hooks/exhaustive-deps
+    void loadRefValues(debouncedRefSearch);
+  }, [valuesOpen, debouncedRefSearch, constantKind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleValueSourceChange = (mode: 'field' | 'constant' | 'lookup' | 'multi') => {
     const wasLookup = field.transformation_function === 'generic_lookup';
@@ -633,7 +635,7 @@ function FieldRow({
 
   const conf = field.confidence;
   const confColor =
-    conf === undefined ? '#9ca3af' : conf >= 0.9 ? '#16a34a' : conf >= 0.7 ? '#d97706' : '#dc2626';
+    conf === undefined ? '#a3a3a3' : conf >= 0.9 ? '#171717' : conf >= 0.7 ? '#525252' : '#0a0a0a';
 
   const sourceNotInList = sourceValue && !isMultiSource && !sourceFields.some((sf) => sf.name === sourceValue);
   const destNotInList = field.destination_field && !destFields.some((df) => df.name === field.destination_field);
@@ -747,9 +749,9 @@ function FieldRow({
       borderRadius: 4,
       fontSize: 11,
       lineHeight: '16px',
-      background: typeWarning.coercible ? '#fef9c3' : '#fef2f2',
-      color: typeWarning.coercible ? '#92400e' : '#991b1b',
-      border: `1px solid ${typeWarning.coercible ? '#fde68a' : '#fecaca'}`,
+      background: typeWarning.coercible ? '#f5f5f5' : '#fafafa',
+      color: typeWarning.coercible ? '#404040' : '#171717',
+      border: `1px solid ${typeWarning.coercible ? '#e5e5e5' : '#e5e5e5'}`,
     }}>
       {typeWarning.coercible ? '\u26A0' : '\u274C'}{' '}
       {typeWarning.warning}
@@ -767,12 +769,12 @@ function FieldRow({
       borderRadius: 4,
       fontSize: 11,
       lineHeight: '16px',
-      background: lookupTarget ? '#f8fafc' : '#fffbeb',
-      color: lookupTarget ? '#374151' : '#92400e',
-      border: `1px solid ${lookupTarget ? '#e2e8f0' : '#fde68a'}`,
+      background: lookupTarget ? '#fafafa' : '#fafafa',
+      color: lookupTarget ? '#404040' : '#404040',
+      border: `1px solid ${lookupTarget ? '#e5e5e5' : '#e5e5e5'}`,
     }}>
       {!lookupRes ? (
-        <span style={{ color: '#6b7280' }}>Resolving where {referenceObject} ids come from…</span>
+        <span style={{ color: '#737373' }}>Resolving where {referenceObject} ids come from…</span>
       ) : (
         <>
           <div>
@@ -808,7 +810,7 @@ function FieldRow({
             />
             <span>
               Remember unresolved references for a later pass
-              <span style={{ display: 'block', color: '#6b7280' }}>
+              <span style={{ display: 'block', color: '#737373' }}>
                 Unticked, a record whose reference cannot be resolved still loads
                 but nothing records what it pointed at, so the link is lost.
               </span>
@@ -828,9 +830,9 @@ function FieldRow({
       borderRadius: 4,
       fontSize: 11,
       lineHeight: '16px',
-      background: '#fef2f2',
-      color: '#991b1b',
-      border: '1px solid #fecaca',
+      background: '#fafafa',
+      color: '#171717',
+      border: '1px solid #e5e5e5',
     }}>
       {'\u274C'} '{field.destination_field}' is a lookup to {referenceObject || 'another object'}.
       Raw source values cause MALFORMED_ID — switch this row to <b>Lookup</b> or <b>Constant</b>.
@@ -840,7 +842,7 @@ function FieldRow({
   const valueMapPanel = showValueMapEligible ? (
     <div style={{
       marginTop: 4, padding: '8px 10px', borderRadius: 6,
-      background: '#f8fafc', border: '1px solid #e2e8f0',
+      background: '#fafafa', border: '1px solid #e5e5e5',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button
@@ -882,12 +884,12 @@ function FieldRow({
       </div>
 
       {(aiNote || aiReport) && (
-        <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>
-          {aiNote && <div style={{ color: '#b45309' }}>{aiNote}</div>}
+        <div style={{ fontSize: 12, color: '#404040', marginTop: 6 }}>
+          {aiNote && <div style={{ color: '#404040' }}>{aiNote}</div>}
           {aiReport && !aiReport.error && (
             <>
               {aiReport.matches.length > 0 && (
-                <div style={{ color: '#166534' }}>
+                <div style={{ color: '#171717' }}>
                   Mapped {aiReport.matches.length} of {aiReport.considered_source_values} source
                   value{aiReport.considered_source_values === 1 ? '' : 's'}
                   {aiReport.suggested_default
@@ -897,16 +899,16 @@ function FieldRow({
                 </div>
               )}
               {aiReport.summary && (
-                <div style={{ color: '#6b7280', marginTop: 2 }}>{aiReport.summary}</div>
+                <div style={{ color: '#737373', marginTop: 2 }}>{aiReport.summary}</div>
               )}
               {approximate.length > 0 && (
                 <details style={{ marginTop: 4 }} open>
-                  <summary style={{ cursor: 'pointer', color: '#b45309' }}>
+                  <summary style={{ cursor: 'pointer', color: '#404040' }}>
                     {approximate.length} of these {approximate.length === 1 ? 'is a' : 'are'}{' '}
                     judgement call{approximate.length === 1 ? '' : 's'} — the nearest available
                     value rather than a true equivalent
                   </summary>
-                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#6b7280' }}>
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#737373' }}>
                     {approximate.map((m) => (
                       <li key={m.source_value}>
                         <strong>{m.source_value}</strong> {'\u2192'} {m.destination_value}:{' '}
@@ -918,14 +920,14 @@ function FieldRow({
               )}
               {aiReport.unmapped.length > 0 && (
                 <details style={{ marginTop: 4 }} open>
-                  <summary style={{ cursor: 'pointer', color: '#b45309' }}>
+                  <summary style={{ cursor: 'pointer', color: '#404040' }}>
                     {aiReport.unmapped.length} value
                     {aiReport.unmapped.length === 1 ? '' : 's'} had no home on this picklist at all
                     {aiReport.restricted
                       ? ' — these rows will be rejected until mapped'
                       : ' — these will be written through off the picklist'}
                   </summary>
-                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#6b7280' }}>
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#737373' }}>
                     {aiReport.unmapped.map((u) => (
                       <li key={u.source_value}>
                         <strong>{u.source_value}</strong>: {u.reason}
@@ -936,11 +938,11 @@ function FieldRow({
               )}
               {aiReport.rejected.length > 0 && (
                 <details style={{ marginTop: 4 }}>
-                  <summary style={{ cursor: 'pointer', color: '#6b7280' }}>
+                  <summary style={{ cursor: 'pointer', color: '#737373' }}>
                     {aiReport.rejected.length} proposal
                     {aiReport.rejected.length === 1 ? '' : 's'} refused by the schema check
                   </summary>
-                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#6b7280' }}>
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0, color: '#737373' }}>
                     {aiReport.rejected.map((r, i) => (
                       <li key={i}>{r.reason}</li>
                     ))}
@@ -955,7 +957,7 @@ function FieldRow({
       {valueMapOpen && (
         <div style={{ marginTop: 8 }}>
           {mapRows.length === 0 && (
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: '#737373', marginBottom: 6 }}>
               No source values yet. Click "Load source values" or add one below.
             </div>
           )}
@@ -963,12 +965,12 @@ function FieldRow({
             <div key={row.source} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span style={{
                 fontSize: 12, minWidth: 140, maxWidth: 200, overflow: 'hidden',
-                textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#404040',
               }} title={row.label !== row.source ? `${row.label} (${row.source})` : row.source}>
                 {row.label}{row.label !== row.source ? ` (${row.source})` : ''}
               </span>
               <span
-                style={{ color: approximateRows.has(row.source) ? '#d97706' : '#9ca3af' }}
+                style={{ color: approximateRows.has(row.source) ? '#525252' : '#a3a3a3' }}
                 title={
                   approximateRows.has(row.source)
                     ? 'Approximate match — the nearest available value, not a true equivalent'
@@ -994,9 +996,9 @@ function FieldRow({
 
           <AddValueRow onAdd={addSourceRow} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: 12, color: '#374151', minWidth: 140 }}>Default (unmatched)</span>
-            <span style={{ color: '#9ca3af' }}>{'\u2192'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5e5e5' }}>
+            <span style={{ fontSize: 12, color: '#404040', minWidth: 140 }}>Default (unmatched)</span>
+            <span style={{ color: '#a3a3a3' }}>{'\u2192'}</span>
             <div style={{ flex: 1, minWidth: 160 }}>
               <SearchableSelect
                 value={mapDefault}
@@ -1014,7 +1016,7 @@ function FieldRow({
 
   return (
     <>
-      <tr style={{ borderTop: '1px solid #f1f5f9' }}>
+      <tr style={{ borderTop: '1px solid #f5f5f5' }}>
         <td style={td}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180 }}>
             <select
@@ -1087,7 +1089,7 @@ function FieldRow({
                         Load values
                       </button>
                     )}
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>{constantHint}</span>
+                    <span style={{ fontSize: 11, color: '#a3a3a3' }}>{constantHint}</span>
                   </>
                 ) : (
                   <>
@@ -1112,7 +1114,7 @@ function FieldRow({
                         style={inputStyle}
                       />
                     )}
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                    <span style={{ fontSize: 11, color: '#737373' }}>
                       {constantKind !== 'lookup'
                         ? constantHint
                         : refLoading
@@ -1127,7 +1129,7 @@ function FieldRow({
                     </span>
                     {constantKind === 'lookup' &&
                       (refMeta?.unavailable_fields ?? []).map((name) => (
-                        <span key={name} style={{ fontSize: 11, color: '#b45309' }}>
+                        <span key={name} style={{ fontSize: 11, color: '#404040' }}>
                           {unavailableFieldMeaning(name)}
                         </span>
                       ))}
@@ -1154,7 +1156,7 @@ function FieldRow({
                 placeholder="API Name (auto)"
                 value={newApiName}
                 onChange={(e) => setNewApiName(e.target.value)}
-                style={{ ...inputStyle, fontSize: 11, color: '#6b7280' }}
+                style={{ ...inputStyle, fontSize: 11, color: '#737373' }}
               />
               <select value={newType} onChange={(e) => setNewType(e.target.value)} style={selectStyle}>
                 <option value="Text">Text</option>
@@ -1169,7 +1171,7 @@ function FieldRow({
                 <option value="Phone">Phone</option>
               </select>
               {EXTERNAL_ID_TYPES.includes(newType) && (
-                <label style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 11, color: '#374151' }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 11, color: '#404040' }}>
                   <input
                     type="checkbox"
                     checked={newExternalId}
@@ -1178,7 +1180,7 @@ function FieldRow({
                   />
                   <span>
                     External Id (unique)
-                    <span style={{ display: 'block', color: '#6b7280' }}>
+                    <span style={{ display: 'block', color: '#737373' }}>
                       Hold the source record's id here to make re-runs safe: the load
                       then updates the records it created before instead of inserting
                       them again.
@@ -1187,7 +1189,7 @@ function FieldRow({
                 </label>
               )}
               {createError && (
-                <div style={{ fontSize: 11, color: '#dc2626' }}>{createError}</div>
+                <div style={{ fontSize: 11, color: '#0a0a0a' }}>{createError}</div>
               )}
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
@@ -1255,7 +1257,7 @@ function FieldRow({
             value={paramsText}
             placeholder='{"default":""}'
             onChange={(e) => commitParams(e.target.value)}
-            style={{ ...inputStyle, borderColor: paramsError ? '#dc2626' : '#d1d5db' }}
+            style={{ ...inputStyle, borderColor: paramsError ? '#0a0a0a' : '#d4d4d4' }}
           />
         </td>
         <td style={{ ...td, color: confColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -1339,21 +1341,21 @@ function unavailableFieldMeaning(name: string): string {
   return `This org does not expose ${name}, so that column is missing from the list.`;
 }
 
-const th: React.CSSProperties = { padding: '8px 10px', fontWeight: 600, color: '#475569', fontSize: 12 };
+const th: React.CSSProperties = { padding: '8px 10px', fontWeight: 600, color: '#525252', fontSize: 12 };
 const linkBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: '#2563eb',
+  color: '#171717',
   cursor: 'pointer',
   fontSize: 12,
   padding: '2px 4px',
 };
 // Drawn as an action rather than a link on the row a notice pointed at.
 const linkBtnFlagged: React.CSSProperties = {
-  background: '#faf5ff',
-  border: '1px solid #e9d5ff',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 6,
-  color: '#7c3aed',
+  color: '#262626',
   fontWeight: 600,
 };
 const td: React.CSSProperties = { padding: '6px 10px', verticalAlign: 'middle' };
@@ -1361,7 +1363,7 @@ const selectStyle: React.CSSProperties = {
   width: '100%',
   minWidth: 120,
   padding: '6px 8px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   fontSize: 13,
   boxSizing: 'border-box',
@@ -1371,7 +1373,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   minWidth: 120,
   padding: '6px 8px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   fontSize: 13,
   boxSizing: 'border-box',
@@ -1379,18 +1381,18 @@ const inputStyle: React.CSSProperties = {
 const addBtn: React.CSSProperties = {
   marginTop: 10,
   padding: '8px 14px',
-  background: '#eff6ff',
-  color: '#2563eb',
-  border: '1px solid #bfdbfe',
+  background: '#f5f5f5',
+  color: '#171717',
+  border: '1px solid #d4d4d4',
   borderRadius: 8,
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 600,
 };
 const removeBtn: React.CSSProperties = {
-  background: '#fef2f2',
-  color: '#dc2626',
-  border: '1px solid #fecaca',
+  background: '#fafafa',
+  color: '#0a0a0a',
+  border: '1px solid #e5e5e5',
   borderRadius: 6,
   cursor: 'pointer',
   padding: '4px 8px',
@@ -1398,7 +1400,7 @@ const removeBtn: React.CSSProperties = {
 };
 const createBtn: React.CSSProperties = {
   padding: '4px 8px',
-  background: '#16a34a',
+  background: '#171717',
   color: '#fff',
   border: 'none',
   borderRadius: 4,
@@ -1409,8 +1411,8 @@ const createBtn: React.CSSProperties = {
 const cancelBtn: React.CSSProperties = {
   padding: '4px 8px',
   background: '#fff',
-  color: '#374151',
-  border: '1px solid #d1d5db',
+  color: '#404040',
+  border: '1px solid #d4d4d4',
   borderRadius: 4,
   cursor: 'pointer',
   fontSize: 11,

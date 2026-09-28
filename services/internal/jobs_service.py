@@ -198,6 +198,27 @@ def update_job_table_status(job_table_id: int, status: str) -> None:
     writer.execute(query, params)
 
 
+def update_job_table_source_total(job_table_id: int, source_total: int) -> None:
+    """Record how many rows the source reported for a table's date window."""
+    query = "UPDATE job_tables SET source_total = ? WHERE id = ?"
+    writer.execute(query, (int(source_total), job_table_id))
+
+
+def latest_source_totals(table_names: list[str]) -> dict[str, int]:
+    """The most recently reported source total per table name."""
+    names = [name for name in dict.fromkeys(table_names) if name]
+    if not names:
+        return {}
+    placeholders = ",".join("?" for _ in names)
+    rows = db_client.fetch_all(
+        "SELECT table_name, source_total FROM job_tables "
+        f"WHERE source_total IS NOT NULL AND table_name IN ({placeholders}) "
+        "ORDER BY id",
+        tuple(names),
+    )
+    return {row[0]: int(row[1]) for row in rows}
+
+
 def update_job_table_batch_status(job_table_batch_id: int, status: str) -> None:
     query = "UPDATE job_table_batches SET status = ? WHERE id = ?"
     params = (status, job_table_batch_id)

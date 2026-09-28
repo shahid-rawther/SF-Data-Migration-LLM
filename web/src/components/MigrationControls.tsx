@@ -27,37 +27,37 @@ export function MigrationControls({ sessionId, status, onStatusChange }: Migrati
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       {status === 'pending' && (
-        <button onClick={() => act('start')} disabled={loading} style={btnStyle('#2563eb')}>
+        <button onClick={() => act('start')} disabled={loading} style={btnStyle('#171717')}>
           ▶ Start Migration
         </button>
       )}
       {status === 'running' && (
         <>
-          <button onClick={() => act('pause')} disabled={loading} style={btnStyle('#d97706')}>
+          <button onClick={() => act('pause')} disabled={loading} style={btnStyle('#525252')}>
             ⏸ Pause
           </button>
-          <button onClick={() => act('stop')} disabled={loading} style={btnStyle('#dc2626')}>
+          <button onClick={() => act('stop')} disabled={loading} style={btnStyle('#0a0a0a')}>
             ⏹ Stop
           </button>
         </>
       )}
       {status === 'paused' && (
         <>
-          <button onClick={() => act('resume')} disabled={loading} style={btnStyle('#16a34a')}>
+          <button onClick={() => act('resume')} disabled={loading} style={btnStyle('#171717')}>
             ▶ Resume
           </button>
-          <button onClick={() => act('stop')} disabled={loading} style={btnStyle('#dc2626')}>
+          <button onClick={() => act('stop')} disabled={loading} style={btnStyle('#0a0a0a')}>
             ⏹ Stop
           </button>
         </>
       )}
       {(status === 'failed' || status === 'stopped') && (
-        <button onClick={() => act('retry')} disabled={loading} style={btnStyle('#2563eb')}>
+        <button onClick={() => act('retry')} disabled={loading} style={btnStyle('#171717')}>
           ↻ Restart Migration
         </button>
       )}
-      {loading && <span style={{ fontSize: 13, color: '#6b7280' }}>…</span>}
-      {error && <span style={{ fontSize: 13, color: '#dc2626' }}>{error}</span>}
+      {loading && <span style={{ fontSize: 13, color: '#737373' }}>…</span>}
+      {error && <span style={{ fontSize: 13, color: '#0a0a0a' }}>{error}</span>}
     </div>
   );
 }

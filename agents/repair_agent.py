@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from common.logger import logger
 
-from agents import audit, error_digest, resolutions as resolution_rules, wiring
+from agents import audit, auto_repair, error_digest, resolutions as resolution_rules, wiring
 from agents.bedrock_client import AgentError, build_client, run_tool_loop
 from agents.config import (
     AUTONOMY_APPLY,
@@ -175,10 +175,59 @@ def repair(
         report.error = "No load errors could be read for this object"
         return report
 
+    # ── Deterministic auto-repair: fix errors with known mechanical solutions
+    # before invoking the LLM.  Every change is journalled so it shows up in
+    # the session under "What the agent reported".
+    auto_result = auto_repair.auto_repair(
+        context=context,
+        mapping_name=mapping_name,
+        digest=digest,
+        session_id=session_id,
+        run_id=run_id,
+        apply=(effective_autonomy == AUTONOMY_APPLY),
+    )
+    if auto_result.changes:
+        report.changes = [c.to_dict() for c in auto_result.changes]
+        report.change_ids = auto_result.change_ids
+        report.applied = auto_result.applied
+        report.retryable = True
+        logger.info(
+            "[agent] auto-repair fixed %d field(s) for %s deterministically",
+            len(auto_result.changes),
+            mapping_name,
+        )
+    # If every error pattern was handled, skip the LLM call entirely.
+    if auto_result.fully_resolved and len(auto_result.handled_entries) == len(digest.entries):
+        report.summary = (
+            f"Auto-repair resolved all {len(digest.entries)} error pattern(s) "
+            f"for {mapping_name} without invoking the model. "
+            + "; ".join(c.rationale for c in auto_result.changes)
+        )
+        return report
+    # Otherwise build a reduced digest for the LLM with only unhandled entries.
+    handled_set = set(id(e) for e in auto_result.handled_entries)
+    remaining = [e for e in digest.entries if id(e) not in handled_set]
+    if remaining:
+        reduced_digest = error_digest.ErrorDigest(
+            mapping=digest.mapping,
+            destination_object=digest.destination_object,
+            failed_rows=sum(e.count for e in remaining),
+            entries=remaining,
+        )
+    else:
+        reduced_digest = digest
+
     try:
-        loop = _run_agent(context, mapping_name, digest, settings)
+        loop = _run_agent(context, mapping_name, reduced_digest, settings)
     except AgentError as exc:
         logger.error("[agent] repair pass failed: %s", exc)
+        # If auto-repair already fixed some things, still report those.
+        if auto_result.changes:
+            report.summary = (
+                f"Auto-repair fixed {len(auto_result.changes)} field(s), but the "
+                f"model pass failed: {exc}"
+            )
+            return report
         report.error = str(exc)
         return report
 

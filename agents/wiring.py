@@ -39,25 +39,30 @@ TRANSFORM_ALLOW_LIST = frozenset(GENERIC_TRANSFORMS)
 
 AGENT_RELATIONSHIP = "relationship"
 AGENT_REPAIR = "repair"
+AGENT_ASSISTANT = "assistant"
 
 # Resolution kinds. Each maps to one applier below; anything else is rejected
 # by the validator before it gets here.
 KIND_LOOKUP_REFERENCE = "lookup_reference"
+KIND_DEFERRED_LOOKUP = "deferred_lookup"
 KIND_CONSTANT_REFERENCE = "constant_reference"
 KIND_TYPE_COERCION = "type_coercion"
 KIND_VALUE_MAP = "value_map"
 KIND_EXTERNAL_ID_UPSERT = "external_id_upsert"
 KIND_SELF_REFERENCE_GUARD = "self_reference_guard"
+KIND_REMOVE_FIELD = "remove_field"
 KIND_NOTICE = "notice"
 
 RESOLUTION_KINDS = frozenset(
     {
         KIND_LOOKUP_REFERENCE,
+        KIND_DEFERRED_LOOKUP,
         KIND_CONSTANT_REFERENCE,
         KIND_TYPE_COERCION,
         KIND_VALUE_MAP,
         KIND_EXTERNAL_ID_UPSERT,
         KIND_SELF_REFERENCE_GUARD,
+        KIND_REMOVE_FIELD,
         KIND_NOTICE,
     }
 )
@@ -307,13 +312,74 @@ def _apply_self_reference_guard(
     return [_change(agent, resolution, previous, copy.deepcopy(entry))]
 
 
+def _apply_deferred_lookup(
+    configs: dict[str, dict], resolution: Resolution, agent: str
+) -> list[ChangeRecord]:
+    """Resolve a lookup that cannot be filled on the insert pass, later.
+
+    The record loads with the reference empty and the backfill pass attaches it
+    once the parent has ids. With no parent named it is a self-reference.
+    """
+    config = configs[resolution.mapping]
+    parents = resolution.params.get("parent_mappings") or []
+    tables: list[str] = []
+    for parent in parents:
+        parent_config = configs.get(parent) or mappings_service.get_mapping_config(parent)
+        table = lookup_table_name(parent_config) if parent_config else ""
+        if table and table not in tables:
+            tables.append(table)
+    if not parents:
+        own = lookup_table_name(config)
+        if own:
+            tables.append(own)
+    if not tables:
+        raise ValueError(
+            f"No id-mapping table could be derived for deferred lookup on "
+            f"'{resolution.field}'"
+        )
+    entry, previous = _ensure_field(
+        config, resolution.field, resolution.params.get("source_field", "")
+    )
+    _clear_value_sources(entry)
+    entry["transformation_function"] = "generic_lookup"
+    entry["transformation_params"] = {"lookup_tables": tables, "default": ""}
+    entry["defer_to_backfill"] = True
+    entry.pop("skip_if_not_found", None)
+    if resolution.params.get("source_field"):
+        entry["source_field"] = resolution.params["source_field"]
+    return [_change(agent, resolution, previous, copy.deepcopy(entry))]
+
+
+def _apply_remove_field(
+    configs: dict[str, dict], resolution: Resolution, agent: str
+) -> list[ChangeRecord]:
+    """Stop writing a destination field. The removed entry is journalled."""
+    config = configs[resolution.mapping]
+    fields = config.get("fields") or []
+    index = next(
+        (
+            i
+            for i, entry in enumerate(fields)
+            if entry.get("destination_field") == resolution.field
+        ),
+        None,
+    )
+    if index is None:
+        raise ValueError(f"'{resolution.field}' is not mapped, so there is nothing to remove")
+    previous = copy.deepcopy(fields.pop(index))
+    config["fields"] = fields
+    return [_change(agent, resolution, previous, None)]
+
+
 _APPLIERS = {
     KIND_LOOKUP_REFERENCE: _apply_lookup_reference,
+    KIND_DEFERRED_LOOKUP: _apply_deferred_lookup,
     KIND_CONSTANT_REFERENCE: _apply_constant_reference,
     KIND_TYPE_COERCION: _apply_transform,
     KIND_VALUE_MAP: _apply_transform,
     KIND_EXTERNAL_ID_UPSERT: _apply_external_id_upsert,
     KIND_SELF_REFERENCE_GUARD: _apply_self_reference_guard,
+    KIND_REMOVE_FIELD: _apply_remove_field,
 }
 
 
@@ -336,6 +402,7 @@ def apply_resolutions(
     rejected: list[dict] = []
     for resolution in resolutions:
         if resolution.is_advisory:
+            suggested = str(resolution.params.get("suggested_action") or "").strip()
             changes.append(
                 ChangeRecord(
                     agent=agent,
@@ -344,6 +411,9 @@ def apply_resolutions(
                     field_name=resolution.field,
                     rationale=resolution.rationale,
                     severity=resolution.severity,
+                    # Persist the recommended next step; audit surfaces it as
+                    # suggested_action when the journal is read back.
+                    new_value={"suggested_action": suggested} if suggested else None,
                     applied=False,
                 )
             )

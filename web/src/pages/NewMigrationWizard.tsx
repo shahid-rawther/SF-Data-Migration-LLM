@@ -695,8 +695,8 @@ export function NewMigrationWizard() {
                   key={s.id}
                   style={{
                     ...sourceCard,
-                    border: selectedSource?.id === s.id ? '2px solid #2563eb' : '1px solid #e5e7eb',
-                    background: selectedSource?.id === s.id ? '#eff6ff' : '#fff',
+                    border: selectedSource?.id === s.id ? '2px solid #171717' : '1px solid #e5e5e5',
+                    background: selectedSource?.id === s.id ? '#f5f5f5' : '#fff',
                   }}
                 >
                   <input
@@ -708,7 +708,7 @@ export function NewMigrationWizard() {
                   />
                   <div>
                     <div style={{ fontWeight: 600 }}>{s.name}</div>
-                    <div style={{ fontSize: 13, color: '#6b7280' }}>{s.description}</div>
+                    <div style={{ fontSize: 13, color: '#737373' }}>{s.description}</div>
                   </div>
                 </label>
               ))}
@@ -747,7 +747,7 @@ export function NewMigrationWizard() {
 
                 {/* Show badge for selected saved connection */}
                 {selectedSourceConn && selectedSourceConn !== 'new' && (
-                  <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, color: '#166534' }}>
+                  <div style={{ padding: '12px 16px', background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, fontSize: 13, color: '#171717' }}>
                     Using saved connection: <strong>{savedSourceConns.find((c) => c.id === selectedSourceConn)?.name}</strong>
                   </div>
                 )}
@@ -761,8 +761,8 @@ export function NewMigrationWizard() {
 
                 {/* Save connection prompt */}
                 {sourceValidated && !sourceConnSaved && (!selectedSourceConn || selectedSourceConn === 'new') && (
-                  <div style={{ marginTop: 16, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1e40af' }}>
+                  <div style={{ marginTop: 16, padding: 16, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#262626' }}>
                       💾 Save this connection for future use?
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -784,7 +784,7 @@ export function NewMigrationWizard() {
                   </div>
                 )}
                 {sourceConnSaved && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>
+                  <div style={{ marginTop: 8, fontSize: 13, color: '#171717' }}>
                     ✅ Connection saved as "{sourceConnName}"
                   </div>
                 )}
@@ -845,7 +845,7 @@ export function NewMigrationWizard() {
 
             {/* Show badge for selected saved connection */}
             {selectedDestConn && selectedDestConn !== 'new' && (
-              <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, color: '#166534', marginBottom: 12 }}>
+              <div style={{ padding: '12px 16px', background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, fontSize: 13, color: '#171717', marginBottom: 12 }}>
                 Using saved connection: <strong>{savedDestConns.find((c) => c.id === selectedDestConn)?.name}</strong>
               </div>
             )}
@@ -859,8 +859,8 @@ export function NewMigrationWizard() {
 
             {/* Save connection prompt */}
             {destValidated && !destConnSaved && (!selectedDestConn || selectedDestConn === 'new') && (
-              <div style={{ marginTop: 16, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1e40af' }}>
+              <div style={{ marginTop: 16, padding: 16, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#262626' }}>
                   💾 Save this connection for future use?
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -882,7 +882,7 @@ export function NewMigrationWizard() {
               </div>
             )}
             {destConnSaved && (
-              <div style={{ marginTop: 8, fontSize: 13, color: '#16a34a' }}>
+              <div style={{ marginTop: 8, fontSize: 13, color: '#171717' }}>
                 ✅ Connection saved as "{destConnName}"
               </div>
             )}
@@ -908,11 +908,11 @@ export function NewMigrationWizard() {
               <div
                 style={{
                   border: diagnostics.missing_objects && diagnostics.missing_objects.length > 0
-                    ? '1px solid #f87171'
-                    : '1px solid #86efac',
+                    ? '1px solid #a3a3a3'
+                    : '1px solid #d4d4d4',
                   background: diagnostics.missing_objects && diagnostics.missing_objects.length > 0
-                    ? '#fef2f2'
-                    : '#f0fdf4',
+                    ? '#fafafa'
+                    : '#fafafa',
                   borderRadius: 8,
                   padding: 14,
                   marginBottom: 16,
@@ -923,11 +923,11 @@ export function NewMigrationWizard() {
                     ? '⚠️ Some objects may not be accessible'
                     : '✅ All objects are accessible'}
                 </div>
-                <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
+                <div style={{ fontSize: 12, color: '#404040', marginBottom: 6 }}>
                   <strong>Run-as User:</strong> {diagnostics.run_as_user_id || 'N/A'}
                 </div>
                 {diagnostics.missing_objects && diagnostics.missing_objects.length > 0 && (
-                  <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, color: '#404040', marginBottom: 6 }}>
                     <strong>Missing Objects:</strong> {diagnostics.missing_objects.join(', ')}
                   </div>
                 )}
@@ -937,7 +937,7 @@ export function NewMigrationWizard() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#2563eb',
+                      color: '#171717',
                       cursor: 'pointer',
                       fontSize: 12,
                       padding: '4px 0',
@@ -954,7 +954,7 @@ export function NewMigrationWizard() {
                         key={obj}
                         style={{
                           padding: '4px 0',
-                          color: diagnostics.visibility?.[obj] === false ? '#ef4444' : '#059669',
+                          color: diagnostics.visibility?.[obj] === false ? '#404040' : '#404040',
                         }}
                       >
                         {diagnostics.visibility?.[obj] === false ? '✗' : '✓'} {obj}
@@ -987,12 +987,12 @@ export function NewMigrationWizard() {
                   Next →
                 </button>
                 {!destValidated && (
-                  <span style={{ fontSize: 12, color: '#b45309' }}>
+                  <span style={{ fontSize: 12, color: '#404040' }}>
                     Please test Salesforce connection successfully before continuing.
                   </span>
                 )}
                 {diagnostics?.missing_objects && diagnostics.missing_objects.length > 0 && (
-                  <span style={{ fontSize: 12, color: '#dc2626' }}>
+                  <span style={{ fontSize: 12, color: '#0a0a0a' }}>
                     Required objects not accessible. Grant permissions and re-check.
                   </span>
                 )}
@@ -1005,7 +1005,7 @@ export function NewMigrationWizard() {
         {step === 3 && (
           <div>
             <h2 style={h2}>Select Objects</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
+            <p style={{ color: '#737373', fontSize: 13, marginBottom: 20 }}>
               Choose the {selectedSource?.name ?? 'source'} tables to read from, and the Salesforce
               objects you are migrating into. The Salesforce side is what the dependency hierarchy
               below is worked out from.
@@ -1013,23 +1013,23 @@ export function NewMigrationWizard() {
 
             <div style={selectionPanel}>
               <div style={selectionHeader}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#171717' }}>
                   Source — {selectedSource?.name ?? 'source'} tables
                 </span>
-                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                <span style={{ fontSize: 12, color: '#737373' }}>
                   {!loadingTables && `${selectedTables.length} of ${sourceTables.length} selected`}
                 </span>
               </div>
               {tableLoadError && (
                 <div style={{
                   padding: 12, marginBottom: 12, borderRadius: 8,
-                  background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
+                  background: '#fafafa', border: '1px solid #d4d4d4', fontSize: 13, color: '#171717',
                 }}>
                   {tableLoadError}
                   <button
                     onClick={loadSourceTables}
                     disabled={loadingTables}
-                    style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 12 }}
+                    style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d4d4d4', background: '#fff', cursor: 'pointer', fontSize: 12 }}
                   >
                     Retry
                   </button>
@@ -1045,10 +1045,10 @@ export function NewMigrationWizard() {
 
             <div style={{ ...selectionPanel, marginTop: 16 }}>
               <div style={selectionHeader}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#171717' }}>
                   Destination — Salesforce objects
                 </span>
-                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                <span style={{ fontSize: 12, color: '#737373' }}>
                   {selectedSfObjects.length} selected
                 </span>
               </div>
@@ -1083,13 +1083,13 @@ export function NewMigrationWizard() {
         {step === 4 && (
           <div>
             <h2 style={h2}>Map to Salesforce</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: '#737373', fontSize: 13, marginBottom: 16 }}>
               For each selected source table, choose a Salesforce object and configure field mappings.
               {loadingSfObjects && ' Loading Salesforce objects...'}
             </p>
 
             {savingMappings && (
-              <div style={{ padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+              <div style={{ padding: 12, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
                 Saving mappings...
               </div>
             )}
@@ -1119,7 +1119,7 @@ export function NewMigrationWizard() {
             ))}
 
             {tableMappings.length === 0 && (
-              <p style={{ color: '#9ca3af', textAlign: 'center', padding: '32px 0' }}>
+              <p style={{ color: '#a3a3a3', textAlign: 'center', padding: '32px 0' }}>
                 No tables selected. Go back to Step 3 and select tables.
               </p>
             )}
@@ -1127,7 +1127,7 @@ export function NewMigrationWizard() {
             {duplicateMappingNames.length > 0 && (
               <div style={{
                 padding: 12, marginBottom: 12, borderRadius: 8,
-                background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b',
+                background: '#fafafa', border: '1px solid #d4d4d4', fontSize: 13, color: '#171717',
               }}>
                 <strong>Duplicate mapping names detected:</strong> {duplicateMappingNames.join(', ')}.
                 Each mapping must have a unique name. Rename the duplicates before proceeding.
@@ -1151,7 +1151,7 @@ export function NewMigrationWizard() {
         {step === 5 && (
           <div>
             <h2 style={h2}>Compatibility Check</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: '#737373', fontSize: 13, marginBottom: 16 }}>
               Analyse how well your mappings work with the Salesforce destination.
               This is a dry-run analysis — no data is moved.
             </p>
@@ -1167,7 +1167,7 @@ export function NewMigrationWizard() {
             </div>
 
             {compatError && (
-              <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>
+              <div style={{ color: '#0a0a0a', fontSize: 13, marginBottom: 12 }}>
                 {compatError}
               </div>
             )}
@@ -1183,24 +1183,24 @@ export function NewMigrationWizard() {
                   <div style={{ fontWeight: 700, fontSize: 16 }}>
                     Overall Compatibility: {compatReport.overall_pct}%
                   </div>
-                  <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{compatReport.summary}</div>
+                  <div style={{ fontSize: 13, color: '#404040', marginTop: 4 }}>{compatReport.summary}</div>
                 </div>
 
                 {/* Per-object breakdown */}
                 {compatReport.objects.map((obj) => (
                   <div key={obj.object_name} style={{
-                    border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 10, overflow: 'hidden',
+                    border: '1px solid #e5e5e5', borderRadius: 8, marginBottom: 10, overflow: 'hidden',
                   }}>
                     <div
                       onClick={() => setExpandedCompatObj(expandedCompatObj === obj.object_name ? null : obj.object_name)}
                       style={{
-                        padding: '10px 14px', background: '#f9fafb', cursor: 'pointer',
+                        padding: '10px 14px', background: '#fafafa', cursor: 'pointer',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       }}
                     >
                       <div>
                         <strong>{obj.source_label}</strong>
-                        <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>{'->'} {obj.salesforce_object}</span>
+                        <span style={{ fontSize: 12, color: '#737373', marginLeft: 8 }}>{'->'} {obj.salesforce_object}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span style={{
@@ -1209,11 +1209,11 @@ export function NewMigrationWizard() {
                         }}>
                           {obj.compatibility_pct}%
                         </span>
-                        <span style={{ fontSize: 12, color: '#6b7280' }}>
+                        <span style={{ fontSize: 12, color: '#737373' }}>
                           {obj.mapped_fields}/{obj.total_fields} fields mapped
                         </span>
                         {obj.type_mismatches > 0 && (
-                          <span style={{ fontSize: 11, color: '#92400e', background: '#fef9c3', padding: '1px 6px', borderRadius: 4 }}>
+                          <span style={{ fontSize: 11, color: '#404040', background: '#f5f5f5', padding: '1px 6px', borderRadius: 4 }}>
                             {obj.type_mismatches} type mismatch{obj.type_mismatches > 1 ? 'es' : ''}
                           </span>
                         )}
@@ -1223,21 +1223,21 @@ export function NewMigrationWizard() {
                     {expandedCompatObj === obj.object_name && (
                       <div style={{ padding: 14 }}>
                         {obj.blockers.length > 0 && (
-                          <div style={{ marginBottom: 10, padding: 10, background: '#fef2f2', borderRadius: 6, border: '1px solid #fca5a5' }}>
+                          <div style={{ marginBottom: 10, padding: 10, background: '#fafafa', borderRadius: 6, border: '1px solid #d4d4d4' }}>
                             {obj.blockers.map((b, i) => (
-                              <div key={i} style={{ fontSize: 12, color: '#dc2626' }}>{b}</div>
+                              <div key={i} style={{ fontSize: 12, color: '#0a0a0a' }}>{b}</div>
                             ))}
                           </div>
                         )}
 
                         {/* Bulk create all missing fields button */}
                         {obj.fields.some((f) => f.status === 'no_mapping' && f.suggested_custom_field) && (
-                          <div style={{ marginBottom: 12, padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ marginBottom: 12, padding: 12, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#262626' }}>
                                 {obj.fields.filter((f) => f.status === 'no_mapping' && f.suggested_custom_field).length} missing field(s) detected
                               </div>
-                              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                              <div style={{ fontSize: 11, color: '#737373', marginTop: 2 }}>
                                 Create all missing fields in Salesforce with auto-detected types
                               </div>
                             </div>
@@ -1253,7 +1253,7 @@ export function NewMigrationWizard() {
                               )}
                               disabled={bulkCreating}
                               style={{
-                                padding: '8px 16px', fontSize: 12, background: '#2563eb', color: '#fff',
+                                padding: '8px 16px', fontSize: 12, background: '#171717', color: '#fff',
                                 border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
                               }}
                             >
@@ -1264,10 +1264,10 @@ export function NewMigrationWizard() {
 
                         {/* Bulk creation results */}
                         {bulkResults.length > 0 && (
-                          <div style={{ marginBottom: 12, padding: 10, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, maxHeight: 150, overflowY: 'auto' }}>
+                          <div style={{ marginBottom: 12, padding: 10, background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 6, maxHeight: 150, overflowY: 'auto' }}>
                             <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Creation Results:</div>
                             {bulkResults.map((r, i) => (
-                              <div key={i} style={{ fontSize: 11, color: r.success ? '#16a34a' : '#dc2626', marginBottom: 2 }}>
+                              <div key={i} style={{ fontSize: 11, color: r.success ? '#171717' : '#0a0a0a', marginBottom: 2 }}>
                                 {r.field}: {r.message}
                               </div>
                             ))}
@@ -1275,7 +1275,7 @@ export function NewMigrationWizard() {
                         )}
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
-                            <tr style={{ background: '#f3f4f6' }}>
+                            <tr style={{ background: '#f5f5f5' }}>
                               <th style={thStyle}>Source Field</th>
                               <th style={thStyle}>Salesforce Field</th>
                               <th style={thStyle}>Status</th>
@@ -1287,35 +1287,35 @@ export function NewMigrationWizard() {
                             {obj.fields.map((f, i) => {
                               const fieldKey = `${obj.salesforce_object}::${f.destination_field}`;
                               return (
-                              <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <tr key={i} style={{ borderBottom: '1px solid #e5e5e5' }}>
                                 <td style={tdStyle}>
                                   {f.source_field || '\u2014'}
                                   {f.source_type && f.status === 'type_mismatch' && (
-                                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>({f.source_type})</span>
+                                    <span style={{ fontSize: 10, color: '#737373', marginLeft: 4 }}>({f.source_type})</span>
                                   )}
                                 </td>
                                 <td style={tdStyle}>
                                   {f.destination_field}
                                   {f.destination_type && f.status === 'type_mismatch' && (
-                                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>({f.destination_type})</span>
+                                    <span style={{ fontSize: 10, color: '#737373', marginLeft: 4 }}>({f.destination_type})</span>
                                   )}
                                 </td>
                                 <td style={tdStyle}>
                                   <span style={{
                                     padding: '2px 6px', borderRadius: 4, fontSize: 11,
-                                    background: f.status === 'mapped' ? '#dcfce7' : f.status === 'type_mismatch' ? '#fef9c3' : '#fee2e2',
-                                    color: f.status === 'mapped' ? '#166534' : f.status === 'type_mismatch' ? '#854d0e' : '#991b1b',
+                                    background: f.status === 'mapped' ? '#f5f5f5' : f.status === 'type_mismatch' ? '#f5f5f5' : '#f5f5f5',
+                                    color: f.status === 'mapped' ? '#171717' : f.status === 'type_mismatch' ? '#404040' : '#171717',
                                   }}>
                                     {f.status === 'type_mismatch' ? 'type mismatch' : f.status}
                                   </span>
                                 </td>
-                                <td style={{ ...tdStyle, color: '#6b7280' }}>{f.suggestion || '\u2014'}</td>
+                                <td style={{ ...tdStyle, color: '#737373' }}>{f.suggestion || '\u2014'}</td>
                                 <td style={tdStyle}>
                                   {f.status === 'no_mapping' && f.suggested_custom_field && (
                                     <button
                                       onClick={() => openCreateFieldDialog(obj.salesforce_object, f)}
                                       style={{
-                                        padding: '3px 8px', fontSize: 11, background: '#2563eb', color: '#fff',
+                                        padding: '3px 8px', fontSize: 11, background: '#171717', color: '#fff',
                                         border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
                                       }}
                                     >
@@ -1323,7 +1323,7 @@ export function NewMigrationWizard() {
                                     </button>
                                   )}
                                   {customFieldMsg && customFieldMsg.key === fieldKey && (
-                                    <div style={{ fontSize: 11, marginTop: 4, color: customFieldMsg.success ? '#16a34a' : '#dc2626' }}>
+                                    <div style={{ fontSize: 11, marginTop: 4, color: customFieldMsg.success ? '#171717' : '#0a0a0a' }}>
                                       {customFieldMsg.message}
                                     </div>
                                   )}
@@ -1337,7 +1337,7 @@ export function NewMigrationWizard() {
                         {/* Create Custom Field Dialog */}
                         {creatingField && creatingField.startsWith(`${obj.salesforce_object}::`) && (
                           <div style={{
-                            marginTop: 12, padding: 16, background: '#f0f9ff', border: '1px solid #bae6fd',
+                            marginTop: 12, padding: 16, background: '#fafafa', border: '1px solid #d4d4d4',
                             borderRadius: 8,
                           }}>
                             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
@@ -1350,7 +1350,7 @@ export function NewMigrationWizard() {
                                   type="text"
                                   value={customFieldLabel}
                                   onChange={(e) => setCustomFieldLabel(e.target.value)}
-                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d4d4d4', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
                                 />
                               </div>
                               <div>
@@ -1359,7 +1359,7 @@ export function NewMigrationWizard() {
                                   type="text"
                                   value={customFieldName}
                                   onChange={(e) => setCustomFieldName(e.target.value)}
-                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d4d4d4', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
                                 />
                               </div>
                               <div>
@@ -1367,7 +1367,7 @@ export function NewMigrationWizard() {
                                 <select
                                   value={customFieldType}
                                   onChange={(e) => setCustomFieldType(e.target.value)}
-                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d4d4d4', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
                                 >
                                   <option value="Text">Text</option>
                                   <option value="Number">Number</option>
@@ -1386,7 +1386,7 @@ export function NewMigrationWizard() {
                               <button
                                 onClick={() => handleCreateCustomField(obj.salesforce_object)}
                                 style={{
-                                  padding: '6px 14px', fontSize: 12, background: '#16a34a', color: '#fff',
+                                  padding: '6px 14px', fontSize: 12, background: '#171717', color: '#fff',
                                   border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
                                 }}
                               >
@@ -1395,15 +1395,15 @@ export function NewMigrationWizard() {
                               <button
                                 onClick={() => { setCreatingField(null); setCustomFieldMsg(null); }}
                                 style={{
-                                  padding: '6px 14px', fontSize: 12, background: '#fff', color: '#374151',
-                                  border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer',
+                                  padding: '6px 14px', fontSize: 12, background: '#fff', color: '#404040',
+                                  border: '1px solid #d4d4d4', borderRadius: 4, cursor: 'pointer',
                                 }}
                               >
                                 Cancel
                               </button>
                             </div>
                             {customFieldMsg && customFieldMsg.key === creatingField && (
-                              <div style={{ marginTop: 8, fontSize: 12, color: customFieldMsg.success ? '#16a34a' : '#dc2626' }}>
+                              <div style={{ marginTop: 8, fontSize: 12, color: customFieldMsg.success ? '#171717' : '#0a0a0a' }}>
                                 {customFieldMsg.message}
                               </div>
                             )}
@@ -1418,10 +1418,10 @@ export function NewMigrationWizard() {
                 {compatReport.dependency_order && compatReport.dependency_order.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <h3 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700 }}>Execution Order</h3>
-                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+                    <p style={{ fontSize: 12, color: '#737373', marginBottom: 10 }}>
                       Objects will be migrated in this order based on Salesforce reference field dependencies.
                       {compatReport.dependency_has_cycle && (
-                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                        <span style={{ color: '#0a0a0a', fontWeight: 600 }}>
                           {' '}Circular dependency detected — using card order instead.
                         </span>
                       )}
@@ -1431,14 +1431,14 @@ export function NewMigrationWizard() {
                     {compatReport.dependency_missing_parents && compatReport.dependency_missing_parents.length > 0 && (
                       <div style={{
                         padding: 12, marginBottom: 12, borderRadius: 8,
-                        background: '#fffbeb', border: '1px solid #fcd34d',
+                        background: '#fafafa', border: '1px solid #d4d4d4',
                       }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#404040', marginBottom: 6 }}>
                           Missing Parent Object Warnings
                         </div>
                         {compatReport.dependency_missing_parents.map((mp, i) => (
-                          <div key={i} style={{ fontSize: 12, color: '#92400e', marginBottom: 3 }}>
-                            <strong>{mp.mapping}</strong> field <code style={{ background: '#fef3c7', padding: '1px 4px', borderRadius: 3 }}>{mp.field}</code> references <strong>{mp.references}</strong> — {mp.reason}
+                          <div key={i} style={{ fontSize: 12, color: '#404040', marginBottom: 3 }}>
+                            <strong>{mp.mapping}</strong> field <code style={{ background: '#f5f5f5', padding: '1px 4px', borderRadius: 3 }}>{mp.field}</code> references <strong>{mp.references}</strong> — {mp.reason}
                           </div>
                         ))}
                       </div>
@@ -1448,10 +1448,10 @@ export function NewMigrationWizard() {
                     {compatReport.dependency_warnings && compatReport.dependency_warnings.length > 0 && (
                       <div style={{
                         padding: 12, marginBottom: 12, borderRadius: 8,
-                        background: '#fef2f2', border: '1px solid #fca5a5',
+                        background: '#fafafa', border: '1px solid #d4d4d4',
                       }}>
                         {compatReport.dependency_warnings.map((w, i) => (
-                          <div key={i} style={{ fontSize: 12, color: '#991b1b', marginBottom: 3 }}>
+                          <div key={i} style={{ fontSize: 12, color: '#171717', marginBottom: 3 }}>
                             {w.mapping ? <><strong>{w.mapping}</strong> — </> : null}{w.reason}
                           </div>
                         ))}
@@ -1460,7 +1460,7 @@ export function NewMigrationWizard() {
 
                     {/* Ordered list with dependency arrows */}
                     <div style={{
-                      border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden',
+                      border: '1px solid #e5e5e5', borderRadius: 8, overflow: 'hidden',
                     }}>
                       {compatReport.dependency_order.map((name, i) => {
                         const edges = (compatReport.dependency_edges ?? []).filter((e) => e.from_mapping === name);
@@ -1468,13 +1468,13 @@ export function NewMigrationWizard() {
                         return (
                           <div key={name} style={{
                             padding: '10px 14px',
-                            borderBottom: i < compatReport.dependency_order!.length - 1 ? '1px solid #e5e7eb' : 'none',
-                            background: i % 2 === 0 ? '#f9fafb' : '#fff',
+                            borderBottom: i < compatReport.dependency_order!.length - 1 ? '1px solid #e5e5e5' : 'none',
+                            background: i % 2 === 0 ? '#fafafa' : '#fff',
                             display: 'flex', alignItems: 'center', gap: 12,
                           }}>
                             <div style={{
                               width: 28, height: 28, borderRadius: '50%',
-                              background: '#2563eb', color: '#fff',
+                              background: '#171717', color: '#fff',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: 12, fontWeight: 700, flexShrink: 0,
                             }}>
@@ -1484,22 +1484,22 @@ export function NewMigrationWizard() {
                               <div style={{ fontWeight: 600, fontSize: 13 }}>
                                 {name}
                                 {objInfo && (
-                                  <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 8, fontSize: 12 }}>
+                                  <span style={{ fontWeight: 400, color: '#737373', marginLeft: 8, fontSize: 12 }}>
                                     → {objInfo.salesforce_object}
                                   </span>
                                 )}
                               </div>
                               {edges.length > 0 && (
-                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                                <div style={{ fontSize: 11, color: '#737373', marginTop: 2 }}>
                                   depends on:{' '}
                                   {edges.map((e, ei) => (
                                     <span key={ei}>
                                       {ei > 0 && ', '}
                                       <span style={{
                                         padding: '1px 5px', borderRadius: 3, fontSize: 10,
-                                        background: e.required ? '#fee2e2' : '#f0f9ff',
-                                        color: e.required ? '#991b1b' : '#1e40af',
-                                        border: e.required ? '1px solid #fca5a5' : '1px dashed #93c5fd',
+                                        background: e.required ? '#f5f5f5' : '#fafafa',
+                                        color: e.required ? '#171717' : '#262626',
+                                        border: e.required ? '1px solid #d4d4d4' : '1px dashed #d4d4d4',
                                       }}>
                                         {e.to_mapping}
                                         <span style={{ opacity: 0.7 }}> via {e.field}</span>
@@ -1511,7 +1511,7 @@ export function NewMigrationWizard() {
                               )}
                             </div>
                             {i > 0 && (
-                              <div style={{ fontSize: 16, color: '#d1d5db', flexShrink: 0 }}>↓</div>
+                              <div style={{ fontSize: 16, color: '#d4d4d4', flexShrink: 0 }}>↓</div>
                             )}
                           </div>
                         );
@@ -1564,7 +1564,7 @@ export function NewMigrationWizard() {
                   }
                   style={inputStyle}
                 />
-                <p style={{ fontSize: 12, color: '#6b7280', margin: '6px 0 0' }}>
+                <p style={{ fontSize: 12, color: '#737373', margin: '6px 0 0' }}>
                   Applies to each table separately, so {options.service_now_batch_size || 0} across{' '}
                   {sourceTableCount === 1 ? '1 table' : `${sourceTableCount} tables`} stages up to{' '}
                   <strong>
@@ -1585,7 +1585,7 @@ export function NewMigrationWizard() {
             </label>
 
             {/* Summary */}
-            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 20 }}>
+            <div style={{ background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 20 }}>
               <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Summary</h3>
               <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div><strong>Source:</strong> {selectedSource?.name}</div>
@@ -1593,13 +1593,13 @@ export function NewMigrationWizard() {
                 <div><strong>Mappings:</strong> {mappingNames.length} configured</div>
                 {compatReport?.dependency_order && compatReport.dependency_order.length > 0 ? (
                   <div style={{ marginLeft: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Execution Order:</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#404040', marginBottom: 4 }}>Execution Order:</div>
                     {compatReport.dependency_order.map((name, i) => {
                       const objInfo = compatReport.objects.find((o) => o.object_name === name);
                       return (
-                        <div key={name} style={{ fontSize: 12, color: '#6b7280', display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                        <div key={name} style={{ fontSize: 12, color: '#737373', display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
                           <span style={{
-                            width: 18, height: 18, borderRadius: '50%', background: '#2563eb', color: '#fff',
+                            width: 18, height: 18, borderRadius: '50%', background: '#171717', color: '#fff',
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0,
                           }}>
                             {i + 1}
@@ -1610,7 +1610,7 @@ export function NewMigrationWizard() {
                     })}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 16 }}>
+                  <div style={{ fontSize: 12, color: '#737373', marginLeft: 16 }}>
                     {tableMappings
                       .filter((m) => m.sfObject && m.mappingName)
                       .map((m) => `${m.sourceTable} -> ${m.sfObject} (${m.mappingName})`)
@@ -1632,7 +1632,7 @@ export function NewMigrationWizard() {
                     <strong>Field Mappings:</strong>
                     <div style={{ marginLeft: 16, marginTop: 4 }}>
                       {compatReport.objects.map((obj) => (
-                        <div key={obj.object_name} style={{ fontSize: 12, color: '#6b7280', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div key={obj.object_name} style={{ fontSize: 12, color: '#737373', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span>{obj.object_name} → {obj.salesforce_object}:</span>
                           <span style={{ color: compatColor(obj.compatibility_pct), fontWeight: 600 }}>
                             {obj.mapped_fields}/{obj.total_fields} fields
@@ -1640,7 +1640,7 @@ export function NewMigrationWizard() {
                           {obj.type_mismatches > 0 && (
                             <span style={{
                               fontSize: 10, padding: '1px 5px', borderRadius: 4,
-                              background: '#fef9c3', color: '#92400e',
+                              background: '#f5f5f5', color: '#404040',
                             }}>
                               {obj.type_mismatches} type mismatch{obj.type_mismatches > 1 ? 'es' : ''}
                             </span>
@@ -1662,19 +1662,19 @@ export function NewMigrationWizard() {
             ) && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#fffbeb', border: '1px solid #fcd34d',
+                background: '#fafafa', border: '1px solid #d4d4d4',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#404040', marginBottom: 8 }}>
                   Dependency Warnings
                 </div>
                 {(compatReport.dependency_warnings ?? []).map((w, i) => (
-                  <div key={`w-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                  <div key={`w-${i}`} style={{ fontSize: 12, color: '#404040', marginBottom: 4, display: 'flex', gap: 6 }}>
                     <span>⚠</span>
                     <span>{w.mapping ? `${w.mapping} — ` : ''}{w.reason}</span>
                   </div>
                 ))}
                 {(compatReport.dependency_missing_parents ?? []).map((mp, i) => (
-                  <div key={`mp-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                  <div key={`mp-${i}`} style={{ fontSize: 12, color: '#404040', marginBottom: 4, display: 'flex', gap: 6 }}>
                     <span>⚠</span>
                     <span>{mp.mapping} — {mp.reason}</span>
                   </div>
@@ -1686,18 +1686,18 @@ export function NewMigrationWizard() {
             {compatReport && (compatReport.blocking_required_fields ?? []).length > 0 && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#fef2f2', border: '1px solid #fecaca',
+                background: '#fafafa', border: '1px solid #e5e5e5',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#171717', marginBottom: 8 }}>
                   Resolve these before launching
                 </div>
                 {(compatReport.blocking_required_fields ?? []).map((b, i) => (
-                  <div key={`b-${i}`} style={{ fontSize: 12, color: '#7f1d1d', marginBottom: 4, display: 'flex', gap: 6 }}>
+                  <div key={`b-${i}`} style={{ fontSize: 12, color: '#0a0a0a', marginBottom: 4, display: 'flex', gap: 6 }}>
                     <span>✕</span>
                     <span><b>{b.mapping}.{b.field}</b> — {b.reason}</span>
                   </div>
                 ))}
-                <div style={{ fontSize: 11, color: '#991b1b', marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#171717', marginTop: 8 }}>
                   Fix these in Step 4 (set a Source field, Constant, or Lookup), then re-run the compatibility check.
                 </div>
               </div>
@@ -1707,18 +1707,18 @@ export function NewMigrationWizard() {
             {compatReport && (compatReport.picklist_mapping_warnings ?? []).length > 0 && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#fef9c3', border: '1px solid #fde68a',
+                background: '#f5f5f5', border: '1px solid #e5e5e5',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#854d0e', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#404040', marginBottom: 8 }}>
                   Picklist values not fully mapped
                 </div>
                 {(compatReport.picklist_mapping_warnings ?? []).map((p, i) => (
-                  <div key={`pk-${i}`} style={{ fontSize: 12, color: '#78350f', marginBottom: 4, display: 'flex', gap: 6 }}>
+                  <div key={`pk-${i}`} style={{ fontSize: 12, color: '#404040', marginBottom: 4, display: 'flex', gap: 6 }}>
                     <span>⚠</span>
                     <span><b>{p.mapping}.{p.field}</b> — {p.reason}</span>
                   </div>
                 ))}
-                <div style={{ fontSize: 11, color: '#854d0e', marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#404040', marginTop: 8 }}>
                   Unmapped values load as blank. This does not block the migration.
                 </div>
               </div>
@@ -1728,13 +1728,13 @@ export function NewMigrationWizard() {
             {deferredLookups.length > 0 && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#eff6ff', border: '1px solid #bfdbfe',
+                background: '#f5f5f5', border: '1px solid #d4d4d4',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#262626', marginBottom: 8 }}>
                   {deferredLookups.length} reference{deferredLookups.length === 1 ? '' : 's'} will be
                   attached after the load, not during it
                 </div>
-                <div style={{ fontSize: 12, color: '#1e3a8a', marginBottom: 8, lineHeight: 1.55 }}>
+                <div style={{ fontSize: 12, color: '#262626', marginBottom: 8, lineHeight: 1.55 }}>
                   These lookups have nothing to point at while the records are being created —
                   either the objects reference each other, so whichever goes first has no
                   counterpart yet, or the object being pointed at has not been migrated at all.
@@ -1744,9 +1744,9 @@ export function NewMigrationWizard() {
                   offered, never automatic.
                 </div>
                 {deferredLookups.map((d, i) => (
-                  <div key={`df-${i}`} style={{ fontSize: 12, color: '#1e3a8a', marginBottom: 3 }}>
+                  <div key={`df-${i}`} style={{ fontSize: 12, color: '#262626', marginBottom: 3 }}>
                     <b>{d.destination_object}.{d.field}</b>
-                    <span style={{ color: '#3b82f6' }}>
+                    <span style={{ color: '#737373' }}>
                       {' '}— {d.reason === 'self_reference'
                         ? 'points at its own object'
                         : d.reason === 'parent_not_migrated'
@@ -1766,12 +1766,12 @@ export function NewMigrationWizard() {
             {preflight && (preflight.blockers.length > 0 || preflight.warnings.length > 0) && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: preflight.blockers.length > 0 ? '#fef2f2' : '#fffbeb',
-                border: `1px solid ${preflight.blockers.length > 0 ? '#fca5a5' : '#fcd34d'}`,
+                background: preflight.blockers.length > 0 ? '#fafafa' : '#fafafa',
+                border: `1px solid ${preflight.blockers.length > 0 ? '#d4d4d4' : '#d4d4d4'}`,
               }}>
                 <div style={{
                   fontSize: 13, fontWeight: 600, marginBottom: 8,
-                  color: preflight.blockers.length > 0 ? '#991b1b' : '#92400e',
+                  color: preflight.blockers.length > 0 ? '#171717' : '#404040',
                 }}>
                   {preflight.blockers.length > 0
                     ? `${preflight.blockers.length} issue${preflight.blockers.length === 1 ? '' : 's'} will stop this migration from starting`
@@ -1782,7 +1782,7 @@ export function NewMigrationWizard() {
                     key={`pf-${i}`}
                     style={{
                       fontSize: 12, marginBottom: 6, lineHeight: 1.55,
-                      color: i < preflight.blockers.length ? '#7f1d1d' : '#78350f',
+                      color: i < preflight.blockers.length ? '#0a0a0a' : '#404040',
                     }}
                   >
                     <b>
@@ -1799,24 +1799,24 @@ export function NewMigrationWizard() {
             {compatReport && compatReport.objects.some((o) => o.type_mismatches > 0) && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#fef9c3', border: '1px solid #fde68a',
+                background: '#f5f5f5', border: '1px solid #e5e5e5',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#854d0e', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#404040', marginBottom: 8 }}>
                   Type Mismatch Warnings
                 </div>
                 {compatReport.objects
                   .filter((o) => o.type_mismatches > 0)
                   .map((obj) => (
                     <div key={obj.object_name} style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#404040' }}>
                         {obj.object_name} → {obj.salesforce_object} ({obj.type_mismatches} mismatch{obj.type_mismatches > 1 ? 'es' : ''})
                       </div>
                       {obj.fields
                         .filter((f) => f.status === 'type_mismatch')
                         .map((f, fi) => (
-                          <div key={fi} style={{ fontSize: 11, color: '#78350f', marginLeft: 16, marginTop: 2 }}>
+                          <div key={fi} style={{ fontSize: 11, color: '#404040', marginLeft: 16, marginTop: 2 }}>
                             {f.source_field} ({f.source_type}) → {f.destination_field} ({f.destination_type})
-                            {f.suggestion && <span style={{ color: '#92400e' }}> — {f.suggestion}</span>}
+                            {f.suggestion && <span style={{ color: '#404040' }}> — {f.suggestion}</span>}
                           </div>
                         ))}
                     </div>
@@ -1824,7 +1824,7 @@ export function NewMigrationWizard() {
               </div>
             )}
 
-            {error && <p style={{ color: '#dc2626', fontSize: 13 }}>Error: {error}</p>}
+            {error && <p style={{ color: '#0a0a0a', fontSize: 13 }}>Error: {error}</p>}
 
             <div style={navRow}>
               <button onClick={() => goStep(5)} style={secondaryBtn}>&larr; Back</button>
@@ -1849,23 +1849,29 @@ export function NewMigrationWizard() {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const pageStyle: React.CSSProperties = { padding: '32px 32px', transition: 'max-width 0.2s ease' };
+const pageStyle: React.CSSProperties = {
+  padding: '32px',
+  width: '100%',
+  maxWidth: 1600,
+  margin: '0 auto',
+  transition: 'max-width 0.2s ease',
+};
 const h2: React.CSSProperties = { margin: '0 0 20px', fontSize: 20, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 };
-const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 28 };
+const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12, padding: 28 };
 const navRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', marginTop: 24 };
 const selectionPanel: React.CSSProperties = {
-  border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff',
+  border: '1px solid #e5e5e5', borderRadius: 10, padding: 16, background: '#fff',
 };
 const selectionHeader: React.CSSProperties = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12,
 };
 const primaryBtn: React.CSSProperties = {
-  padding: '10px 22px', background: '#2563eb', color: '#fff', border: 'none',
+  padding: '10px 22px', background: '#171717', color: '#fff', border: 'none',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
 const secondaryBtn: React.CSSProperties = {
-  padding: '10px 22px', background: '#fff', color: '#374151', border: '1px solid #d1d5db',
+  padding: '10px 22px', background: '#fff', color: '#404040', border: '1px solid #d4d4d4',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
 // ── Compatibility colour helpers ───────────────────────────────────────────────
@@ -1873,17 +1879,17 @@ const COMPAT_HIGH = 80;  // pct threshold for "good" (green)
 const COMPAT_MID  = 50;  // pct threshold for "warning" (amber)
 
 function compatColor(pct: number): string {
-  return pct >= COMPAT_HIGH ? '#16a34a' : pct >= COMPAT_MID ? '#b45309' : '#dc2626';
+  return pct >= COMPAT_HIGH ? '#171717' : pct >= COMPAT_MID ? '#404040' : '#0a0a0a';
 }
 function compatBg(pct: number): string {
-  return pct >= COMPAT_HIGH ? '#f0fdf4' : pct >= COMPAT_MID ? '#fffbeb' : '#fef2f2';
+  return pct >= COMPAT_HIGH ? '#fafafa' : pct >= COMPAT_MID ? '#fafafa' : '#fafafa';
 }
 function compatBorder(pct: number): string {
-  return pct >= COMPAT_HIGH ? '#86efac' : pct >= COMPAT_MID ? '#fcd34d' : '#f87171';
+  return pct >= COMPAT_HIGH ? '#d4d4d4' : pct >= COMPAT_MID ? '#d4d4d4' : '#a3a3a3';
 }
 const thStyle: React.CSSProperties = {
   padding: '6px 10px', textAlign: 'left', fontWeight: 600,
-  borderBottom: '1px solid #d1d5db',
+  borderBottom: '1px solid #d4d4d4',
 };
 const tdStyle: React.CSSProperties = { padding: '5px 10px', verticalAlign: 'top' };
 const sourceCard: React.CSSProperties = {
@@ -1891,13 +1897,13 @@ const sourceCard: React.CSSProperties = {
   borderRadius: 10, cursor: 'pointer',
 };
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', border: '1px solid #d1d5db',
+  width: '100%', padding: '8px 10px', border: '1px solid #d4d4d4',
   borderRadius: 6, fontSize: 14, boxSizing: 'border-box',
 };
 const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 4 };
 const stepperStyle: React.CSSProperties = {
   display: 'flex', gap: 0, marginBottom: 28, background: '#fff',
-  border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px 24px',
+  border: '1px solid #e5e5e5', borderRadius: 12, padding: '16px 24px',
   justifyContent: 'space-between',
 };
 const stepStyle = (active: boolean, done: boolean): React.CSSProperties => ({
@@ -1907,5 +1913,5 @@ const stepStyle = (active: boolean, done: boolean): React.CSSProperties => ({
 const stepCircle = (active: boolean): React.CSSProperties => ({
   width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center',
   justifyContent: 'center', fontSize: 12, fontWeight: 700,
-  background: active ? '#2563eb' : '#e5e7eb', color: active ? '#fff' : '#6b7280',
+  background: active ? '#171717' : '#e5e5e5', color: active ? '#fff' : '#737373',
 });

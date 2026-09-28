@@ -59,8 +59,31 @@ class DBClient:
             self._add_results_column(conn)
             self._add_batch_salesforce_job_id_column(conn)
             self._add_backfill_awaiting_object_column(conn)
+            self._add_proposal_origin_columns(conn)
+            self._add_job_table_source_total_column(conn)
             self._seed_mapping_configs(conn)
             conn.commit()
+
+    def _add_job_table_source_total_column(self, conn: sqlite3.Connection):
+        """Adds source_total to job_tables if it does not exist."""
+        cursor = conn.execute("PRAGMA table_info(job_tables)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if columns and "source_total" not in columns:
+            conn.execute("ALTER TABLE job_tables ADD COLUMN source_total INTEGER")
+
+    def _add_proposal_origin_columns(self, conn: sqlite3.Connection):
+        """Adds origin and diagnosis_id to agent_proposals if they do not exist."""
+        cursor = conn.execute("PRAGMA table_info(agent_proposals)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if not columns:
+            return
+
+        if "origin" not in columns:
+            conn.execute(
+                "ALTER TABLE agent_proposals ADD COLUMN origin TEXT NOT NULL DEFAULT ''"
+            )
+        if "diagnosis_id" not in columns:
+            conn.execute("ALTER TABLE agent_proposals ADD COLUMN diagnosis_id INTEGER")
 
     def _add_backfill_awaiting_object_column(self, conn: sqlite3.Connection):
         """

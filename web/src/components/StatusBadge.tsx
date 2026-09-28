@@ -1,31 +1,37 @@
+import { Badge } from './ui/badge';
+
 interface StatusBadgeProps {
   status: string;
 }
 
-const COLORS: Record<string, { bg: string; color: string }> = {
-  pending: { bg: '#fef3c7', color: '#92400e' },
-  running: { bg: '#dbeafe', color: '#1e40af' },
-  paused: { bg: '#fde8d8', color: '#9a3412' },
-  stopped: { bg: '#fee2e2', color: '#991b1b' },
-  completed: { bg: '#dcfce7', color: '#166534' },
-  failed: { bg: '#fee2e2', color: '#991b1b' },
+const VARIANTS = {
+  pending: 'warning',
+  running: 'info',
+  paused: 'warning',
+  stopped: 'destructive',
+  completed: 'success',
+  completed_with_errors: 'warning',
+  failed: 'destructive',
+} as const;
+
+// The badge itself is monochrome, so the dot carries the distinction: filled
+// and animated while work is happening, inverted on the dark finished states.
+const DOTS: Record<string, string> = {
+  pending: 'bg-muted-foreground/60',
+  running: 'bg-foreground animate-pulse',
+  paused: 'bg-muted-foreground',
+  stopped: 'bg-white/80',
+  completed: 'bg-background',
+  completed_with_errors: 'bg-foreground',
+  failed: 'bg-white/80',
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const style = COLORS[status] ?? { bg: '#f3f4f6', color: '#374151' };
+  const variant = VARIANTS[status as keyof typeof VARIANTS] ?? 'secondary';
   return (
-    <span
-      style={{
-        padding: '2px 10px',
-        borderRadius: 20,
-        fontSize: 12,
-        fontWeight: 600,
-        background: style.bg,
-        color: style.color,
-        textTransform: 'capitalize',
-      }}
-    >
+    <Badge variant={variant} className="gap-1.5 capitalize">
+      <span className={`size-1.5 rounded-full ${DOTS[status] ?? 'bg-muted-foreground'}`} />
       {status}
-    </span>
+    </Badge>
   );
 }

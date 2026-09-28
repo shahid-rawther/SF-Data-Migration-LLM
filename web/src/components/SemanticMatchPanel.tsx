@@ -17,12 +17,12 @@ export function SemanticMatchPanel({
   error?: string;
 }) {
   if (error) {
-    return <div style={panel('#fef2f2', '#fecaca', '#b91c1c')}>{error}</div>;
+    return <div style={panel('#fafafa', '#e5e5e5', '#171717')}>{error}</div>;
   }
   if (!report) return null;
 
   return (
-    <div style={panel('#faf5ff', '#e9d5ff', '#5b21b6')}>
+    <div style={panel('#fafafa', '#e5e5e5', '#171717')}>
       <strong>
         {report.matches.length > 0
           ? `${report.matches.length} match${
@@ -31,7 +31,7 @@ export function SemanticMatchPanel({
           : 'No matches found'}
       </strong>
       {report.summary && <p style={{ margin: '6px 0 0' }}>{report.summary}</p>}
-      <p style={{ margin: '6px 0 0', color: '#6b7280' }}>
+      <p style={{ margin: '6px 0 0', color: '#737373' }}>
         Compared {report.considered_source_fields} unmapped source field(s) against{' '}
         {report.considered_destination_fields} writable destination field(s).
         {report.truncated && ' The lists were capped, so run again after accepting these.'}
@@ -41,7 +41,7 @@ export function SemanticMatchPanel({
           <summary style={{ cursor: 'pointer' }}>
             {report.rejected.length} proposal(s) discarded by schema checks
           </summary>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#6b7280' }}>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#737373' }}>
             {report.rejected.map((r, i) => (
               <li key={i}>{r.reason}</li>
             ))}

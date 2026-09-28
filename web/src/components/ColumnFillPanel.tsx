@@ -73,8 +73,8 @@ export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props
       <div style={rowLayout}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ fontSize: 14, color: '#6b7280' }}>&#9998;</span>
-            <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#111827' }}>
+            <span style={{ fontSize: 14, color: '#737373' }}>&#9998;</span>
+            <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#171717' }}>
               Fill a column
             </h3>
           </div>
@@ -117,7 +117,7 @@ export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props
             {recorded.map((job) => (
               <div key={job.id} style={jobRow(job.status)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                  <code style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                  <code style={{ fontSize: 12, fontWeight: 700, color: '#171717' }}>
                     {job.destination_object}.{job.field}
                   </code>
                   <span style={modePill}>{MODE_LABELS[job.mode] ?? job.mode}</span>
@@ -125,11 +125,11 @@ export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props
                     <span style={savedPill}>also in the mapping</span>
                   )}
                 </div>
-                <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#4b5563' }}>
+                <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#525252' }}>
                   {job.summary}
                 </p>
                 {job.detail && job.status === 'failed' && (
-                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#b91c1b' }}>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#171717' }}>
                     {job.detail}
                   </p>
                 )}
@@ -166,7 +166,7 @@ const NO_CREDENTIALS: Record<string, string> = {};
 
 const panel: React.CSSProperties = {
   background: '#ffffff',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 10,
   padding: '11px 14px',
   marginTop: 14,
@@ -182,7 +182,7 @@ const rowLayout: React.CSSProperties = {
 const intro: React.CSSProperties = {
   margin: '4px 0 0',
   fontSize: 12,
-  color: '#6b7280',
+  color: '#737373',
   lineHeight: 1.55,
   maxWidth: 620,
 };
@@ -190,9 +190,9 @@ const intro: React.CSSProperties = {
 const hint: React.CSSProperties = {
   margin: '8px 0 0',
   fontSize: 11.5,
-  color: '#92400e',
-  background: '#fffbeb',
-  border: '1px solid #fde68a',
+  color: '#404040',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 7,
   padding: '6px 9px',
   lineHeight: 1.5,
@@ -201,9 +201,9 @@ const hint: React.CSSProperties = {
 const button = (disabled: boolean): React.CSSProperties => ({
   fontSize: 12.5,
   fontWeight: 600,
-  color: disabled ? '#9ca3af' : '#374151',
-  background: disabled ? '#f9fafb' : '#ffffff',
-  border: `1px solid ${disabled ? '#e5e7eb' : '#d1d5db'}`,
+  color: disabled ? '#a3a3a3' : '#404040',
+  background: disabled ? '#fafafa' : '#ffffff',
+  border: `1px solid ${disabled ? '#e5e5e5' : '#d4d4d4'}`,
   borderRadius: 7,
   padding: '7px 14px',
   cursor: disabled ? 'not-allowed' : 'pointer',
@@ -212,14 +212,14 @@ const button = (disabled: boolean): React.CSSProperties => ({
 
 const summaryToggle: React.CSSProperties = {
   fontSize: 11.5,
-  color: '#6b7280',
+  color: '#737373',
   cursor: 'pointer',
 };
 
 function jobRow(status: string): React.CSSProperties {
   return {
-    border: '1px solid #f3f4f6',
-    borderLeft: `3px solid ${status === 'completed' ? '#10b981' : status === 'failed' ? '#ef4444' : '#9ca3af'}`,
+    border: '1px solid #f5f5f5',
+    borderLeft: `3px solid ${status === 'completed' ? '#525252' : status === 'failed' ? '#404040' : '#a3a3a3'}`,
     borderRadius: 7,
     padding: '7px 9px',
     marginBottom: 6,
@@ -229,9 +229,9 @@ function jobRow(status: string): React.CSSProperties {
 const modePill: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  color: '#4b5563',
-  background: '#f3f4f6',
-  border: '1px solid #e5e7eb',
+  color: '#525252',
+  background: '#f5f5f5',
+  border: '1px solid #e5e5e5',
   borderRadius: 999,
   padding: '1px 6px',
 };
@@ -239,8 +239,8 @@ const modePill: React.CSSProperties = {
 const savedPill: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  color: '#3730a3',
-  background: '#e0e7ff',
+  color: '#262626',
+  background: '#e5e5e5',
   borderRadius: 999,
   padding: '1px 6px',
 };

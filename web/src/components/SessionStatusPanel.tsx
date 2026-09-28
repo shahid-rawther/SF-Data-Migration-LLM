@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { SessionObjectStatus, SessionStatusReport } from '../api/client';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 
 interface SessionStatusPanelProps {
   sessionId: string;
@@ -59,32 +60,26 @@ export function SessionStatusPanel({ sessionId, open, onClose }: SessionStatusPa
   const totals = report?.totals;
 
   return (
-    <>
-      <div style={backdrop} onClick={onClose} />
-      <aside style={drawer} role="complementary" aria-label="Migration status">
-        <header style={header}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Migration status</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              {report ? `${report.source_type} → Salesforce` : sessionId.slice(0, 8)}
-              {report?.phase ? ` · ${report.phase}` : ''}
-            </div>
-          </div>
-          <button onClick={onClose} style={closeBtn} aria-label="Close">
-            ✕
-          </button>
-        </header>
+    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <SheetContent aria-label="Migration status">
+        <SheetHeader>
+          <SheetTitle>Migration status</SheetTitle>
+          <SheetDescription>
+            {report ? `${report.source_type} → Salesforce` : sessionId.slice(0, 8)}
+            {report?.phase ? ` · ${report.phase}` : ''}
+          </SheetDescription>
+        </SheetHeader>
 
         <div style={body}>
           {loading && !report && <p style={muted}>Loading…</p>}
-          {error && <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: '#0a0a0a', fontSize: 13 }}>{error}</p>}
 
           {report && totals && (
             <>
               <section style={section}>
                 <div style={rowBetween}>
                   <span style={sectionTitle}>Overall</span>
-                  <span style={{ fontSize: 12, color: '#6b7280' }}>
+                  <span style={{ fontSize: 12, color: '#737373' }}>
                     {totals.objects_completed} / {totals.objects} objects
                   </span>
                 </div>
@@ -92,13 +87,16 @@ export function SessionStatusPanel({ sessionId, open, onClose }: SessionStatusPa
                   loaded={totals.loaded}
                   total={totals.source_rows}
                   percent={totals.percent}
-                  color={totals.failed > 0 ? '#d97706' : '#16a34a'}
+                  color={totals.failed > 0 ? '#525252' : '#171717'}
                 />
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
-                  {totals.loaded.toLocaleString()} of {totals.source_rows.toLocaleString()}{' '}
+                <div style={{ fontSize: 12, color: '#737373', marginTop: 6 }}>
+                  {totals.loaded.toLocaleString()}
+                  {totals.source_rows > totals.loaded
+                    ? ` of ${totals.source_rows.toLocaleString()}`
+                    : ''}{' '}
                   source records loaded
                   {totals.failed > 0 && (
-                    <span style={{ color: '#dc2626' }}>
+                    <span style={{ color: '#0a0a0a' }}>
                       {' '}
                       · {totals.failed.toLocaleString()} failed
                     </span>
@@ -160,54 +158,54 @@ export function SessionStatusPanel({ sessionId, open, onClose }: SessionStatusPa
                     </div>
                   )}
                   {report.checkpoint.last_error && (
-                    <div style={{ ...noteBox, background: '#fef2f2', color: '#991b1b' }}>
+                    <div style={{ ...noteBox, background: '#fafafa', color: '#171717' }}>
                       Last save failed: {report.checkpoint.last_error}
                     </div>
                   )}
                 </section>
               )}
 
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>
+              <div style={{ fontSize: 11, color: '#a3a3a3' }}>
                 Loaded counts come from the record of migrated ids, so they survive
                 a restart and are what a resume skips.
               </div>
             </>
           )}
         </div>
-      </aside>
-    </>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function ObjectRow({ entry }: { entry: SessionObjectStatus }) {
   const color =
     entry.failed > 0
-      ? '#dc2626'
+      ? '#0a0a0a'
       : entry.state === 'completed'
-        ? '#16a34a'
+        ? '#171717'
         : entry.current
-          ? '#2563eb'
-          : '#9ca3af';
+          ? '#171717'
+          : '#a3a3a3';
 
   return (
     <div style={{ ...objectCard, borderLeft: `3px solid ${color}` }}>
       <div style={rowBetween}>
         <div style={{ fontSize: 13, fontWeight: 600, wordBreak: 'break-word' }}>
           {entry.source_table || entry.object}
-          <span style={{ color: '#9ca3af', fontWeight: 400 }}> → </span>
+          <span style={{ color: '#a3a3a3', fontWeight: 400 }}> → </span>
           {entry.destination_object || '—'}
         </div>
         <StateTag entry={entry} />
       </div>
 
-      <div style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 8px' }}>
+      <div style={{ fontSize: 11, color: '#a3a3a3', margin: '2px 0 8px' }}>
         {entry.object}
         {entry.source_tables.length > 1 &&
           ` · joins ${entry.source_tables.slice(1).join(', ')}`}
       </div>
 
       {entry.state === 'unmapped' ? (
-        <div style={{ fontSize: 12, color: '#b45309' }}>
+        <div style={{ fontSize: 12, color: '#404040' }}>
           No mapping config found, so nothing can be counted for this object.
         </div>
       ) : (
@@ -218,23 +216,30 @@ function ObjectRow({ entry }: { entry: SessionObjectStatus }) {
             percent={entry.percent}
             color={color}
           />
-          <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>
-            <strong>{entry.loaded.toLocaleString()}</strong> of{' '}
-            {entry.source_rows > 0 ? entry.source_rows.toLocaleString() : '?'} rows
+          <div style={{ fontSize: 12, color: '#404040', marginTop: 6 }}>
+            <strong>{entry.loaded.toLocaleString()}</strong>
+            {entry.source_rows > entry.loaded
+              ? ` of ${entry.source_rows.toLocaleString()}`
+              : ''} rows
             {entry.failed > 0 && (
-              <span style={{ color: '#dc2626' }}>
+              <span style={{ color: '#0a0a0a' }}>
                 {' '}
                 · {entry.failed.toLocaleString()} failed
               </span>
             )}
           </div>
-          {entry.source_rows === 0 && (
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+          {entry.source_rows === 0 && entry.loaded === 0 && (
+            <div style={{ fontSize: 11, color: '#a3a3a3', marginTop: 2 }}>
               Source total unknown — nothing is staged on disk for this table.
             </div>
           )}
+          {entry.source_rows_origin === 'stage' && (
+            <div style={{ fontSize: 11, color: '#a3a3a3', marginTop: 2 }}>
+              Source total not recorded yet, so this counts only the rows staged by the last run.
+            </div>
+          )}
           {entry.source_rows_origin === 'checkpoint' && (
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#a3a3a3', marginTop: 2 }}>
               Source total as recorded at the last checkpoint.
             </div>
           )}
@@ -259,11 +264,11 @@ function StateTag({ entry }: { entry: SessionObjectStatus }) {
       ? 'partial'
       : entry.state;
   const palette: Record<string, { bg: string; fg: string }> = {
-    completed: { bg: '#dcfce7', fg: '#166534' },
-    running: { bg: '#dbeafe', fg: '#1e40af' },
-    partial: { bg: '#fef3c7', fg: '#92400e' },
-    pending: { bg: '#f3f4f6', fg: '#6b7280' },
-    unmapped: { bg: '#fee2e2', fg: '#991b1b' },
+    completed: { bg: '#f5f5f5', fg: '#171717' },
+    running: { bg: '#e5e5e5', fg: '#262626' },
+    partial: { bg: '#f5f5f5', fg: '#404040' },
+    pending: { bg: '#f5f5f5', fg: '#737373' },
+    unmapped: { bg: '#f5f5f5', fg: '#171717' },
   };
   const tone = palette[label] ?? palette.pending;
   return (
@@ -310,7 +315,7 @@ function RowBar({
           }}
         />
       </div>
-      <span style={{ fontSize: 11, color: '#6b7280', minWidth: 38, textAlign: 'right' }}>
+      <span style={{ fontSize: 11, color: '#737373', minWidth: 38, textAlign: 'right' }}>
         {total > 0 ? `${width.toFixed(0)}%` : '—'}
       </span>
     </div>
@@ -320,49 +325,12 @@ function RowBar({
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt style={{ fontSize: 12, color: '#6b7280' }}>{label}</dt>
-      <dd style={{ fontSize: 12, margin: 0, color: '#374151' }}>{value}</dd>
+      <dt style={{ fontSize: 12, color: '#737373' }}>{label}</dt>
+      <dd style={{ fontSize: 12, margin: 0, color: '#404040' }}>{value}</dd>
     </>
   );
 }
 
-const backdrop: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(15, 23, 42, 0.35)',
-  zIndex: 40,
-};
-const drawer: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  right: 0,
-  bottom: 0,
-  width: 'min(440px, 100vw)',
-  background: '#fff',
-  borderLeft: '1px solid #e5e7eb',
-  boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.12)',
-  zIndex: 41,
-  display: 'flex',
-  flexDirection: 'column',
-};
-const header: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  gap: 12,
-  padding: '16px 20px',
-  borderBottom: '1px solid #e5e7eb',
-};
-const closeBtn: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  background: '#fff',
-  borderRadius: 8,
-  width: 28,
-  height: 28,
-  cursor: 'pointer',
-  color: '#6b7280',
-  lineHeight: 1,
-};
 const body: React.CSSProperties = {
   padding: '16px 20px 32px',
   overflowY: 'auto',
@@ -374,7 +342,7 @@ const sectionTitle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  color: '#6b7280',
+  color: '#737373',
   marginBottom: 8,
   display: 'block',
 };
@@ -385,8 +353,8 @@ const rowBetween: React.CSSProperties = {
   gap: 8,
 };
 const objectCard: React.CSSProperties = {
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   padding: '10px 12px',
   marginBottom: 10,
@@ -394,7 +362,7 @@ const objectCard: React.CSSProperties = {
 const barTrack: React.CSSProperties = {
   flex: 1,
   height: 8,
-  background: '#e5e7eb',
+  background: '#e5e5e5',
   borderRadius: 10,
   overflow: 'hidden',
 };
@@ -405,18 +373,18 @@ const metaList: React.CSSProperties = {
   rowGap: 4,
   margin: 0,
 };
-const muted: React.CSSProperties = { color: '#6b7280', fontSize: 13 };
+const muted: React.CSSProperties = { color: '#737373', fontSize: 13 };
 const noteBox: React.CSSProperties = {
   marginTop: 10,
   padding: '8px 10px',
   borderRadius: 8,
-  background: '#f0f9ff',
-  color: '#0369a1',
+  background: '#fafafa',
+  color: '#404040',
   fontSize: 12,
 };
 const errorList: React.CSSProperties = {
   margin: '8px 0 0',
   paddingLeft: 16,
   fontSize: 11,
-  color: '#991b1b',
+  color: '#171717',
 };

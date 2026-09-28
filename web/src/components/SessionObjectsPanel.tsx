@@ -37,6 +37,7 @@ export function SessionObjectsPanel({
   onStarted: (status: string) => void;
 }) {
   const [plan, setPlan] = useState<SessionRunPlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
   const [available, setAvailable] = useState<MappingMeta[]>([]);
   const [toAdd, setToAdd] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -54,10 +55,12 @@ export function SessionObjectsPanel({
   const running = status === 'running';
 
   const load = useCallback(() => {
+    setPlanLoading(true);
     api.migrations
       .runPlan(sessionId)
       .then(setPlan)
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setPlanLoading(false));
   }, [sessionId]);
 
   useEffect(load, [load]);
@@ -210,7 +213,7 @@ export function SessionObjectsPanel({
   return (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <h2 style={h2}>Objects in this session ({entries.length})</h2>
+        <h2 style={h2}>Objects in this session {planLoading ? '' : `(${entries.length})`}</h2>
         {!running && (
           <button onClick={() => setAdding((v) => !v)} style={secondaryBtn} disabled={busy}>
             {adding ? 'Cancel' : '+ Add objects'}
@@ -240,7 +243,7 @@ export function SessionObjectsPanel({
       {adding && (
         <div style={addBox}>
           {addable.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#737373' }}>
               Every mapping for this source is already in the session.{' '}
               <Link to={mappingHref()} style={link}>
                 Create a new mapping
@@ -249,7 +252,7 @@ export function SessionObjectsPanel({
             </p>
           ) : (
             <>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: '#737373', marginBottom: 8 }}>
                 Pick what to bring into this session. The hierarchy below follows
                 what you tick, so you can see where an object lands before
                 committing to it. Nothing runs until you start it.
@@ -270,7 +273,7 @@ export function SessionObjectsPanel({
                     />
                     <span>{mapping.name}</span>
                     {destOf[mapping.name] && (
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                      <span style={{ fontSize: 11, color: '#a3a3a3' }}>
                         → {destOf[mapping.name]}
                       </span>
                     )}
@@ -290,8 +293,8 @@ export function SessionObjectsPanel({
         </div>
       )}
 
-      {error && <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>}
-      {note && <p style={{ color: '#065f46', fontSize: 13 }}>{note}</p>}
+      {error && <p style={{ color: '#0a0a0a', fontSize: 13 }}>{error}</p>}
+      {note && <p style={{ color: '#171717', fontSize: 13 }}>{note}</p>}
 
       {destConnId && destObjects.length > 0 && (
         <div style={{ marginBottom: 20 }}>
@@ -304,47 +307,66 @@ export function SessionObjectsPanel({
         </div>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <tbody>
-          {entries.map((entry) => (
-            <tr key={entry.object} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '10px 8px 10px 0' }}>
-                <div style={{ fontWeight: 600 }}>{entry.object}</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>
-                  → {entry.destination_object || 'unmapped'}
-                  {entry.source_rows > 0 && (
-                    <> · {entry.loaded.toLocaleString()} of {entry.source_rows.toLocaleString()} loaded</>
-                  )}
-                </div>
-              </td>
-              <td style={{ padding: '10px 8px', width: 110 }}>
-                <span style={stateChip(entry.state)}>{stateLabel(entry.state)}</span>
-              </td>
-              <td style={{ padding: '10px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                <Link to={mappingHref(entry.object)} style={linkBtn}>
-                  Edit fields
-                </Link>
-                {!running && (
-                  <button onClick={() => runOne(entry.object)} style={ghostBtn} disabled={busy}>
-                    Run
-                  </button>
-                )}
-              </td>
-            </tr>
+      {planLoading ? (
+        <div style={skeletonWrap}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} style={skeletonRow}>
+              <div style={{ flex: 1 }}>
+                <div style={{ ...skeletonBlock, width: '40%', height: 14, marginBottom: 6 }} />
+                <div style={{ ...skeletonBlock, width: '60%', height: 11 }} />
+              </div>
+              <div style={{ ...skeletonBlock, width: 72, height: 22, borderRadius: 20 }} />
+              <div style={{ ...skeletonBlock, width: 90, height: 24, borderRadius: 6 }} />
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.object} style={{ borderBottom: '1px solid #f5f5f5' }}>
+                <td style={{ padding: '10px 8px 10px 0' }}>
+                  <div style={{ fontWeight: 600 }}>{entry.object}</div>
+                  <div style={{ fontSize: 12, color: '#737373' }}>
+                    → {entry.destination_object || 'unmapped'}
+                    {(entry.loaded > 0 || entry.source_rows > 0) && (
+                      <> · {entry.loaded.toLocaleString()}
+                        {entry.source_rows > entry.loaded
+                          ? ` of ${entry.source_rows.toLocaleString()}`
+                          : ''} loaded
+                      </>
+                    )}
+                  </div>
+                </td>
+                <td style={{ padding: '10px 8px', width: 110 }}>
+                  <span style={stateChip(entry.state)}>{stateLabel(entry.state)}</span>
+                </td>
+                <td style={{ padding: '10px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Link to={mappingHref(entry.object)} style={linkBtn}>
+                    Edit fields
+                  </Link>
+                  {!running && (
+                    <button onClick={() => runOne(entry.object)} style={ghostBtn} disabled={busy}>
+                      Run
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
-      {!running && plan && (
+      {!running && plan && !planLoading && (
         <div style={runBar}>
           {plan.will_run.length === 0 ? (
-            <span style={{ fontSize: 13, color: '#6b7280' }}>
+            <span style={{ fontSize: 13, color: '#737373' }}>
               Every object here has migrated. Add one, or use Retry above to run the
               whole session again.
             </span>
           ) : (
             <>
-              <span style={{ fontSize: 13, color: '#374151' }}>
+              <span style={{ fontSize: 13, color: '#404040' }}>
                 <strong>{plan.will_run.length}</strong> object
                 {plan.will_run.length !== 1 ? 's' : ''} still to run
                 {plan.will_skip.length > 0 && (
@@ -424,10 +446,10 @@ function ConnectionStrip({
   if (!linking) {
     return (
       <div style={connPrompt}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#404040', marginBottom: 4 }}>
           This session has no saved connection to work through
         </div>
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#92400e' }}>
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#404040' }}>
           Its credentials are held for running the migration but are masked when
           read back, so nothing here can describe a Salesforce object. Point it at
           a saved connection and the dependency hierarchy, the field lists and the
@@ -469,7 +491,7 @@ function ConnectionStrip({
           Cancel
         </button>
       </div>
-      <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#92400e' }}>
+      <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#404040' }}>
         The session adopts the credentials of whatever you pick, so this is also
         how a session whose password has changed is put back to work.
       </p>
@@ -489,7 +511,7 @@ function ConnectionPicker({
   onChange: (id: string) => void;
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#404040' }}>
       <span style={{ fontWeight: 600 }}>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} style={selectStyle}>
         <option value="">— leave as it is —</option>
@@ -501,7 +523,7 @@ function ConnectionPicker({
         ))}
       </select>
       {side.candidates.length === 0 && (
-        <span style={{ fontSize: 11.5, color: '#92400e' }}>
+        <span style={{ fontSize: 11.5, color: '#404040' }}>
           No saved connection of this type. Save one in the migration wizard first.
         </span>
       )}
@@ -526,10 +548,10 @@ function stateLabel(state: RunPlanEntry['state']): string {
 
 function stateChip(state: RunPlanEntry['state']): React.CSSProperties {
   const palette: Record<string, [string, string]> = {
-    completed: ['#dcfce7', '#166534'],
-    in_progress: ['#fef3c7', '#92400e'],
-    pending: ['#f3f4f6', '#374151'],
-    unmapped: ['#fee2e2', '#991b1b'],
+    completed: ['#f5f5f5', '#171717'],
+    in_progress: ['#f5f5f5', '#404040'],
+    pending: ['#f5f5f5', '#404040'],
+    unmapped: ['#f5f5f5', '#171717'],
   };
   const [background, color] = palette[state] ?? palette.pending;
   return {
@@ -552,23 +574,23 @@ const connStrip: React.CSSProperties = {
   gap: 10,
   flexWrap: 'wrap',
   fontSize: 12.5,
-  color: '#4b5563',
+  color: '#525252',
   padding: '8px 12px',
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   marginBottom: 14,
 };
 const connPrompt: React.CSSProperties = {
   padding: 14,
-  background: '#fffbeb',
-  border: '1px solid #fde68a',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   marginBottom: 14,
 };
 const selectStyle: React.CSSProperties = {
   padding: '7px 10px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   fontSize: 13,
   minWidth: 240,
@@ -577,20 +599,20 @@ const selectStyle: React.CSSProperties = {
 
 const card: React.CSSProperties = {
   background: '#fff',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 12,
   padding: '20px 24px',
   marginBottom: 16,
   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
 const h2: React.CSSProperties = { margin: 0, fontSize: 16, fontWeight: 700 };
-const hint: React.CSSProperties = { margin: '0 0 14px', fontSize: 12, color: '#6b7280' };
+const hint: React.CSSProperties = { margin: '0 0 14px', fontSize: 12, color: '#737373' };
 const addBox: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   padding: 14,
   marginBottom: 14,
-  background: '#f9fafb',
+  background: '#fafafa',
 };
 const addList: React.CSSProperties = {
   display: 'grid',
@@ -615,11 +637,11 @@ const runBar: React.CSSProperties = {
   flexWrap: 'wrap',
   marginTop: 16,
   paddingTop: 14,
-  borderTop: '1px solid #e5e7eb',
+  borderTop: '1px solid #e5e5e5',
 };
 const primaryBtn: React.CSSProperties = {
   padding: '8px 16px',
-  background: '#2563eb',
+  background: '#171717',
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -630,32 +652,51 @@ const primaryBtn: React.CSSProperties = {
 const secondaryBtn: React.CSSProperties = {
   padding: '6px 12px',
   background: '#fff',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 8,
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: '#404040',
   cursor: 'pointer',
 };
 const ghostBtn: React.CSSProperties = {
   padding: '4px 10px',
   marginLeft: 8,
   background: '#fff',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: '#404040',
   cursor: 'pointer',
 };
 const linkBtn: React.CSSProperties = {
   padding: '4px 10px',
-  background: '#eff6ff',
-  border: '1px solid #bfdbfe',
+  background: '#f5f5f5',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   fontSize: 12,
   fontWeight: 600,
-  color: '#1d4ed8',
+  color: '#171717',
   textDecoration: 'none',
 };
-const link: React.CSSProperties = { color: '#2563eb' };
+const link: React.CSSProperties = { color: '#171717' };
+
+const skeletonWrap: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+};
+const skeletonRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 14,
+  padding: '12px 0',
+  borderBottom: '1px solid #f5f5f5',
+};
+const skeletonBlock: React.CSSProperties = {
+  background: 'linear-gradient(90deg, #f5f5f5 25%, #ebebeb 50%, #f5f5f5 75%)',
+  backgroundSize: '200% 100%',
+  animation: 'shimmer 1.5s ease-in-out infinite',
+  borderRadius: 4,
+};

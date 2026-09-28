@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { AgentChange } from '../api/client';
+import { AgentInline } from './AgentMarkdown';
 
 interface Props {
   sessionId: string;
@@ -80,7 +81,7 @@ export function AgentNoticesPanel({ sessionId, refreshKey = 0 }: Props) {
       <header style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 15 }}>&#9873;</span>
-          <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#111827' }}>
+          <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#171717' }}>
             What the agent reported
           </h3>
           {concerning.length > 0 && (
@@ -102,7 +103,7 @@ export function AgentNoticesPanel({ sessionId, refreshKey = 0 }: Props) {
       ))}
 
       {!notices.length && wired.length > 0 && (
-        <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#6b7280' }}>
+        <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#737373' }}>
           Nothing was flagged for you to decide on.
         </p>
       )}
@@ -117,12 +118,12 @@ export function AgentNoticesPanel({ sessionId, refreshKey = 0 }: Props) {
               .filter((change) => change.kind === 'load_order')
               .map((change) => (
                 <div key={change.id} style={changeRow}>
-                  <code style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                  <code style={{ fontSize: 12, fontWeight: 700, color: '#171717' }}>
                     {change.mapping_name}
                   </code>
                   {change.rationale && (
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#4b5563', width: '100%' }}>
-                      {change.rationale}
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#525252', width: '100%' }}>
+                      <AgentInline text={change.rationale} />
                     </p>
                   )}
                 </div>
@@ -158,23 +159,23 @@ function WiredSummary({ changes }: { changes: AgentChange[] }) {
 
   return (
     <div style={wiredBox}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0f5132', marginBottom: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#171717', marginBottom: 6 }}>
         The agent changed {changes.length} field
         {changes.length === 1 ? '' : 's'} in your mappings before this migration ran
       </div>
       {[...byMapping.entries()].map(([mapping, list]) => (
         <div key={mapping} style={{ marginBottom: 6 }}>
-          <code style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{mapping}</code>
+          <code style={{ fontSize: 12, fontWeight: 700, color: '#171717' }}>{mapping}</code>
           {list.map((change) => (
-            <div key={change.id} style={{ fontSize: 12, color: '#374151', marginTop: 3 }}>
+            <div key={change.id} style={{ fontSize: 12, color: '#404040', marginTop: 3 }}>
               <span style={kindPill}>{change.kind.replace(/_/g, ' ')}</span>{' '}
               {change.field && <code style={{ fontSize: 11.5 }}>{change.field}</code>}
-              {change.rationale && ` — ${change.rationale}`}
+              {change.rationale && <> — <AgentInline text={change.rationale} /></>}
             </div>
           ))}
         </div>
       ))}
-      <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#6b7280' }}>
+      <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#737373' }}>
         Every change is reversible individually from the mapping editor.
       </p>
     </div>
@@ -185,19 +186,19 @@ function NoticeRow({ notice }: { notice: AgentChange }) {
   return (
     <div style={row(notice.severity)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#111827' }}>
+        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#171717' }}>
           {notice.mapping_name || 'This migration'}
           {notice.field ? `.${notice.field}` : ''}
         </code>
         <span style={severityPill(notice.severity)}>{notice.severity}</span>
       </div>
-      <p style={{ margin: '5px 0 0', fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
-        {notice.rationale}
+      <p style={{ margin: '5px 0 0', fontSize: 12.5, color: '#404040', lineHeight: 1.5 }}>
+        <AgentInline text={notice.rationale} />
       </p>
       {notice.suggested_action && (
         <p style={suggestion}>
-          <strong style={{ color: '#111827' }}>What to do:</strong>{' '}
-          {notice.suggested_action}
+          <strong style={{ color: '#171717' }}>What to do:</strong>{' '}
+          <AgentInline text={notice.suggested_action} />
         </p>
       )}
     </div>
@@ -212,18 +213,18 @@ const earlierBox: React.CSSProperties = {
   flexWrap: 'wrap',
   marginTop: 10,
   paddingTop: 9,
-  borderTop: '1px solid #f3f4f6',
+  borderTop: '1px solid #f5f5f5',
   fontSize: 11.5,
-  color: '#9ca3af',
+  color: '#a3a3a3',
   lineHeight: 1.5,
 };
 
 const clearButton: React.CSSProperties = {
   padding: '3px 9px',
   borderRadius: 6,
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   background: '#fff',
-  color: '#4b5563',
+  color: '#525252',
   fontSize: 11.5,
   fontWeight: 600,
   cursor: 'pointer',
@@ -233,18 +234,18 @@ const wiredBox: React.CSSProperties = {
   padding: 10,
   marginBottom: 10,
   borderRadius: 8,
-  background: '#f0fdf4',
-  border: '1px solid #bbf7d0',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
 };
 
 const suggestion: React.CSSProperties = {
   margin: '6px 0 0',
   padding: '6px 8px',
   borderRadius: 6,
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   fontSize: 12.5,
-  color: '#374151',
+  color: '#404040',
   lineHeight: 1.5,
 };
 
@@ -253,24 +254,24 @@ const panel: React.CSSProperties = {
   marginBottom: 16,
   borderRadius: 10,
   background: '#fff',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
 };
 
 const intro: React.CSSProperties = {
   margin: '6px 0 0',
   fontSize: 12.5,
-  color: '#6b7280',
+  color: '#737373',
   lineHeight: 1.5,
 };
 
 function row(severity: string): React.CSSProperties {
-  const accent = severity === 'blocker' ? '#dc2626' : severity === 'warning' ? '#d97706' : '#9ca3af';
+  const accent = severity === 'blocker' ? '#0a0a0a' : severity === 'warning' ? '#525252' : '#a3a3a3';
   return {
     padding: '9px 11px',
     marginTop: 8,
     borderRadius: 8,
-    background: '#f9fafb',
-    border: '1px solid #e5e7eb',
+    background: '#fafafa',
+    border: '1px solid #e5e5e5',
     borderLeft: `3px solid ${accent}`,
   };
 }
@@ -283,15 +284,15 @@ const changeRow: React.CSSProperties = {
   padding: '7px 10px',
   marginTop: 6,
   borderRadius: 7,
-  background: '#f9fafb',
-  border: '1px solid #f3f4f6',
+  background: '#fafafa',
+  border: '1px solid #f5f5f5',
 };
 
 function severityPill(severity: string): React.CSSProperties {
   const tones: Record<string, [string, string]> = {
-    blocker: ['#991b1b', '#fee2e2'],
-    warning: ['#92400e', '#fef3c7'],
-    info: ['#374151', '#f3f4f6'],
+    blocker: ['#171717', '#f5f5f5'],
+    warning: ['#404040', '#f5f5f5'],
+    info: ['#404040', '#f5f5f5'],
   };
   const [color, background] = tones[severity] ?? tones.info;
   return {
@@ -309,8 +310,8 @@ function severityPill(severity: string): React.CSSProperties {
 const kindPill: React.CSSProperties = {
   fontSize: 10.5,
   fontWeight: 600,
-  color: '#4b5563',
-  background: '#f3f4f6',
+  color: '#525252',
+  background: '#f5f5f5',
   padding: '2px 7px',
   borderRadius: 999,
 };
@@ -318,8 +319,8 @@ const kindPill: React.CSSProperties = {
 const countPill: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#92400e',
-  background: '#fef3c7',
+  color: '#404040',
+  background: '#f5f5f5',
   padding: '2px 8px',
   borderRadius: 999,
 };
@@ -328,14 +329,14 @@ const errorBox: React.CSSProperties = {
   padding: '8px 10px',
   marginBottom: 8,
   borderRadius: 7,
-  background: '#fef2f2',
-  border: '1px solid #fca5a5',
+  background: '#fafafa',
+  border: '1px solid #d4d4d4',
   fontSize: 12.5,
-  color: '#991b1b',
+  color: '#171717',
 };
 
 const summaryToggle: React.CSSProperties = {
   fontSize: 12,
-  color: '#6b7280',
+  color: '#737373',
   cursor: 'pointer',
 };

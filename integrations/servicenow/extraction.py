@@ -67,6 +67,7 @@ def extract_servicenow_table(
 
         row_count = servicenow_client.get_row_count(servicenow_table, start_date, end_date)
         logger.info(f"Total rows in {servicenow_table} is {row_count}")
+        jobs_service.update_job_table_source_total(job_table_id, row_count)
 
         batch_size = SERVICE_NOW_BATCH_SIZE
         max_batches = SERVICE_NOW_NO_OF_BATCH

@@ -84,7 +84,7 @@ export function BackfillPanel({ sessionId, refreshKey = 0, unblocked = [] }: Pro
       <header style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 15 }}>&#8635;</span>
-          <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#111827' }}>
+          <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#171717' }}>
             References waiting to be attached
           </h3>
           {waiting.length > 0 && (
@@ -117,7 +117,7 @@ export function BackfillPanel({ sessionId, refreshKey = 0, unblocked = [] }: Pro
                 {unit.destination_object}.{unit.field}
               </code>{' '}
               — {unit.rows_resolvable.toLocaleString()} record(s) can now be attached
-              <span style={{ color: '#6b7280' }}> (session {unit.session_id.slice(0, 8)})</span>
+              <span style={{ color: '#737373' }}> (session {unit.session_id.slice(0, 8)})</span>
             </div>
           ))}
         </div>
@@ -161,7 +161,7 @@ function UnitRow({
   return (
     <div style={row(unit.status)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#111827' }}>
+        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#171717' }}>
           {unit.destination_object}.{unit.field}
         </code>
         <span style={statusPill(unit.status)}>{unit.status}</span>
@@ -170,7 +170,7 @@ function UnitRow({
         </span>
       </div>
 
-      <p style={{ margin: '5px 0 0', fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
+      <p style={{ margin: '5px 0 0', fontSize: 12.5, color: '#404040', lineHeight: 1.5 }}>
         {unit.summary}
       </p>
 
@@ -181,7 +181,7 @@ function UnitRow({
           style={{
             margin: '4px 0 0',
             fontSize: 11.5,
-            color: unit.status === 'failed' ? '#b91c1c' : '#6b7280',
+            color: unit.status === 'failed' ? '#171717' : '#737373',
           }}
         >
           {unit.detail}
@@ -236,8 +236,8 @@ function UnitRow({
 }
 
 const panel: React.CSSProperties = {
-  background: '#fffbeb',
-  border: '1px solid #fcd34d',
+  background: '#fafafa',
+  border: '1px solid #d4d4d4',
   borderRadius: 10,
   padding: '12px 14px',
   marginTop: 14,
@@ -246,37 +246,37 @@ const panel: React.CSSProperties = {
 const intro: React.CSSProperties = {
   margin: '6px 0 0',
   fontSize: 12,
-  color: '#78350f',
+  color: '#404040',
   lineHeight: 1.55,
 };
 
 const countPill: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#92400e',
-  background: '#fef3c7',
-  border: '1px solid #fcd34d',
+  color: '#404040',
+  background: '#f5f5f5',
+  border: '1px solid #d4d4d4',
   borderRadius: 999,
   padding: '1px 7px',
 };
 
 const reasonPill: React.CSSProperties = {
   fontSize: 10.5,
-  color: '#6b7280',
-  background: '#f3f4f6',
-  border: '1px solid #e5e7eb',
+  color: '#737373',
+  background: '#f5f5f5',
+  border: '1px solid #e5e5e5',
   borderRadius: 999,
   padding: '1px 6px',
 };
 
 function statusPill(status: string): React.CSSProperties {
   const tones: Record<string, [string, string]> = {
-    pending: ['#92400e', '#fef3c7'],
-    approved: ['#1e40af', '#dbeafe'],
-    running: ['#3730a3', '#e0e7ff'],
-    completed: ['#065f46', '#d1fae5'],
-    failed: ['#991b1b', '#fee2e2'],
-    skipped: ['#4b5563', '#f3f4f6'],
+    pending: ['#404040', '#f5f5f5'],
+    approved: ['#262626', '#e5e5e5'],
+    running: ['#262626', '#e5e5e5'],
+    completed: ['#171717', '#f5f5f5'],
+    failed: ['#171717', '#f5f5f5'],
+    skipped: ['#525252', '#f5f5f5'],
   };
   const [color, background] = tones[status] ?? tones.pending;
   return {
@@ -292,8 +292,8 @@ function statusPill(status: string): React.CSSProperties {
 function row(status: string): React.CSSProperties {
   return {
     background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderLeft: `3px solid ${status === 'completed' ? '#10b981' : status === 'failed' ? '#ef4444' : status === 'skipped' ? '#9ca3af' : '#f59e0b'}`,
+    border: '1px solid #e5e5e5',
+    borderLeft: `3px solid ${status === 'completed' ? '#525252' : status === 'failed' ? '#404040' : status === 'skipped' ? '#a3a3a3' : '#737373'}`,
     borderRadius: 8,
     padding: '9px 11px',
     marginBottom: 7,
@@ -304,9 +304,9 @@ function primaryBtn(disabled: boolean): React.CSSProperties {
   return {
     fontSize: 12,
     fontWeight: 600,
-    color: disabled ? '#9ca3af' : '#ffffff',
-    background: disabled ? '#f3f4f6' : '#1d4ed8',
-    border: `1px solid ${disabled ? '#e5e7eb' : '#1d4ed8'}`,
+    color: disabled ? '#a3a3a3' : '#ffffff',
+    background: disabled ? '#f5f5f5' : '#171717',
+    border: `1px solid ${disabled ? '#e5e5e5' : '#171717'}`,
     borderRadius: 6,
     padding: '5px 11px',
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -315,9 +315,9 @@ function primaryBtn(disabled: boolean): React.CSSProperties {
 
 const quietBtn: React.CSSProperties = {
   fontSize: 12,
-  color: '#374151',
+  color: '#404040',
   background: '#ffffff',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   padding: '5px 11px',
   cursor: 'pointer',
@@ -325,15 +325,15 @@ const quietBtn: React.CSSProperties = {
 
 const summaryToggle: React.CSSProperties = {
   fontSize: 12,
-  color: '#6b7280',
+  color: '#737373',
   cursor: 'pointer',
 };
 
 const unblockedBox: React.CSSProperties = {
   fontSize: 12,
-  color: '#065f46',
-  background: '#ecfdf5',
-  border: '1px solid #a7f3d0',
+  color: '#171717',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 6,
   padding: '8px 10px',
   marginBottom: 10,
@@ -342,9 +342,9 @@ const unblockedBox: React.CSSProperties = {
 
 const errorBox: React.CSSProperties = {
   fontSize: 12,
-  color: '#991b1b',
-  background: '#fee2e2',
-  border: '1px solid #fecaca',
+  color: '#171717',
+  background: '#f5f5f5',
+  border: '1px solid #e5e5e5',
   borderRadius: 6,
   padding: '7px 9px',
   marginBottom: 8,

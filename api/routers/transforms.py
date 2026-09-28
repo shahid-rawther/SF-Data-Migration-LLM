@@ -59,8 +59,10 @@ GENERIC_TRANSFORMS: list[dict] = [
         "description": "Enforce a minimum and/or maximum character length on the value.",
         "params_schema": {
             "min_length": {"type": "integer", "default": 0, "description": "Pad up to this length (0 = no padding)"},
-            "pad_with": {"type": "string", "default": "", "description": "Filler text appended to reach min_length"},
+            "pad_with": {"type": "string", "default": "", "description": "Filler text appended, repeatedly if needed, to reach min_length"},
+            "default": {"type": "string", "default": "", "description": "Text to use when every source field is empty"},
             "max_length": {"type": "integer", "default": 0, "description": "Truncate to this length (0 = no limit)"},
+            "limit_margin": {"type": "integer", "default": 0, "description": "Stay this many characters inside both limits, for rules that exclude the boundary"},
             "context_separator": {"type": "string", "default": " - ", "description": "Joins the value to any context fields mapped after the first"},
             "truncation_suffix": {"type": "string", "default": "", "description": "Marker appended to a value that was cut"},
         },

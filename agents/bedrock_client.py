@@ -130,6 +130,9 @@ class AgentClient:
     def user_message(self, text: str) -> dict:
         raise NotImplementedError
 
+    def assistant_message(self, text: str) -> dict:
+        raise NotImplementedError
+
     def tool_result_message(self, outcomes: list[ToolOutcome]) -> dict:
         raise NotImplementedError
 
@@ -197,6 +200,9 @@ class Boto3AgentClient(AgentClient):
 
     def user_message(self, text: str) -> dict:
         return {"role": "user", "content": [{"text": text}]}
+
+    def assistant_message(self, text: str) -> dict:
+        return {"role": "assistant", "content": [{"text": text}]}
 
     def tool_result_message(self, outcomes: list[ToolOutcome]) -> dict:
         return {
@@ -316,6 +322,9 @@ class AnthropicAgentClient(AgentClient):
     def user_message(self, text: str) -> dict:
         return {"role": "user", "content": [{"type": "text", "text": text}]}
 
+    def assistant_message(self, text: str) -> dict:
+        return {"role": "assistant", "content": [{"type": "text", "text": text}]}
+
     def tool_result_message(self, outcomes: list[ToolOutcome]) -> dict:
         return {
             "role": "user",
@@ -427,6 +436,23 @@ def build_client(
 # ── tool loop ──────────────────────────────────────────────────────────────────
 
 
+def _alternating(turns: list[dict]) -> list[dict]:
+    """Merge consecutive same-role turns and drop a leading assistant turn."""
+    merged: list[dict] = []
+    for turn in turns:
+        role = "assistant" if turn.get("role") == "assistant" else "user"
+        content = str(turn.get("content") or "").strip()
+        if not content:
+            continue
+        if merged and merged[-1]["role"] == role:
+            merged[-1]["content"] += f"\n\n{content}"
+        else:
+            merged.append({"role": role, "content": content})
+    while merged and merged[0]["role"] == "assistant":
+        merged.pop(0)
+    return merged
+
+
 @dataclass
 class LoopResult:
     """Outcome of a bounded tool-use conversation."""
@@ -446,7 +472,8 @@ def run_tool_loop(
     prompt: str,
     tools: list[ToolSpec],
     dispatch,
-    submit_tool: str,
+    submit_tool: str | None = None,
+    history: list[dict] | None = None,
 ) -> LoopResult:
     """Drive a tool-use conversation until the agent submits its conclusion.
 
@@ -455,8 +482,19 @@ def run_tool_loop(
     (whose arguments are returned untouched for the caller to validate), when the
     model stops asking for tools, or when the iteration cap is reached — so a
     confused agent costs a bounded number of calls rather than an open-ended run.
+
+    Without a ``submit_tool`` the turn ends when the model answers in text,
+    which is what a conversational turn needs. ``history`` is earlier turns as
+    ``{"role": "user"|"assistant", "content": str}``; roles must alternate and
+    start with ``user``, so consecutive same-role turns are merged.
     """
-    messages: list[dict] = [client.user_message(prompt)]
+    turns = _alternating([*(history or []), {"role": "user", "content": prompt}])
+    messages: list[dict] = [
+        (client.assistant_message if turn["role"] == "assistant" else client.user_message)(
+            turn["content"]
+        )
+        for turn in turns
+    ]
     called: list[str] = []
     iterations = 0
     final_text = ""
@@ -477,7 +515,7 @@ def run_tool_loop(
         outcomes: list[ToolOutcome] = []
         for use in result.tool_uses:
             called.append(use.name)
-            if use.name == submit_tool:
+            if submit_tool and use.name == submit_tool:
                 submission = use.input
                 outcomes.append(
                     ToolOutcome(tool_use_id=use.id, content={"accepted": True})

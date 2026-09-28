@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Check, ChevronsUpDown, Search } from 'lucide-react';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { Input } from './ui/input';
 
 export interface SelectOption {
   value: string;
@@ -23,6 +26,7 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, settling] = useDebouncedValue(search);
   const [highlighted, setHighlighted] = useState(0);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,12 +39,21 @@ export function SearchableSelect({
     [options, value],
   );
 
-  const filtered = useMemo(
-    () => search
-      ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-      : options,
-    [options, search],
+  const haystack = useMemo(
+    () => options.map((option) => ({ option, term: option.label.toLowerCase() })),
+    [options],
   );
+
+  const matchesFor = useCallback(
+    (text: string) => {
+      const term = text.trim().toLowerCase();
+      if (!term) return options;
+      return haystack.filter((entry) => entry.term.includes(term)).map((entry) => entry.option);
+    },
+    [haystack, options],
+  );
+
+  const filtered = useMemo(() => matchesFor(debouncedSearch), [matchesFor, debouncedSearch]);
 
   const select = useCallback((val: string) => {
     onChange(val);
@@ -84,10 +97,6 @@ export function SearchableSelect({
   }, [open]);
 
   useEffect(() => {
-    setHighlighted(0);
-  }, [search]);
-
-  useEffect(() => {
     if (!open || !listRef.current) return;
     const active = listRef.current.children[highlighted] as HTMLElement | undefined;
     active?.scrollIntoView({ block: 'nearest' });
@@ -102,8 +111,11 @@ export function SearchableSelect({
       setHighlighted((h) => Math.max(h - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filtered[highlighted]) {
-        select(filtered[highlighted].value);
+      // Enter can arrive before the debounce has caught up, so the choice is
+      // made against what the typed text matches now, not the list on screen.
+      const list = settling ? matchesFor(search) : filtered;
+      if (list[highlighted]) {
+        select(list[highlighted].value);
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -116,42 +128,35 @@ export function SearchableSelect({
     ? createPortal(
         <div
           ref={panelRef}
-          style={{
-            position: 'fixed',
-            top: panelPos.top,
-            left: panelPos.left,
-            width: panelPos.width,
-            background: '#fff',
-            border: '1px solid #d1d5db',
-            borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+          className="fixed z-[9999] flex flex-col overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+          style={{ top: panelPos.top, left: panelPos.left, width: panelPos.width }}
         >
-          <div style={{ padding: '8px 8px 6px', borderBottom: '1px solid #e5e7eb' }}>
-            <input
+          <div className="relative border-b p-2">
+            <Search className="pointer-events-none absolute left-5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               ref={inputRef}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setHighlighted(0);
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type to search..."
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
-                fontSize: 13,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
+              className="h-9 pl-9"
             />
           </div>
 
-          <div ref={listRef} style={{ maxHeight: 240, overflowY: 'auto' }}>
+          <div
+            ref={listRef}
+            style={{
+              maxHeight: 240,
+              overflowY: 'auto',
+              opacity: settling ? 0.6 : 1,
+              transition: 'opacity 0.12s ease',
+            }}
+          >
             {filtered.length === 0 && (
-              <div style={{ padding: '10px 12px', color: '#9ca3af', fontSize: 12 }}>
+              <div className="py-6 text-center text-sm text-muted-foreground">
                 No matches found
               </div>
             )}
@@ -163,17 +168,11 @@ export function SearchableSelect({
                   select(opt.value);
                 }}
                 onMouseEnter={() => setHighlighted(i)}
-                style={{
-                  padding: '7px 12px',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  background: i === highlighted ? '#eff6ff' : opt.value === value ? '#f0f9ff' : '#fff',
-                  color: opt.value === value ? '#2563eb' : '#1f2937',
-                  fontWeight: opt.value === value ? 600 : 400,
-                  borderLeft: opt.value === value ? '3px solid #2563eb' : '3px solid transparent',
-                  borderBottom: '1px solid #f3f4f6',
-                }}
+                className={`relative flex cursor-default select-none items-center rounded-sm py-2 pl-8 pr-2 text-sm outline-none ${
+                  i === highlighted ? 'bg-accent text-accent-foreground' : ''
+                }`}
               >
+                {opt.value === value && <Check className="absolute left-2 size-4" />}
                 {opt.label}
               </div>
             ))}
@@ -188,41 +187,24 @@ export function SearchableSelect({
       <div
         ref={triggerRef}
         onClick={() => open ? setOpen(false) : openDropdown()}
-        style={{
-          ...triggerStyle,
-          borderColor: open ? '#2563eb' : '#d1d5db',
-          color: value ? '#111827' : '#9ca3af',
-        }}
+        className={`flex min-h-9 w-full cursor-pointer items-center rounded-md border bg-background px-3 py-2 text-sm shadow-sm outline-none ${
+          open ? 'ring-2 ring-ring' : ''
+        } ${value ? 'text-foreground' : 'text-muted-foreground'}`}
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            open ? setOpen(false) : openDropdown();
+            if (open) setOpen(false);
+            else openDropdown();
           }
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
           {selectedLabel || placeholder}
         </span>
-        <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0, marginLeft: 4 }}>
-          {open ? '\u25B4' : '\u25BE'}
-        </span>
+        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
       </div>
       {dropdown}
     </div>
   );
 }
-
-const triggerStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '6px 8px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  fontSize: 13,
-  boxSizing: 'border-box',
-  background: '#fff',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  minHeight: 32,
-};

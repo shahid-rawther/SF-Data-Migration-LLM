@@ -41,12 +41,13 @@ def generic_default_if_empty(destination_field: str, *values, params: dict | Non
     return {destination_field: params.get("default", "")}
 
 
-def generic_truncate(destination_field: str, value=None, params: dict | None = None):
+def generic_truncate(destination_field: str, *values, params: dict | None = None):
     """Truncate a string to a maximum length, optionally appending a suffix.
 
     params: {"max_length": 255, "suffix": "..."}
     The suffix (if any) is included within the max_length budget.
     """
+    value = values[0] if values else None
     params = params or {}
     max_length = int(params.get("max_length", 255))
     suffix = params.get("suffix", "")
@@ -58,7 +59,7 @@ def generic_truncate(destination_field: str, value=None, params: dict | None = N
     return {destination_field: text[:max_length]}
 
 
-def generic_value_map(destination_field: str, value=None, params: dict | None = None):
+def generic_value_map(destination_field: str, *values, params: dict | None = None):
     """Map a source value to a destination value using a lookup table.
 
     params: {
@@ -68,6 +69,7 @@ def generic_value_map(destination_field: str, value=None, params: dict | None = 
         "passthrough_if_missing": false  # optional: keep original instead of default
     }
     """
+    value = values[0] if values else None
     params = params or {}
     mapping = params.get("map", {}) or {}
     case_insensitive = bool(params.get("case_insensitive", False))
@@ -85,7 +87,7 @@ def generic_value_map(destination_field: str, value=None, params: dict | None = 
     return {destination_field: params.get("default", "")}
 
 
-def generic_format_datetime(destination_field: str, value=None, params: dict | None = None):
+def generic_format_datetime(destination_field: str, *values, params: dict | None = None):
     """Reformat a datetime string between input/output strftime patterns.
 
     params: {
@@ -94,6 +96,7 @@ def generic_format_datetime(destination_field: str, value=None, params: dict | N
     }
     Returns '' for empty/unparseable values.
     """
+    value = values[0] if values else None
     params = params or {}
     input_format = params.get("input_format", "%Y-%m-%d %H:%M:%S")
     output_format = params.get("output_format", "%Y-%m-%dT%H:%M:%S.000+0000")
@@ -143,12 +146,13 @@ def generic_concat(destination_field: str, *values, params: dict | None = None):
     return {destination_field: result}
 
 
-def generic_strip_html(destination_field: str, value=None, params: dict | None = None):
+def generic_strip_html(destination_field: str, *values, params: dict | None = None):
     """Strip HTML tags from a value, returning plain text.
 
     params: {"default": "..."}  # optional value when the result is empty
     Replaces remove_html and the HTML-stripping part of convert_resolution_summary.
     """
+    value = values[0] if values else None
     params = params or {}
     raw = _clean_value(value)
     if not raw:
@@ -159,33 +163,69 @@ def generic_strip_html(destination_field: str, value=None, params: dict | None =
     return {destination_field: text}
 
 
-def generic_length_guard(destination_field: str, value=None, params: dict | None = None):
+LENGTH_GUARD_PAD = "(no further detail in source)"
+
+
+def generic_length_guard(destination_field: str, *values, params: dict | None = None):
     """Enforce min/max length on a string value.
 
     params: {
         "min_length": 30,            # optional: pad up to this length
         "pad_with": " (no details)", # optional: filler appended to reach min_length
-        "max_length": 990            # optional: truncate to this length
+        "default": "No details ...", # optional: used when every source value is empty
+        "max_length": 990,           # optional: truncate to this length
+        "limit_margin": 1,           # optional: stay this many characters inside both limits
+        "context_separator": " - ",  # optional: joins multiple source values
+        "truncation_suffix": "..."   # optional: appended when the value is cut
     }
     Replaces sanitize_description-style length enforcement.
+
+    When multiple source fields are mapped the first non-empty value is
+    the primary text and the rest are appended with ``context_separator``.
+
+    Padding repeats until the minimum is met, falling back to a built-in filler
+    when ``pad_with`` is not set, so a minimum is always satisfied. A validation
+    rule written as ``LEN(x) < 1000`` rejects exactly 1000 characters even
+    though its message says the limit is 1000; ``limit_margin`` absorbs that.
+
+    ``max_length`` accounts for the Salesforce Bulk API's CRLF line ending:
+    every ``\\n`` in the payload is counted as two characters by the
+    destination, so the budget is reduced by the number of newlines.
     """
     params = params or {}
-    text = _clean_value(value)
+    separator = params.get("context_separator", " - ")
+    suffix = params.get("truncation_suffix", "")
+    margin = max(int(params.get("limit_margin", 0) or 0), 0)
 
+    parts = [_clean_value(v) for v in values]
+    parts = [p for p in parts if p]
+    text = parts[0] if parts else ""
+    if len(parts) > 1:
+        text = separator.join(parts)
+    if not text:
+        text = _clean_value(params.get("default"))
+
+    # Padding
     min_length = int(params.get("min_length", 0) or 0)
-    pad_with = params.get("pad_with", "")
-    if min_length and len(text) < min_length and pad_with:
-        while len(text) < min_length:
-            text = f"{text} {pad_with}".strip() if text else pad_with
+    if min_length:
+        target = min_length + margin
+        pad_with = _clean_value(params.get("pad_with")) or LENGTH_GUARD_PAD
+        while len(text) < target:
+            text = f"{text} {pad_with}" if text else pad_with
 
+    # Truncation — reserve space for LF -> CRLF expansion on the wire.
     max_length = int(params.get("max_length", 0) or 0)
-    if max_length and len(text) > max_length:
-        text = text[:max_length]
+    if max_length:
+        newline_overhead = text.count("\n")
+        effective_limit = max(max_length - margin - newline_overhead, 1)
+        if len(text) > effective_limit:
+            budget = effective_limit - len(suffix)
+            text = text[:budget] + suffix if budget > 0 else text[:effective_limit]
 
     return {destination_field: text}
 
 
-def generic_lookup(destination_field: str, value=None, params: dict | None = None):
+def generic_lookup(destination_field: str, *values, params: dict | None = None):
     """Resolve a source id to a destination id via the id_mappings table.
 
     Replaces most bespoke look_up_* functions for new clients. The lookup is
@@ -203,6 +243,7 @@ def generic_lookup(destination_field: str, value=None, params: dict | None = Non
     from services.internal import mappings_service
     from tools.cache import execution_cache
 
+    value = values[0] if values else None
     params = params or {}
     tables = params.get("lookup_tables")
     if not tables:

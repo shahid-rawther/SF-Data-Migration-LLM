@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS job_tables (
     job_id INTEGER NOT NULL,
     table_name TEXT NOT NULL,
     status TEXT NOT NULL,
+    source_total INTEGER,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

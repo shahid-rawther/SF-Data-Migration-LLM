@@ -102,8 +102,8 @@ export function PrerequisiteNotice({
 
   if (loading && !report) {
     return (
-      <div style={{ ...panel, background: '#f8fafc', borderColor: '#e2e8f0' }}>
-        <span style={{ fontSize: 12, color: '#64748b' }}>
+      <div style={{ ...panel, background: '#fafafa', borderColor: '#e5e5e5' }}>
+        <span style={{ fontSize: 12, color: '#737373' }}>
           Checking what {sfObject} depends on in Salesforce&hellip;
         </span>
       </div>
@@ -112,8 +112,8 @@ export function PrerequisiteNotice({
 
   if (error) {
     return (
-      <div style={{ ...panel, background: '#f8fafc', borderColor: '#e2e8f0' }}>
-        <span style={{ fontSize: 12, color: '#b91c1c' }}>Dependency check failed: {error}</span>
+      <div style={{ ...panel, background: '#fafafa', borderColor: '#e5e5e5' }}>
+        <span style={{ fontSize: 12, color: '#171717' }}>Dependency check failed: {error}</span>
         <button type="button" onClick={load} style={{ ...ghostBtn, marginLeft: 8 }}>
           Retry
         </button>
@@ -145,19 +145,19 @@ export function PrerequisiteNotice({
     <div
       style={{
         ...panel,
-        background: ready ? '#f0fdf4' : '#fffbeb',
-        borderColor: ready ? '#86efac' : '#fcd34d',
+        background: ready ? '#fafafa' : '#fafafa',
+        borderColor: ready ? '#d4d4d4' : '#d4d4d4',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <strong style={{ fontSize: 13, color: ready ? '#166534' : '#92400e' }}>
+        <strong style={{ fontSize: 13, color: ready ? '#171717' : '#404040' }}>
           {!hierarchy
             ? `${sfObject} has no Salesforce lookups that need another migrated object`
             : ready
               ? `Everything ${sfObject} depends on is already in this migration`
               : `${missing.length} Salesforce object${missing.length === 1 ? '' : 's'} must be loaded before ${sfObject}`}
         </strong>
-        {loading && <span style={{ fontSize: 11, color: '#92400e' }}>refreshing&hellip;</span>}
+        {loading && <span style={{ fontSize: 11, color: '#404040' }}>refreshing&hellip;</span>}
         <button
           type="button"
           onClick={() => setDismissed(true)}
@@ -169,7 +169,7 @@ export function PrerequisiteNotice({
 
       {hierarchy && (
         <>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: ready ? '#15803d' : '#78350f' }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: ready ? '#171717' : '#404040' }}>
             Salesforce assigns its own record ids, so a lookup can only be filled in once the
             record it points at has been created. Load in this order.
           </p>
@@ -199,9 +199,9 @@ export function PrerequisiteNotice({
             }}
             style={{
               ...actionBtn,
-              background: checked.size > 0 ? '#fef3c7' : '#f3f4f6',
-              color: checked.size > 0 ? '#92400e' : '#9ca3af',
-              borderColor: checked.size > 0 ? '#fcd34d' : '#d1d5db',
+              background: checked.size > 0 ? '#f5f5f5' : '#f5f5f5',
+              color: checked.size > 0 ? '#404040' : '#a3a3a3',
+              borderColor: checked.size > 0 ? '#d4d4d4' : '#d4d4d4',
               cursor: checked.size > 0 ? 'pointer' : 'not-allowed',
             }}
           >
@@ -210,7 +210,7 @@ export function PrerequisiteNotice({
           <button
             type="button"
             onClick={() => onAddTables(tablesFor(addable.map((n) => n.object)))}
-            style={{ ...actionBtn, background: '#fff', color: '#92400e', borderColor: '#fcd34d' }}
+            style={{ ...actionBtn, background: '#fff', color: '#404040', borderColor: '#d4d4d4' }}
           >
             Add all {addable.length}
           </button>
@@ -226,7 +226,7 @@ export function PrerequisiteNotice({
       ))}
 
       {gaps.length > 0 && (
-        <div style={{ ...noteStyle, background: '#fef2f2', borderColor: '#fecaca', color: '#991b1b' }}>
+        <div style={{ ...noteStyle, background: '#fafafa', borderColor: '#e5e5e5', color: '#171717' }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Required lookups with no source</div>
           {gaps.map((gap) => (
             <div key={`${gap.object}.${gap.field}`}>
@@ -267,7 +267,7 @@ export function PrerequisiteNotice({
             {report.other_references.length === 1 ? '' : 's'} point outside the migration
           </button>
           {showOther && (
-            <div style={{ fontSize: 11, color: '#78350f', marginTop: 6, lineHeight: 1.7 }}>
+            <div style={{ fontSize: 11, color: '#404040', marginTop: 6, lineHeight: 1.7 }}>
               {report.other_references.map((gap) => (
                 <div key={`${gap.object}.${gap.field}`}>
                   <code>
@@ -312,16 +312,16 @@ function PrerequisiteRow({
 
   return (
     <li style={rowStyle}>
-      <span style={{ ...positionBadge, background: node.is_target ? '#2563eb' : '#94a3b8' }}>
+      <span style={{ ...positionBadge, background: node.is_target ? '#171717' : '#a3a3a3' }}>
         {position}
       </span>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <code style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{node.object}</code>
+          <code style={{ fontSize: 12, fontWeight: 700, color: '#262626' }}>{node.object}</code>
           <StatusChip node={node} />
           {node.required_by_someone && !node.is_target && (
-            <span style={{ ...chip, background: '#fee2e2', color: '#991b1b' }}>required</span>
+            <span style={{ ...chip, background: '#f5f5f5', color: '#171717' }}>required</span>
           )}
         </div>
 
@@ -354,7 +354,7 @@ function PrerequisiteRow({
         )}
 
         {node.status === 'needs_mapping' && !node.is_target && (
-          <div style={{ ...detailStyle, color: '#b91c1c' }}>
+          <div style={{ ...detailStyle, color: '#171717' }}>
             nothing migrates this object yet, so a mapping has to be created for it
           </div>
         )}
@@ -367,7 +367,7 @@ function PrerequisiteRow({
             alignItems: 'center',
             gap: 4,
             fontSize: 11,
-            color: '#78350f',
+            color: '#404040',
             cursor: 'pointer',
           }}
         >
@@ -381,17 +381,17 @@ function PrerequisiteRow({
 
 function StatusChip({ node }: { node: PrerequisiteNode }) {
   if (node.is_target) {
-    return <span style={{ ...chip, background: '#dbeafe', color: '#1d4ed8' }}>this object</span>;
+    return <span style={{ ...chip, background: '#e5e5e5', color: '#171717' }}>this object</span>;
   }
   if (node.selected) {
-    return <span style={{ ...chip, background: '#dcfce7', color: '#166534' }}>in this migration</span>;
+    return <span style={{ ...chip, background: '#f5f5f5', color: '#171717' }}>in this migration</span>;
   }
   if (node.status === 'mapping_exists') {
     return (
-      <span style={{ ...chip, background: '#fef3c7', color: '#92400e' }}>mapping available</span>
+      <span style={{ ...chip, background: '#f5f5f5', color: '#404040' }}>mapping available</span>
     );
   }
-  return <span style={{ ...chip, background: '#fee2e2', color: '#991b1b' }}>needs a mapping</span>;
+  return <span style={{ ...chip, background: '#f5f5f5', color: '#171717' }}>needs a mapping</span>;
 }
 
 const panel: React.CSSProperties = {
@@ -434,7 +434,7 @@ const chip: React.CSSProperties = {
 
 const detailStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#64748b',
+  color: '#737373',
   marginTop: 2,
   wordBreak: 'break-word',
 };
@@ -443,10 +443,10 @@ const noteStyle: React.CSSProperties = {
   marginTop: 8,
   padding: 8,
   borderRadius: 6,
-  background: '#fff7ed',
-  border: '1px solid #fed7aa',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   fontSize: 11,
-  color: '#9a3412',
+  color: '#404040',
   lineHeight: 1.6,
 };
 
@@ -461,9 +461,9 @@ const actionBtn: React.CSSProperties = {
 const ghostBtn: React.CSSProperties = {
   padding: '3px 8px',
   borderRadius: 6,
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   background: '#fff',
-  color: '#6b7280',
+  color: '#737373',
   cursor: 'pointer',
   fontSize: 11,
   fontWeight: 600,

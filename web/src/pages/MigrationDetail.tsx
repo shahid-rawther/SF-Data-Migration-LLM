@@ -7,9 +7,11 @@ import { MigrationControls } from '../components/MigrationControls';
 import { LogViewer } from '../components/LogViewer';
 import { StatusBadge } from '../components/StatusBadge';
 import { SessionStatusPanel } from '../components/SessionStatusPanel';
+import { ResolutionsPanel } from '../components/ResolutionsPanel';
 import { BackfillPanel } from '../components/BackfillPanel';
 import { ColumnFillPanel } from '../components/ColumnFillPanel';
 import { AgentNoticesPanel } from '../components/AgentNoticesPanel';
+import { AgentAssistantPanel } from '../components/AgentAssistantPanel';
 import { SessionObjectsPanel } from '../components/SessionObjectsPanel';
 import { useMigrationProgress } from '../hooks/useMigrationProgress';
 
@@ -20,6 +22,7 @@ export function MigrationDetail() {
   const [status, setStatus] = useState<string>('pending');
   const [logs, setLogs] = useState<string[]>([]);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [resolutionsOpen, setResolutionsOpen] = useState(false);
 
   const { progress } = useMigrationProgress(
     session && ['running', 'paused'].includes(status) ? id ?? null : null,
@@ -75,7 +78,7 @@ export function MigrationDetail() {
   return (
     <div style={pageStyle}>
       <div style={{ marginBottom: 20 }}>
-        <Link to="/" style={{ color: '#2563eb', textDecoration: 'none', fontSize: 13 }}>← Dashboard</Link>
+        <Link to="/" style={{ color: '#171717', textDecoration: 'none', fontSize: 13 }}>← Dashboard</Link>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
@@ -83,13 +86,16 @@ export function MigrationDetail() {
           <h1 style={h1}>{session.source_type} → Salesforce</h1>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <StatusBadge status={status} />
-            {phase && <span style={{ fontSize: 13, color: '#6b7280' }}>Phase: <strong>{phase}</strong></span>}
-            <span style={{ fontSize: 12, color: '#9ca3af' }}>ID: {session.id}</span>
+            {phase && <span style={{ fontSize: 13, color: '#737373' }}>Phase: <strong>{phase}</strong></span>}
+            <span style={{ fontSize: 12, color: '#a3a3a3' }}>ID: {session.id}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button onClick={() => setStatusOpen(true)} style={statusBtn}>
             Migration status
+          </button>
+          <button onClick={() => setResolutionsOpen(true)} style={statusBtn}>
+            Resolutions
           </button>
           <MigrationControls sessionId={session.id} status={status} onStatusChange={(s) => {
             setStatus(s);
@@ -104,35 +110,41 @@ export function MigrationDetail() {
         onClose={() => setStatusOpen(false)}
       />
 
+      <ResolutionsPanel
+        sessionId={session.id}
+        open={resolutionsOpen}
+        onClose={() => setResolutionsOpen(false)}
+      />
+
       {/* Overall progress */}
       <div style={cardStyle}>
         <h2 style={h2}>Overall Progress</h2>
         <ProgressBar
           percent={overallPercent}
           label="Overall"
-          color={status === 'failed' ? '#dc2626' : status === 'completed' ? '#16a34a' : '#2563eb'}
+          color={status === 'failed' ? '#0a0a0a' : status === 'completed' ? '#171717' : '#171717'}
           height={18}
         />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
-          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.extraction))} label="Extraction" color="#7c3aed" />
-          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.transformation))} label="Transformation" color="#d97706" />
-          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.loading))} label="Loading" color="#16a34a" />
+          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.extraction))} label="Extraction" color="#262626" />
+          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.transformation))} label="Transformation" color="#525252" />
+          <ProgressBar percent={Math.min(100, Math.max(0, phasePercents.loading))} label="Loading" color="#171717" />
         </div>
       </div>
 
       {/* Record counts */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
-        <div style={{ ...statCardStyle, borderLeft: '4px solid #7c3aed' }}>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #262626' }}>
           <div style={statLabel}>Records Fetched</div>
           <div style={statValue}>{(liveProgress?.records_fetched ?? 0).toLocaleString()}</div>
         </div>
-        <div style={{ ...statCardStyle, borderLeft: '4px solid #16a34a' }}>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #171717' }}>
           <div style={statLabel}>Records Processed</div>
-          <div style={{ ...statValue, color: '#16a34a' }}>{(liveProgress?.records_processed ?? 0).toLocaleString()}</div>
+          <div style={{ ...statValue, color: '#171717' }}>{(liveProgress?.records_processed ?? 0).toLocaleString()}</div>
         </div>
-        <div style={{ ...statCardStyle, borderLeft: '4px solid #dc2626' }}>
+        <div style={{ ...statCardStyle, borderLeft: '4px solid #0a0a0a' }}>
           <div style={statLabel}>Records Failed</div>
-          <div style={{ ...statValue, color: (liveProgress?.records_failed ?? 0) > 0 ? '#dc2626' : '#374151' }}>
+          <div style={{ ...statValue, color: (liveProgress?.records_failed ?? 0) > 0 ? '#0a0a0a' : '#404040' }}>
             {(liveProgress?.records_failed ?? 0).toLocaleString()}
           </div>
         </div>
@@ -140,27 +152,39 @@ export function MigrationDetail() {
 
       {/* Current object */}
       {liveProgress && liveProgress.object && (
-        <div style={{ ...cardStyle, background: '#f0f9ff', border: '1px solid #bae6fd' }}>
-          <div style={{ fontSize: 13, color: '#0369a1', fontWeight: 600, marginBottom: 4 }}>
+        <div style={{ ...cardStyle, background: '#fafafa', border: '1px solid #d4d4d4' }}>
+          <div style={{ fontSize: 13, color: '#404040', fontWeight: 600, marginBottom: 4 }}>
             Currently processing: {liveProgress.object}
           </div>
-          <div style={{ fontSize: 13, color: '#0284c7' }}>
+          <div style={{ fontSize: 13, color: '#525252' }}>
             Batch {liveProgress.batch_current} / {liveProgress.batch_total}
             &nbsp;·&nbsp;
             {liveProgress.records_processed.toLocaleString()} processed
             &nbsp;·&nbsp;
-            <span style={{ color: liveProgress.records_failed > 0 ? '#dc2626' : undefined }}>
+            <span style={{ color: liveProgress.records_failed > 0 ? '#0a0a0a' : undefined }}>
               {liveProgress.records_failed.toLocaleString()} failed
             </span>
           </div>
           {liveProgress.message && (
-            <div style={{ fontSize: 12, color: '#0369a1', marginTop: 4 }}>{liveProgress.message}</div>
+            <div style={{ fontSize: 12, color: '#404040', marginTop: 4 }}>{liveProgress.message}</div>
           )}
         </div>
       )}
 
       {/* Concerns the agent raised, including ones no fixed check looks for */}
       <AgentNoticesPanel sessionId={session.id} refreshKey={backfillRefreshKey} />
+
+      {/* Failures the automatic repairs could not fix: explained, discussed,
+          and fixed only on approval */}
+      <AgentAssistantPanel
+        sessionId={session.id}
+        status={status}
+        refreshKey={backfillRefreshKey}
+        onStarted={(s) => {
+          setStatus(s);
+          setLogs([]);
+        }}
+      />
 
       {/* References the load left empty, waiting on a decision to attach them,
           plus any from earlier runs that this one has just made fillable */}
@@ -184,7 +208,7 @@ export function MigrationDetail() {
           <h2 style={h2}>Per-Object Breakdown</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+              <tr style={{ borderBottom: '2px solid #e5e5e5', textAlign: 'left' }}>
                 <th style={thStyle}>Object</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Processed</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Failed</th>
@@ -194,24 +218,24 @@ export function MigrationDetail() {
               {Object.entries(liveProgress.records_by_object)
                 .sort(([, a], [, b]) => (b.processed + b.failed) - (a.processed + a.failed))
                 .map(([name, counts]) => (
-                  <tr key={name} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <tr key={name} style={{ borderBottom: '1px solid #f5f5f5' }}>
                     <td style={tdStyle}>{name}</td>
-                    <td style={{ ...tdStyle, textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
+                    <td style={{ ...tdStyle, textAlign: 'right', color: '#171717', fontWeight: 600 }}>
                       {counts.processed.toLocaleString()}
                     </td>
                     <td style={{
                       ...tdStyle,
                       textAlign: 'right',
-                      color: counts.failed > 0 ? '#dc2626' : '#374151',
+                      color: counts.failed > 0 ? '#0a0a0a' : '#404040',
                       fontWeight: counts.failed > 0 ? 600 : 400,
                     }}>
                       {counts.failed.toLocaleString()}
                     </td>
                   </tr>
                 ))}
-              <tr style={{ borderTop: '2px solid #e5e7eb', fontWeight: 700 }}>
+              <tr style={{ borderTop: '2px solid #e5e5e5', fontWeight: 700 }}>
                 <td style={tdStyle}>Total</td>
-                <td style={{ ...tdStyle, textAlign: 'right', color: '#16a34a' }}>
+                <td style={{ ...tdStyle, textAlign: 'right', color: '#171717' }}>
                   {Object.values(liveProgress.records_by_object)
                     .reduce((sum, c) => sum + c.processed, 0)
                     .toLocaleString()}
@@ -220,7 +244,7 @@ export function MigrationDetail() {
                   ...tdStyle,
                   textAlign: 'right',
                   color: Object.values(liveProgress.records_by_object).reduce((sum, c) => sum + c.failed, 0) > 0
-                    ? '#dc2626' : '#374151',
+                    ? '#0a0a0a' : '#404040',
                 }}>
                   {Object.values(liveProgress.records_by_object)
                     .reduce((sum, c) => sum + c.failed, 0)
@@ -234,12 +258,12 @@ export function MigrationDetail() {
 
       {/* Salesforce loading errors */}
       {liveProgress?.load_errors && Object.keys(liveProgress.load_errors).length > 0 && (
-        <div style={{ ...cardStyle, border: '1px solid #fecaca', background: '#fef2f2' }}>
-          <h2 style={{ ...h2, color: '#991b1b' }}>Salesforce Load Errors</h2>
+        <div style={{ ...cardStyle, border: '1px solid #e5e5e5', background: '#fafafa' }}>
+          <h2 style={{ ...h2, color: '#171717' }}>Salesforce Load Errors</h2>
           {Object.entries(liveProgress.load_errors).map(([objName, messages]) => (
             <div key={objName} style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#7f1d1d', marginBottom: 6 }}>{objName}</div>
-              <ul style={{ margin: 0, paddingLeft: 18, color: '#7f1d1d', fontSize: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0a0a0a', marginBottom: 6 }}>{objName}</div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: '#0a0a0a', fontSize: 12 }}>
                 {messages.map((msg, idx) => (
                   <li key={`${objName}-${idx}`} style={{ marginBottom: 4 }}>{msg}</li>
                 ))}
@@ -288,22 +312,22 @@ export function MigrationDetail() {
   );
 }
 
-const pageStyle: React.CSSProperties = { padding: '32px 32px' };
+const pageStyle: React.CSSProperties = { padding: '32px', width: '100%', maxWidth: 1600, margin: '0 auto' };
 const h1: React.CSSProperties = { margin: '0 0 8px', fontSize: 22, fontWeight: 700 };
 const h2: React.CSSProperties = { margin: '0 0 16px', fontSize: 16, fontWeight: 700 };
 const cardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12,
+  background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12,
   padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
 const statCardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
+  background: '#fff', border: '1px solid #e5e5e5', borderRadius: 10,
   padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
 };
-const statLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', fontWeight: 500, marginBottom: 4 };
-const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#374151' };
+const statLabel: React.CSSProperties = { fontSize: 12, color: '#737373', fontWeight: 500, marginBottom: 4 };
+const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#404040' };
 const statusBtn: React.CSSProperties = {
-  padding: '8px 14px', background: '#fff', border: '1px solid #d1d5db',
-  borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer',
+  padding: '8px 14px', background: '#fff', border: '1px solid #d4d4d4',
+  borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#404040', cursor: 'pointer',
 };
-const thStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' };
+const thStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, color: '#737373', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px' };

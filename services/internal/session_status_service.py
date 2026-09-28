@@ -9,8 +9,10 @@ The row counts come from the two places that already know:
   its count is the number of records actually migrated — the same table the
   transform consults to skip rows that are already loaded, which is why this
   figure and the resume point can never disagree;
-* the staged extract on disk holds every row pulled from the source for this
-  run, so its row count is the denominator the progress bar needs.
+* the source's own total, recorded on the extraction job each time a table is
+  pulled, is the denominator the progress bar needs. A run with a record limit
+  stages only a slice of that total, so the staged extract on disk is used only
+  when no total was recorded.
 
 Neither depends on the session still running, so a finished or interrupted
 session reports the same numbers as a live one. A checkpoint, when one exists,
@@ -37,6 +39,7 @@ STATE_PENDING = "pending"
 STATE_UNMAPPED = "unmapped"
 
 # Where a source row count came from, so the UI can say when it is an estimate.
+ORIGIN_SOURCE = "source"
 ORIGIN_STAGE = "stage"
 ORIGIN_CHECKPOINT = "checkpoint"
 ORIGIN_NONE = "none"
@@ -182,12 +185,24 @@ def build(
     )
     in_flight = _current_objects(live)
 
+    from services.internal import jobs_service
+
     staged = _staged_rows(selected, source_type)
     from_checkpoint = _checkpoint_rows(checkpoint_summary)
 
+    configs = {name: get_mapping_config(name) for name in selected}
+    source_totals = jobs_service.latest_source_totals(
+        [
+            table
+            for config in configs.values()
+            if config
+            for table in [t for t in cfg_source_tables(config) if t][:1]
+        ]
+    )
+
     entries: list[ObjectStatus] = []
     for name in selected:
-        config = get_mapping_config(name)
+        config = configs[name]
         if not config:
             entries.append(ObjectStatus(object=name, state=STATE_UNMAPPED))
             continue
@@ -202,8 +217,11 @@ def build(
             else ""
         )
 
-        source_rows = staged.get(driving, 0)
-        origin = ORIGIN_STAGE if source_rows else ORIGIN_NONE
+        source_rows = source_totals.get(driving, 0)
+        origin = ORIGIN_SOURCE if source_rows else ORIGIN_NONE
+        if not source_rows:
+            source_rows = staged.get(driving, 0)
+            origin = ORIGIN_STAGE if source_rows else ORIGIN_NONE
         if not source_rows:
             source_rows = from_checkpoint.get(driving, 0)
             origin = ORIGIN_CHECKPOINT if source_rows else ORIGIN_NONE
@@ -243,9 +261,16 @@ def build(
 
         if entry.state == STATE_UNMAPPED:
             continue
-        if entry.object in completed_objects or (
-            entry.source_rows > 0 and entry.loaded >= entry.source_rows
-        ):
+        # A run marks an object complete when it finishes its slice, which under
+        # a record limit is not the whole table. The source total, when known,
+        # says whether rows are still waiting to be extracted.
+        if entry.source_rows_origin == ORIGIN_SOURCE:
+            done = entry.loaded >= entry.source_rows
+        else:
+            done = entry.object in completed_objects or (
+                entry.source_rows > 0 and entry.loaded >= entry.source_rows
+            )
+        if done:
             entry.state = STATE_COMPLETED
         elif entry.current or reached or entry.failed:
             entry.state = STATE_IN_PROGRESS

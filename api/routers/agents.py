@@ -279,6 +279,116 @@ def revert_change(change_id: int):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+# ── diagnosis, assistant conversation and proposals ───────────────────────────
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+class DiagnoseRequest(BaseModel):
+    session_id: str
+    mapping_name: str
+
+
+def _agent_errors(call):
+    """Translate the assistant's domain errors into HTTP ones."""
+    try:
+        return call()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'\"")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/diagnoses")
+def list_diagnoses(session_id: str, scope: str = "latest"):
+    """The newest diagnosis per failing object. ``scope=latest`` limits it to
+    the current migration attempt."""
+    from agents import assistant_store
+
+    since = _attempt_started_at(session_id) if scope == "latest" else ""
+    return assistant_store.list_diagnoses(session_id, since=since)
+
+
+@router.post("/diagnoses")
+def run_diagnosis(body: DiagnoseRequest):
+    """Diagnose one object's current failures on demand."""
+    from agents import assistant_agent, diagnosis_agent, repair_agent
+
+    def call():
+        context = assistant_agent.load_session_context(body.session_id)
+        if body.mapping_name not in context.mapping_names:
+            raise KeyError(f"'{body.mapping_name}' is not in this session")
+        digest = repair_agent.build_digest(context, body.mapping_name)
+        if digest.is_empty:
+            raise ValueError(f"No load errors could be read for {body.mapping_name}")
+        return diagnosis_agent.diagnose(
+            context, body.mapping_name, digest, session_id=body.session_id
+        ).to_dict()
+
+    return _agent_errors(call)
+
+
+@router.post("/diagnoses/{diagnosis_id}/propose")
+def propose_from_diagnosis(diagnosis_id: int, suggestion: int = 0):
+    """Turn one suggested solution into a pending proposal. No model call."""
+    from agents import assistant_agent
+
+    return _agent_errors(
+        lambda: assistant_agent.propose_from_diagnosis(diagnosis_id, suggestion)
+    )
+
+
+@router.get("/chat")
+def chat_history(session_id: str):
+    """The conversation, the proposals it produced, and the diagnoses."""
+    from agents import assistant_agent
+
+    return assistant_agent.conversation(session_id)
+
+
+@router.post("/chat")
+def chat(body: ChatRequest):
+    """One turn with the assistant. It may store a proposal; it never applies one."""
+    from agents import assistant_agent
+
+    return _agent_errors(lambda: assistant_agent.chat(body.session_id, body.message))
+
+
+@router.delete("/chat")
+def clear_chat(session_id: str):
+    from agents import assistant_store
+
+    assistant_store.clear_messages(session_id)
+    return {"session_id": session_id, "cleared": True}
+
+
+@router.post("/proposals/{proposal_id}/apply")
+def apply_proposal(proposal_id: int):
+    """Write a proposal to its mappings. Journalled, so each change can be reverted."""
+    from agents import assistant_agent
+
+    return _agent_errors(lambda: assistant_agent.apply_proposal(proposal_id))
+
+
+@router.post("/proposals/{proposal_id}/reject")
+def reject_proposal(proposal_id: int):
+    from agents import assistant_agent
+
+    return _agent_errors(lambda: assistant_agent.reject_proposal(proposal_id))
+
+
+@router.get("/resolutions")
+def resolution_history(session_id: str):
+    """Every mapping change an agent applied in the session, grouped by run and
+    tagged by where it came from. Notices are left out: they change nothing."""
+    from agents import assistant_agent
+
+    return assistant_agent.resolution_history(session_id)
+
+
 @router.post("/runs/{run_id}/revert")
 def revert_run(run_id: str):
     from agents import audit

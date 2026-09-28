@@ -352,7 +352,7 @@ export function TableMappingCard({
           <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 14 }}>
             {state.sourceTable}
           </span>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>
+          <span style={{ fontSize: 12, color: '#737373' }}>
             {state.sfObject ? `${'->'}  ${state.sfObject}` : '(not mapped)'}
             {' | '}
             {state.fields.length} field(s)
@@ -469,8 +469,8 @@ export function TableMappingCard({
             <div style={joinBoxStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Related tables / Joins</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#404040' }}>Related tables / Joins</div>
+                  <div style={{ fontSize: 11, color: '#737373', marginTop: 2 }}>
                     Pull fields from related tables. Use columns whose names differ from the main table.
                   </div>
                 </div>
@@ -485,7 +485,7 @@ export function TableMappingCard({
               </div>
 
               {state.joins.length === 0 && (
-                <div style={{ fontSize: 12, color: '#94a3b8', padding: '4px 0' }}>
+                <div style={{ fontSize: 12, color: '#a3a3a3', padding: '4px 0' }}>
                   No joins. The mapping uses only <strong>{state.sourceTable}</strong>.
                 </div>
               )}
@@ -512,7 +512,7 @@ export function TableMappingCard({
                       onChange={(v) => updateJoin(i, { left_key: v })}
                     />
                   </div>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>=</span>
+                  <span style={{ fontSize: 12, color: '#737373' }}>=</span>
                   <span style={{ ...joinTableChip }} title="Right table">{join.right_table}</span>
                   <div style={{ flex: '1 1 130px', minWidth: 120 }}>
                     <SearchableSelect
@@ -551,8 +551,8 @@ export function TableMappingCard({
             <div style={joinBoxStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Row filters</div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#404040' }}>Row filters</div>
+                  <div style={{ fontSize: 11, color: '#737373', marginTop: 2 }}>
                     Only rows matching all filters are migrated.
                   </div>
                 </div>
@@ -562,7 +562,7 @@ export function TableMappingCard({
               </div>
 
               {state.filters.length === 0 && (
-                <div style={{ fontSize: 12, color: '#94a3b8', padding: '4px 0' }}>
+                <div style={{ fontSize: 12, color: '#a3a3a3', padding: '4px 0' }}>
                   No filters. All rows from <strong>{state.sourceTable}</strong> are migrated.
                 </div>
               )}
@@ -598,7 +598,7 @@ export function TableMappingCard({
                         />
                       </div>
                     ) : (
-                      <span style={{ fontSize: 12, color: '#94a3b8', flex: '1 1 130px' }}>
+                      <span style={{ fontSize: 12, color: '#a3a3a3', flex: '1 1 130px' }}>
                         (applies to whole result)
                       </span>
                     )}
@@ -634,7 +634,7 @@ export function TableMappingCard({
 
                     {/* Value entry */}
                     {isNullOp ? (
-                      <span style={{ fontSize: 12, color: '#94a3b8', flex: '1 1 120px' }}>(no value)</span>
+                      <span style={{ fontSize: 12, color: '#a3a3a3', flex: '1 1 120px' }}>(no value)</span>
                     ) : isCount ? (
                       <input
                         type="number"
@@ -744,7 +744,7 @@ export function TableMappingCard({
                   ? 'Ask the model to pair the remaining fields by meaning rather than name'
                   : 'Load fields first'
               }
-              style={{ ...actionBtn, background: '#faf5ff', color: '#7c3aed', borderColor: '#e9d5ff' }}
+              style={{ ...actionBtn, background: '#fafafa', color: '#262626', borderColor: '#e5e5e5' }}
             >
               {matching ? 'Matching...' : 'AI match remaining'}
             </button>
@@ -753,9 +753,9 @@ export function TableMappingCard({
           {fieldsError && (
             <div
               style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                color: '#b91c1c',
+                background: '#fafafa',
+                border: '1px solid #e5e5e5',
+                color: '#171717',
                 borderRadius: 6,
                 padding: '8px 10px',
                 fontSize: 12,
@@ -785,7 +785,7 @@ export function TableMappingCard({
           )}
 
           {!state.fieldsLoaded && state.sfObject && (
-            <p style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+            <p style={{ color: '#a3a3a3', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
               Click "Load Fields" to configure field mappings.
             </p>
           )}
@@ -797,7 +797,7 @@ export function TableMappingCard({
 
 
 const cardStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 10,
   overflow: 'hidden',
   marginBottom: 16,
@@ -809,23 +809,23 @@ const headerStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 12,
   padding: '12px 16px',
-  background: '#f8fafc',
+  background: '#fafafa',
   cursor: 'pointer',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid #e5e5e5',
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 12,
   fontWeight: 600,
-  color: '#475569',
+  color: '#525252',
   marginBottom: 4,
 };
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 10px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 6,
   fontSize: 13,
   boxSizing: 'border-box',
@@ -839,9 +839,9 @@ const selectStyle: React.CSSProperties = {
 const actionBtn: React.CSSProperties = {
   padding: '6px 14px',
   borderRadius: 6,
-  border: '1px solid #bfdbfe',
-  background: '#eff6ff',
-  color: '#2563eb',
+  border: '1px solid #d4d4d4',
+  background: '#f5f5f5',
+  color: '#171717',
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 600,
@@ -856,7 +856,7 @@ const priorityBadge: React.CSSProperties = {
   justifyContent: 'center',
   fontSize: 11,
   fontWeight: 700,
-  background: '#2563eb',
+  background: '#171717',
   color: '#fff',
   flexShrink: 0,
 };
@@ -865,7 +865,7 @@ const reorderBtn: React.CSSProperties = {
   width: 22,
   height: 22,
   padding: 0,
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 4,
   background: '#fff',
   cursor: 'pointer',
@@ -879,18 +879,18 @@ const reorderBtn: React.CSSProperties = {
 const splitBtn: React.CSSProperties = {
   ...reorderBtn,
   fontSize: 13,
-  color: '#2563eb',
-  border: '1px solid #bfdbfe',
-  background: '#eff6ff',
+  color: '#171717',
+  border: '1px solid #d4d4d4',
+  background: '#f5f5f5',
   marginLeft: 4,
 };
 
 const removeCardBtn: React.CSSProperties = {
   ...reorderBtn,
   fontSize: 11,
-  color: '#dc2626',
-  border: '1px solid #fecaca',
-  background: '#fef2f2',
+  color: '#0a0a0a',
+  border: '1px solid #e5e5e5',
+  background: '#fafafa',
   marginLeft: 4,
 };
 
@@ -898,8 +898,8 @@ const joinBoxStyle: React.CSSProperties = {
   padding: 12,
   marginBottom: 14,
   borderRadius: 8,
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
 };
 
 const joinRowStyle: React.CSSProperties = {
@@ -908,7 +908,7 @@ const joinRowStyle: React.CSSProperties = {
   gap: 8,
   flexWrap: 'wrap',
   padding: '6px 0',
-  borderTop: '1px solid #eef2f7',
+  borderTop: '1px solid #f5f5f5',
 };
 
 const joinSelect: React.CSSProperties = {
@@ -924,8 +924,8 @@ const joinTableChip: React.CSSProperties = {
   fontFamily: 'monospace',
   fontSize: 12,
   fontWeight: 600,
-  color: '#334155',
-  background: '#e2e8f0',
+  color: '#404040',
+  background: '#e5e5e5',
   borderRadius: 4,
   padding: '4px 8px',
 };
@@ -933,9 +933,9 @@ const joinTableChip: React.CSSProperties = {
 const removeJoinBtn: React.CSSProperties = {
   ...reorderBtn,
   fontSize: 11,
-  color: '#dc2626',
-  border: '1px solid #fecaca',
-  background: '#fef2f2',
+  color: '#0a0a0a',
+  border: '1px solid #e5e5e5',
+  background: '#fafafa',
   marginLeft: 'auto',
 };
 
@@ -943,9 +943,9 @@ const smallGhostBtn: React.CSSProperties = {
   flex: '0 0 auto',
   padding: '5px 10px',
   borderRadius: 6,
-  border: '1px solid #cbd5e1',
+  border: '1px solid #d4d4d4',
   background: '#fff',
-  color: '#475569',
+  color: '#525252',
   cursor: 'pointer',
   fontSize: 11,
   fontWeight: 600,

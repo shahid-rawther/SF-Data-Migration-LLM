@@ -114,6 +114,13 @@ def validate(context: MigrationContext, raw_resolutions: list[dict]) -> Validati
             continue
 
         destination_object = context.destination_object(resolution.mapping)
+        if resolution.kind == wiring.KIND_REMOVE_FIELD:
+            error = _validate_kind(context, resolution, destination_object)
+            if error:
+                outcome.reject(item, error)
+            else:
+                outcome.accepted.append(resolution)
+            continue
         if not context.destination_fields(destination_object):
             outcome.reject(
                 item,
@@ -153,6 +160,13 @@ def _validate_kind(
 
     if not resolution.field:
         return f"{resolution.kind} needs a destination field"
+
+    if resolution.kind == wiring.KIND_REMOVE_FIELD:
+        # Checked before the describe on purpose: a field the destination no
+        # longer has is one of the main reasons to unmap it.
+        if wiring.field_entry(config, resolution.field) is None:
+            return f"'{resolution.field}' is not mapped in '{resolution.mapping}'"
+        return ""
 
     meta = context.destination_field(destination_object, resolution.field)
     if not meta:

@@ -55,8 +55,16 @@ loose resemblance between two names.
 - Each source field and each destination field may appear at most once.
 - Prefer leaving a field unmapped over a speculative pair. An unmapped field \
 costs a person one decision; a wrong pair corrupts data.
-- Set confidence honestly: above 0.8 when the meaning is unambiguous, 0.5 to 0.8 \
-when it is a reasonable reading of the labels, below 0.5 when you are guessing.
+- Confidence is the semantic similarity of the two fields: how certain you are \
+that every value in the source field would be a correct value for the \
+destination field. Judge it from what each field means — its label, type, \
+referenced object, picklist values and the table it sits on — never from how \
+alike the names look. Identical names earn no credit on their own, and \
+unrelated-looking names lose none: `u_caller_id` → `ContactId` can score as high \
+as `priority` → `Priority`. Use 0.9 to 1.0 when both fields hold exactly the \
+same fact, 0.7 to 0.9 when they hold the same fact at a slightly different \
+grain or format, 0.5 to 0.7 when the meanings overlap but some values would \
+not carry over, and below 0.5 when you are guessing.
 - Write the rationale for a migration engineer who cannot see this prompt. Say \
 what fact the two fields hold, not that the names look alike.
 
@@ -92,7 +100,10 @@ SUBMIT_TOOL_SPEC = ToolSpec(
                         },
                         "confidence": {
                             "type": "number",
-                            "description": "0 to 1.",
+                            "description": (
+                                "Semantic similarity from 0 to 1: how closely the two "
+                                "fields' meanings agree, ignoring name resemblance."
+                            ),
                         },
                         "rationale": {
                             "type": "string",

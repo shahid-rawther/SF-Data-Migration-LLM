@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { Input } from './ui/input';
 
 interface DestinationObject {
   name: string;
@@ -25,21 +27,41 @@ export function DestinationObjectSelector({
   loading,
 }: DestinationObjectSelectorProps) {
   const [search, setSearch] = useState('');
+  // As in the source list: the box owns the typed value so it never waits on
+  // the filter, which runs once the typing pauses.
+  const [debouncedSearch, settling] = useDebouncedValue(search);
+
+  // An org describes over a thousand objects, so their searchable forms are
+  // built once rather than on every keystroke.
+  const haystack = useMemo(
+    () =>
+      objects.map((object) => ({
+        object,
+        term: `${object.name} ${object.label}`.toLowerCase(),
+      })),
+    [objects],
+  );
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = debouncedSearch.trim().toLowerCase();
     if (!term) return objects.slice(0, 200);
-    return objects
-      .filter((o) => o.name.toLowerCase().includes(term) || o.label.toLowerCase().includes(term))
-      .slice(0, 200);
-  }, [objects, search]);
+    const matches: DestinationObject[] = [];
+    for (const entry of haystack) {
+      if (!entry.term.includes(term)) continue;
+      matches.push(entry.object);
+      if (matches.length === 200) break;
+    }
+    return matches;
+  }, [objects, haystack, debouncedSearch]);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   const toggle = (name: string) =>
-    onChange(selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name]);
+    onChange(selectedSet.has(name) ? selected.filter((n) => n !== name) : [...selected, name]);
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '48px 0', color: '#6b7280' }}>
+      <div style={{ textAlign: 'center', padding: '48px 0', color: '#737373' }}>
         Loading Salesforce objects...
       </div>
     );
@@ -48,19 +70,19 @@ export function DestinationObjectSelector({
   return (
     <div>
       <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          type="text"
+        <Input
+          type="search"
           placeholder="Search Salesforce objects..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db' }}
+          className="flex-1"
         />
         {selected.length > 0 && (
           <button type="button" onClick={() => onChange([])} style={btnStyle}>
             Clear
           </button>
         )}
-        <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 12, color: '#737373', whiteSpace: 'nowrap' }}>
           {selected.length} selected
         </span>
       </div>
@@ -70,7 +92,7 @@ export function DestinationObjectSelector({
           {selected.map((name) => (
             <button key={name} type="button" onClick={() => toggle(name)} style={chipStyle}>
               {name}
-              <span style={{ color: '#6b7280' }}>×</span>
+              <span style={{ color: '#737373' }}>×</span>
             </button>
           ))}
         </div>
@@ -80,13 +102,15 @@ export function DestinationObjectSelector({
         style={{
           maxHeight: 400,
           overflowY: 'auto',
-          border: '1px solid #e5e7eb',
+          border: '1px solid #e5e5e5',
           borderRadius: 8,
           padding: 8,
+          opacity: settling ? 0.6 : 1,
+          transition: 'opacity 0.12s ease',
         }}
       >
         {filtered.length === 0 ? (
-          <p style={{ color: '#6b7280', textAlign: 'center', padding: '32px 0' }}>
+          <p style={{ color: '#737373', textAlign: 'center', padding: '32px 0' }}>
             {objects.length === 0
               ? 'No objects found. Check the Salesforce connection.'
               : 'No objects match your search.'}
@@ -109,17 +133,19 @@ export function DestinationObjectSelector({
                   padding: '5px 8px',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  background: selected.includes(obj.name) ? '#eff6ff' : 'transparent',
-                  border: selected.includes(obj.name)
-                    ? '1px solid #bfdbfe'
+                  background: selectedSet.has(obj.name) ? '#f5f5f5' : 'transparent',
+                  border: selectedSet.has(obj.name)
+                    ? '1px solid #d4d4d4'
                     : '1px solid transparent',
                   fontSize: 13,
                   minWidth: 0,
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: 'auto 28px',
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={selected.includes(obj.name)}
+                  checked={selectedSet.has(obj.name)}
                   onChange={() => toggle(obj.name)}
                 />
                 <span
@@ -132,7 +158,7 @@ export function DestinationObjectSelector({
                 >
                   {obj.label}
                   {obj.label !== obj.name && (
-                    <span style={{ color: '#9ca3af', fontFamily: 'monospace', marginLeft: 6 }}>
+                    <span style={{ color: '#a3a3a3', fontFamily: 'monospace', marginLeft: 6 }}>
                       {obj.name}
                     </span>
                   )}
@@ -143,9 +169,11 @@ export function DestinationObjectSelector({
         )}
       </div>
 
-      {objects.length > filtered.length && !search.trim() && (
-        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-          Showing the first {filtered.length} of {objects.length} objects — search to narrow it down.
+      {objects.length > filtered.length && (
+        <p style={{ fontSize: 12, color: '#737373', marginTop: 8 }}>
+          {debouncedSearch.trim()
+            ? `Showing the first ${filtered.length} matches — keep typing to narrow it down.`
+            : `Showing the first ${filtered.length} of ${objects.length} objects — search to narrow it down.`}
         </p>
       )}
     </div>
@@ -155,7 +183,7 @@ export function DestinationObjectSelector({
 const btnStyle: React.CSSProperties = {
   padding: '6px 12px',
   borderRadius: 6,
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   background: '#fff',
   cursor: 'pointer',
   fontSize: 13,
@@ -167,9 +195,9 @@ const chipStyle: React.CSSProperties = {
   gap: 6,
   padding: '3px 8px',
   borderRadius: 999,
-  border: '1px solid #bfdbfe',
-  background: '#eff6ff',
-  color: '#1e40af',
+  border: '1px solid #d4d4d4',
+  background: '#f5f5f5',
+  color: '#262626',
   fontSize: 12,
   fontFamily: 'monospace',
   cursor: 'pointer',

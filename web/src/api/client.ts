@@ -175,6 +175,81 @@ export interface AgentChange {
   reverted: boolean;
 }
 
+/** One way to fix a failure. `resolutions` is empty when a person must act. */
+export interface DiagnosisSuggestion {
+  title: string;
+  explanation: string;
+  resolutions: Record<string, unknown>[];
+  rejected?: { resolution: unknown; reason: string }[];
+}
+
+/** Why an object's rows are still rejected after the automatic repairs. */
+export interface AgentDiagnosis {
+  id: number;
+  session_id: string;
+  mapping_name: string;
+  analysis: string;
+  evidence: string[];
+  suggestions: DiagnosisSuggestion[];
+  created_at: string;
+}
+
+export interface ProposalPreviewRow {
+  mapping: string;
+  field: string;
+  target: string;
+  kind: string;
+  rationale: string;
+  applied: boolean;
+  before: unknown;
+  after: unknown;
+}
+
+/** Mapping changes the assistant proposed. Nothing is written until applied. */
+export interface AgentProposal {
+  id: number;
+  session_id: string;
+  mapping_name: string;
+  summary: string;
+  resolutions: Record<string, unknown>[];
+  preview: ProposalPreviewRow[];
+  rerun: string[];
+  status: 'pending' | 'applied' | 'rejected' | 'failed' | string;
+  run_id: string;
+  error: string;
+  created_at: string;
+  decided_at: string | null;
+  /** 'diagnosis' or 'chat'; empty for proposals stored before this was recorded. */
+  origin: 'diagnosis' | 'chat' | '';
+  diagnosis_id: number | null;
+}
+
+/** The changes one agent run wrote, and where they came from. */
+export interface AgentResolutionGroup {
+  run_id: string;
+  source: 'auto_repair' | 'repair' | 'relationship' | 'proposal' | string;
+  origin: 'diagnosis' | 'chat' | '';
+  proposal: { id: number; summary: string; rerun: string[]; diagnosis_id: number | null } | null;
+  applied_at: string;
+  mappings: string[];
+  changes: AgentChange[];
+}
+
+export interface AgentMessage {
+  id: number;
+  session_id: string;
+  role: 'user' | 'assistant' | string;
+  content: string;
+  proposal_id: number | null;
+  created_at: string;
+}
+
+export interface AgentConversation {
+  messages: AgentMessage[];
+  proposals: AgentProposal[];
+  diagnoses: AgentDiagnosis[];
+}
+
 export interface DestinationRecord {
   id: string;
   name: string;
@@ -447,7 +522,7 @@ export interface SessionObjectStatus {
   id_mapping_table: string;
   /** Rows the source had for this object, from the staged extract. */
   source_rows: number;
-  source_rows_origin: 'stage' | 'checkpoint' | 'none';
+  source_rows_origin: 'source' | 'stage' | 'checkpoint' | 'none';
   /** Rows written to the destination, counted from the id map. */
   loaded: number;
   processed: number;
@@ -1425,6 +1500,63 @@ export const api = {
       request(`/mapping-agent/changes/notices?session_id=${encodeURIComponent(session_id)}`, {
         method: 'DELETE',
       }),
+
+    /** The newest diagnosis per object still failing in the current attempt. */
+    diagnoses: (session_id: string): Promise<AgentDiagnosis[]> =>
+      request(`/mapping-agent/diagnoses?session_id=${encodeURIComponent(session_id)}&scope=latest`),
+
+    /** Diagnose one object's current failures on demand. */
+    diagnose: (session_id: string, mapping_name: string): Promise<{ id: number }> =>
+      request('/mapping-agent/diagnoses', {
+        method: 'POST',
+        body: JSON.stringify({ session_id, mapping_name }),
+      }),
+
+    /** Turn one suggested solution into a pending proposal. */
+    proposeFromDiagnosis: (
+      diagnosis_id: number,
+      suggestion: number,
+    ): Promise<{
+      proposal_id: number | null;
+      rejected: { resolution?: unknown; reason?: string }[];
+      note?: string;
+    }> =>
+      request(`/mapping-agent/diagnoses/${diagnosis_id}/propose?suggestion=${suggestion}`, {
+        method: 'POST',
+      }),
+
+    chatHistory: (session_id: string): Promise<AgentConversation> =>
+      request(`/mapping-agent/chat?session_id=${encodeURIComponent(session_id)}`),
+
+    chat: (
+      session_id: string,
+      message: string,
+    ): Promise<{ reply: string; proposal: AgentProposal | null; error: string }> =>
+      request('/mapping-agent/chat', {
+        method: 'POST',
+        body: JSON.stringify({ session_id, message }),
+      }),
+
+    clearChat: (session_id: string): Promise<{ cleared: boolean }> =>
+      request(`/mapping-agent/chat?session_id=${encodeURIComponent(session_id)}`, {
+        method: 'DELETE',
+      }),
+
+    applyProposal: (
+      proposal_id: number,
+    ): Promise<{ changes: unknown[]; change_ids: number[]; rerun: string[] }> =>
+      request(`/mapping-agent/proposals/${proposal_id}/apply`, { method: 'POST' }),
+
+    rejectProposal: (proposal_id: number): Promise<{ status: string }> =>
+      request(`/mapping-agent/proposals/${proposal_id}/reject`, { method: 'POST' }),
+
+    /** Every change an agent applied in the session, newest run first. */
+    resolutions: (session_id: string): Promise<AgentResolutionGroup[]> =>
+      request(`/mapping-agent/resolutions?session_id=${encodeURIComponent(session_id)}`),
+
+    /** Put one field back the way it was before an agent changed it. */
+    revertChange: (change_id: number): Promise<unknown> =>
+      request(`/mapping-agent/changes/${change_id}/revert`, { method: 'POST' }),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),

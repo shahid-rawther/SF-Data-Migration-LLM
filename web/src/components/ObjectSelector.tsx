@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { MigratableObject } from '../api/client';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { Input } from './ui/input';
 
 interface ObjectSelectorProps {
   objects: MigratableObject[];
@@ -9,8 +11,12 @@ interface ObjectSelectorProps {
 
 export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorProps) {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, settling] = useDebouncedValue(search);
 
-  const categories = [...new Set(objects.map((o) => o.category))].sort();
+  const categories = useMemo(
+    () => [...new Set(objects.map((o) => o.category))].sort(),
+    [objects],
+  );
 
   const toggle = (name: string) => {
     if (selected.includes(name)) {
@@ -31,20 +37,29 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
     }
   };
 
-  const filtered = (cat: string) =>
-    objects
-      .filter((o) => o.category === cat)
-      .filter((o) => o.name.toLowerCase().includes(search.toLowerCase()));
+  // Grouped once per search rather than re-filtered for each category on every
+  // render, so a keystroke costs a single pass over the objects.
+  const byCategory = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase();
+    const groups = new Map<string, MigratableObject[]>();
+    for (const object of objects) {
+      if (term && !object.name.toLowerCase().includes(term)) continue;
+      const group = groups.get(object.category);
+      if (group) group.push(object);
+      else groups.set(object.category, [object]);
+    }
+    return groups;
+  }, [objects, debouncedSearch]);
 
   return (
     <div>
       <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
-        <input
-          type="text"
+        <Input
+          type="search"
           placeholder="Search objects…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db' }}
+          className="flex-1"
         />
         <button
           type="button"
@@ -59,20 +74,23 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
       </div>
 
       {categories.map((cat) => {
-        const items = filtered(cat);
-        if (!items.length) return null;
+        const items = byCategory.get(cat);
+        if (!items?.length) return null;
         const inCat = objects.filter((o) => o.category === cat).map((o) => o.name);
         const allSel = inCat.every((n) => selected.includes(n));
         const someSel = inCat.some((n) => selected.includes(n));
         return (
-          <div key={cat} style={{ marginBottom: 20 }}>
+          <div
+            key={cat}
+            style={{ marginBottom: 20, opacity: settling ? 0.6 : 1, transition: 'opacity 0.12s ease' }}
+          >
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 padding: '6px 0',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid #e5e5e5',
                 marginBottom: 8,
               }}
             >
@@ -85,7 +103,7 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
                 onChange={() => toggleCategory(cat)}
               />
               <strong style={{ fontSize: 14 }}>{cat}</strong>
-              <span style={{ fontSize: 12, color: '#6b7280' }}>
+              <span style={{ fontSize: 12, color: '#737373' }}>
                 ({inCat.filter((n) => selected.includes(n)).length}/{inCat.length})
               </span>
             </div>
@@ -100,8 +118,8 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
                     padding: '4px 8px',
                     borderRadius: 6,
                     cursor: 'pointer',
-                    background: selected.includes(obj.name) ? '#eff6ff' : 'transparent',
-                    border: selected.includes(obj.name) ? '1px solid #bfdbfe' : '1px solid transparent',
+                    background: selected.includes(obj.name) ? '#f5f5f5' : 'transparent',
+                    border: selected.includes(obj.name) ? '1px solid #d4d4d4' : '1px solid transparent',
                   }}
                 >
                   <input
@@ -111,7 +129,7 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
                   />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{obj.name}</div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>{obj.salesforce_object}</div>
+                    <div style={{ fontSize: 11, color: '#737373' }}>{obj.salesforce_object}</div>
                   </div>
                 </label>
               ))}
@@ -121,7 +139,7 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
       })}
 
       {objects.length === 0 && (
-        <p style={{ color: '#6b7280', textAlign: 'center', padding: '32px 0' }}>
+        <p style={{ color: '#737373', textAlign: 'center', padding: '32px 0' }}>
           No objects available. Select a source first.
         </p>
       )}
@@ -132,7 +150,7 @@ export function ObjectSelector({ objects, selected, onChange }: ObjectSelectorPr
 const btnStyle: React.CSSProperties = {
   padding: '6px 12px',
   borderRadius: 6,
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   background: '#fff',
   cursor: 'pointer',
   fontSize: 13,

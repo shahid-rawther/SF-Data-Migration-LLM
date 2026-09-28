@@ -154,15 +154,15 @@ export function DestinationHierarchy({
           {collapsed ? '▸' : '▾'}
         </button>
         <div style={{ flex: 1 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#171717' }}>
             Salesforce dependency hierarchy
           </h3>
-          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6b7280' }}>
+          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#737373' }}>
             {graph ? summarise(graph) : 'Reading what the selected objects depend on.'}
           </p>
         </div>
         {loading && (
-          <span style={{ fontSize: 12, color: '#6b7280' }}>
+          <span style={{ fontSize: 12, color: '#737373' }}>
             {graph ? 'Reading schema…' : 'Describing objects — the first pass can take a minute…'}
           </span>
         )}
@@ -207,11 +207,11 @@ export function DestinationHierarchy({
               )}
 
               <div style={legend}>
-                <Legend swatch="#dbeafe" border="#3b82f6" label="you selected it" />
-                <Legend swatch="#f0fdf4" border="#86efac" label="a mapping fills it" />
-                <Legend swatch="#fffbeb" border="#fcd34d" label="nothing migrates into it" />
-                <span style={{ color: '#b45309', fontWeight: 600 }}>★ Salesforce requires it</span>
-                <span style={{ marginLeft: 'auto', color: '#9ca3af' }}>
+                <Legend swatch="#e5e5e5" border="#737373" label="you selected it" />
+                <Legend swatch="#fafafa" border="#d4d4d4" label="a mapping fills it" />
+                <Legend swatch="#fafafa" border="#d4d4d4" label="nothing migrates into it" />
+                <span style={{ color: '#404040', fontWeight: 600 }}>★ Salesforce requires it</span>
+                <span style={{ marginLeft: 'auto', color: '#a3a3a3' }}>
                   Click to trace an object's chain · hover for its fields
                 </span>
               </div>
@@ -221,13 +221,13 @@ export function DestinationHierarchy({
                   <div key={index}>
                     {index > 0 && (
                       <div style={connector}>
-                        <span style={{ fontSize: 12, color: '#c7cdd6' }}>▼</span>
+                        <span style={{ fontSize: 12, color: '#d4d4d4' }}>▼</span>
                       </div>
                     )}
                     <div style={{ display: 'flex', alignItems: 'stretch', gap: 12 }}>
                       <div style={levelLabel}>
-                        <div style={{ fontWeight: 700, color: '#374151' }}>{index + 1}</div>
-                        <div style={{ fontSize: 10.5, color: '#9ca3af', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 700, color: '#404040' }}>{index + 1}</div>
+                        <div style={{ fontSize: 10.5, color: '#a3a3a3', whiteSpace: 'nowrap' }}>
                           {index === 0
                             ? 'load first'
                             : index === rows.length - 1
@@ -319,7 +319,7 @@ export function DestinationHierarchy({
           )}
 
           {graph && graph.nodes.length === 0 && !loading && (
-            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#737373', margin: 0 }}>
               Nothing to draw — the selected objects could not be described. Check the Salesforce
               connection and object permissions.
             </p>
@@ -354,10 +354,10 @@ function ObjectCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const tone = node.selected
-    ? { bg: '#dbeafe', border: '#3b82f6' }
+    ? { bg: '#e5e5e5', border: '#737373' }
     : node.has_mapping
-      ? { bg: '#f0fdf4', border: '#86efac' }
-      : { bg: '#fffbeb', border: '#fcd34d' };
+      ? { bg: '#fafafa', border: '#d4d4d4' }
+      : { bg: '#fafafa', border: '#d4d4d4' };
 
   // A div rather than a button: the card carries its own Describe button, and
   // nesting one button inside another is invalid. The keyboard behaviour a
@@ -394,35 +394,35 @@ function ObjectCard({
         position: 'relative',
         textAlign: 'left',
         background: tone.bg,
-        border: `${focused ? 2 : 1}px solid ${focused ? '#1d4ed8' : tone.border}`,
+        border: `${focused ? 2 : 1}px solid ${focused ? '#171717' : tone.border}`,
         borderRadius: 8,
         padding: '7px 10px',
         minWidth: 150,
         maxWidth: 260,
         cursor: 'pointer',
         opacity: dimmed ? 0.35 : 1,
-        boxShadow: focused ? '0 0 0 3px rgba(29,78,216,0.12)' : 'none',
+        boxShadow: focused ? '0 0 0 3px rgba(10,10,10,0.10)' : 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {node.required_chain && (
-          <span title="Salesforce will not let the load skip this" style={{ color: '#b45309' }}>
+          <span title="Salesforce will not let the load skip this" style={{ color: '#404040' }}>
             ★
           </span>
         )}
-        <span style={{ fontFamily: 'monospace', fontSize: 12.5, fontWeight: 700, color: '#111827' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: 12.5, fontWeight: 700, color: '#171717' }}>
           {node.object}
         </span>
-        {node.selected && <span style={tag('#1e40af', '#bfdbfe')}>selected</span>}
+        {node.selected && <span style={tag('#262626', '#d4d4d4')}>selected</span>}
         {node.needed && !node.required_chain && !node.selected && (
-          <span title="A mapping fills the lookup pointing at it" style={tag('#065f46', '#d1fae5')}>
+          <span title="A mapping fills the lookup pointing at it" style={tag('#171717', '#f5f5f5')}>
             needed
           </span>
         )}
-        {relation && <span style={tag('#3730a3', '#e0e7ff')}>{relation}</span>}
+        {relation && <span style={tag('#262626', '#e5e5e5')}>{relation}</span>}
       </div>
 
-      <div style={{ fontSize: 11, color: '#4b5563', marginTop: 3 }}>
+      <div style={{ fontSize: 11, color: '#525252', marginTop: 3 }}>
         {node.has_mapping
           ? node.source_tables.length
             ? `from ${node.source_tables.slice(0, 2).join(', ')}`
@@ -431,7 +431,7 @@ function ObjectCard({
       </div>
 
       {(node.needed_by_count > 0 || node.self_reference_fields.length > 0) && (
-        <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 3 }}>
+        <div style={{ fontSize: 10.5, color: '#737373', marginTop: 3 }}>
           {node.needed_by_count > 0 &&
             `${node.needed_by_count} lookup${node.needed_by_count === 1 ? '' : 's'} point here`}
           {node.needed_by_count > 0 && node.self_reference_fields.length > 0 && ' · '}
@@ -490,10 +490,10 @@ function OrderPanel({
     <div style={orderBox}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <div style={{ flex: 1 }}>
-          <strong style={{ fontSize: 13.5, color: '#111827' }}>
+          <strong style={{ fontSize: 13.5, color: '#171717' }}>
             Migration order{neededOnly ? ' — what is needed' : ''}
           </strong>
-          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#737373' }}>
             Parents first, derived from the lookups above. A suggestion — you decide what to migrate
             when. ★ marks the ones Salesforce will not accept a record without.
           </p>
@@ -506,7 +506,7 @@ function OrderPanel({
       {error && <div style={errorBox}>{error}</div>}
 
       {suggestion?.summary && (
-        <p style={{ fontSize: 12.5, color: '#374151', margin: '0 0 10px', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: '#404040', margin: '0 0 10px', lineHeight: 1.5 }}>
           {suggestion.summary}
         </p>
       )}
@@ -521,7 +521,7 @@ function OrderPanel({
         </div>
       )}
 
-      <ol style={{ margin: 0, paddingLeft: 22, fontSize: 12.5, color: '#374151' }}>
+      <ol style={{ margin: 0, paddingLeft: 22, fontSize: 12.5, color: '#404040' }}>
         {steps.map((step) => {
           const required = graph.required_objects.includes(step.object);
           const mandatory =
@@ -529,12 +529,12 @@ function OrderPanel({
             graph.selected_objects.includes(step.object);
           return (
             <li key={step.object} style={{ marginBottom: 5 }}>
-              {required && <span style={{ color: '#b45309' }}>★ </span>}
-              <code style={{ fontWeight: 700, color: mandatory ? '#111827' : '#6b7280' }}>
+              {required && <span style={{ color: '#404040' }}>★ </span>}
+              <code style={{ fontWeight: 700, color: mandatory ? '#171717' : '#737373' }}>
                 {step.object}
               </code>
-              {step.reason && <span style={{ color: '#4b5563' }}> — {step.reason}</span>}
-              {step.conflict && <span style={{ color: '#b45309' }}> ({step.conflict})</span>}
+              {step.reason && <span style={{ color: '#525252' }}> — {step.reason}</span>}
+              {step.conflict && <span style={{ color: '#404040' }}> ({step.conflict})</span>}
             </li>
           );
         })}
@@ -552,10 +552,10 @@ function OrderPanel({
 
       {suggestion?.decisions && suggestion.decisions.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <strong style={{ fontSize: 13, color: '#111827' }}>Settle these before you start</strong>
+          <strong style={{ fontSize: 13, color: '#171717' }}>Settle these before you start</strong>
           {suggestion.decisions.map((decision, index) => (
             <div key={index} style={decisionRow(decision.severity)}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#171717' }}>
                 {decision.object && (
                   <code>
                     {decision.object}
@@ -564,7 +564,7 @@ function OrderPanel({
                 )}{' '}
                 {decision.issue}
               </div>
-              <div style={{ fontSize: 12, color: '#4b5563', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#525252', marginTop: 2 }}>
                 {decision.recommendation}
               </div>
             </div>
@@ -643,10 +643,10 @@ const tag = (color: string, background: string): React.CSSProperties => ({
 });
 
 const panel: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 10,
   padding: 16,
-  background: '#fafbfc',
+  background: '#fafafa',
   marginTop: 20,
 };
 
@@ -655,7 +655,7 @@ const caret: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   fontSize: 13,
-  color: '#6b7280',
+  color: '#737373',
   padding: 0,
   width: 14,
 };
@@ -665,7 +665,7 @@ const legend: React.CSSProperties = {
   alignItems: 'center',
   gap: 14,
   fontSize: 12,
-  color: '#6b7280',
+  color: '#737373',
   marginBottom: 12,
   flexWrap: 'wrap',
 };
@@ -690,33 +690,33 @@ const orderBox: React.CSSProperties = {
   marginTop: 16,
   padding: 14,
   background: '#fff',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
 };
 
 const warnBox: React.CSSProperties = {
   marginTop: 12,
   padding: '9px 12px',
-  background: '#fffbeb',
-  border: '1px solid #fde68a',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
-  color: '#92400e',
+  color: '#404040',
   fontSize: 13,
 };
 
 const errorBox: React.CSSProperties = {
   marginBottom: 12,
   padding: '9px 12px',
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
-  color: '#991b1b',
+  color: '#171717',
   fontSize: 12.5,
 };
 
 const note: React.CSSProperties = {
   fontSize: 11.5,
-  color: '#6b7280',
+  color: '#737373',
   margin: '10px 0 0',
 };
 
@@ -725,14 +725,14 @@ const decisionRow = (severity: string): React.CSSProperties => ({
   padding: '7px 10px',
   borderRadius: 6,
   borderLeft: `3px solid ${
-    severity === 'blocker' ? '#dc2626' : severity === 'warning' ? '#f59e0b' : '#9ca3af'
+    severity === 'blocker' ? '#0a0a0a' : severity === 'warning' ? '#737373' : '#a3a3a3'
   }`,
-  background: '#f9fafb',
+  background: '#fafafa',
 });
 
 const primaryBtn: React.CSSProperties = {
   padding: '6px 13px',
-  background: '#111827',
+  background: '#171717',
   color: '#fff',
   border: 'none',
   borderRadius: 7,
@@ -747,7 +747,7 @@ const describeBtn: React.CSSProperties = {
   top: 5,
   right: 5,
   padding: '2px 7px',
-  background: '#111827',
+  background: '#171717',
   color: '#fff',
   border: 'none',
   borderRadius: 5,
@@ -760,9 +760,9 @@ const describeBtn: React.CSSProperties = {
 
 const toggleBtn = (active: boolean): React.CSSProperties => ({
   padding: '6px 12px',
-  background: active ? '#111827' : '#fff',
-  color: active ? '#fff' : '#374151',
-  border: `1px solid ${active ? '#111827' : '#d1d5db'}`,
+  background: active ? '#171717' : '#fff',
+  color: active ? '#fff' : '#404040',
+  border: `1px solid ${active ? '#171717' : '#d4d4d4'}`,
   borderRadius: 7,
   fontSize: 12,
   fontWeight: 600,
@@ -772,9 +772,9 @@ const toggleBtn = (active: boolean): React.CSSProperties => ({
 const ghostBtn: React.CSSProperties = {
   padding: '5px 11px',
   background: '#fff',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   fontSize: 12,
-  color: '#374151',
+  color: '#404040',
   cursor: 'pointer',
 };

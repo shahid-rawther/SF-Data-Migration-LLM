@@ -148,6 +148,16 @@ def _row_to_dict(row: tuple) -> dict:
             entry[key] = None
     entry["applied"] = bool(entry["applied"])
     entry["reverted"] = entry["reverted_at"] is not None
+    # Notices store the recommended next step in new_value; surface it under the
+    # name the UI (and the resolution schema) already use.
+    if entry.get("kind") == "notice":
+        new_value = entry.get("new_value")
+        if isinstance(new_value, dict):
+            entry["suggested_action"] = str(new_value.get("suggested_action") or "")
+        elif isinstance(new_value, str):
+            entry["suggested_action"] = new_value
+        else:
+            entry["suggested_action"] = ""
     return entry
 
 
@@ -156,6 +166,7 @@ def list_changes(
     session_id: str | None = None,
     mapping_name: str | None = None,
     include_reverted: bool = True,
+    since: str | None = None,
 ) -> list[dict]:
     clauses: list[str] = []
     params: list[object] = []
@@ -170,12 +181,41 @@ def list_changes(
         params.append(mapping_name)
     if not include_reverted:
         clauses.append("reverted_at IS NULL")
+    if since:
+        # ISO timestamps sort lexicographically, so this is the attempt boundary.
+        clauses.append("applied_at >= ?")
+        params.append(since)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = db_client.fetch_all(
         f"SELECT {', '.join(_COLUMNS)} FROM agent_changes {where} ORDER BY id DESC",
         tuple(params),
     )
     return [_row_to_dict(row) for row in rows]
+
+
+def discard_notices(session_id: str, before: str) -> int:
+    """Delete notices for this session recorded before ``before``.
+
+    Used to clear findings from earlier attempts that were raised against
+    mappings the expert has since changed.
+    """
+    row = db_client.fetch_one(
+        """
+        SELECT COUNT(*) FROM agent_changes
+        WHERE session_id = ? AND kind = 'notice' AND applied_at < ?
+        """,
+        (session_id, before),
+    )
+    count = int(row[0]) if row else 0
+    if count:
+        db_client.execute(
+            """
+            DELETE FROM agent_changes
+            WHERE session_id = ? AND kind = 'notice' AND applied_at < ?
+            """,
+            (session_id, before),
+        )
+    return count
 
 
 def get_change(change_id: int) -> dict | None:

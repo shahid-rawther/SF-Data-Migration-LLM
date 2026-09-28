@@ -361,10 +361,10 @@ export function ColumnFillDrawer({
       <aside style={drawer} role="dialog" aria-label="Fill a column">
         <header style={head}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#171717' }}>
               Fill a column
             </div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#737373', marginTop: 2 }}>
               Writes one column on records this session already migrated
             </div>
           </div>
@@ -516,7 +516,7 @@ export function ColumnFillDrawer({
                           {sourceValues.map((v) => (
                             <div key={v} style={mapRow}>
                               <code style={mapSource}>{v}</code>
-                              <span style={{ color: '#9ca3af', fontSize: 12 }}>→</span>
+                              <span style={{ color: '#a3a3a3', fontSize: 12 }}>→</span>
                               {picklistOptions.length > 0 ? (
                                 <select
                                   value={valueMap[v] ?? ''}
@@ -723,7 +723,7 @@ function RuleEditor({
     <div style={ruleBox}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={rulePill}>{position}</span>
-        <span style={{ fontSize: 11.5, color: '#6b7280' }}>
+        <span style={{ fontSize: 11.5, color: '#737373' }}>
           {position === 1 ? 'When' : 'Otherwise when'}
         </span>
         {conditions.length > 1 && (
@@ -822,7 +822,7 @@ function RuleEditor({
       </button>
 
       <div style={thenRow}>
-        <span style={{ fontSize: 11.5, color: '#6b7280', flex: '0 0 auto' }}>then set</span>
+        <span style={{ fontSize: 11.5, color: '#737373', flex: '0 0 auto' }}>then set</span>
         {showTransform ? (
           <>
             <select
@@ -886,7 +886,7 @@ function RuleEditor({
       </div>
 
       {last && (
-        <div style={{ fontSize: 10.5, color: '#9ca3af', marginTop: 4 }}>
+        <div style={{ fontSize: 10.5, color: '#a3a3a3', marginTop: 4 }}>
           Rules are tried top to bottom and the first match wins.
         </div>
       )}
@@ -935,7 +935,7 @@ function PreviewReport({ report }: { report: ColumnFillPreview }) {
         <div style={{ marginTop: 6 }}>
           {report.rule_hits.map((hit) => (
             <div key={hit.index} style={hitRow}>
-              <span style={{ color: hit.index === -1 ? '#9ca3af' : '#374151' }}>
+              <span style={{ color: hit.index === -1 ? '#a3a3a3' : '#404040' }}>
                 {hit.index === -1 ? 'nothing matched' : `${hit.index + 1}. ${hit.label}`}
               </span>
               <span style={{ fontWeight: 700 }}>{hit.rows.toLocaleString()}</span>
@@ -953,7 +953,7 @@ function PreviewReport({ report }: { report: ColumnFillPreview }) {
           <div style={{ marginTop: 5 }}>
             {report.value_hits.map((hit) => (
               <div key={`${hit.source}->${hit.destination}`} style={hitRow}>
-                <span style={{ color: hit.mapped ? '#374151' : '#9ca3af' }}>
+                <span style={{ color: hit.mapped ? '#404040' : '#a3a3a3' }}>
                   <code>{hit.source || '(blank)'}</code>
                   {hit.mapped ? ` → ${hit.destination}` : ' — left alone'}
                 </span>
@@ -970,7 +970,7 @@ function PreviewReport({ report }: { report: ColumnFillPreview }) {
           <div style={{ marginTop: 5 }}>
             {report.samples.map((s) => (
               <div key={s.record} style={{ ...hitRow, fontSize: 11 }}>
-                <span style={{ color: '#6b7280' }}>
+                <span style={{ color: '#737373' }}>
                   {Object.entries(s.source)
                     .map(([k, v]) => `${k}=${v || '∅'}`)
                     .join('  ') || s.record}
@@ -1000,13 +1000,13 @@ function Stat({
         style={{
           fontSize: strong ? 20 : 16,
           fontWeight: 700,
-          color: strong ? '#1d4ed8' : '#374151',
+          color: strong ? '#171717' : '#404040',
           lineHeight: 1.1,
         }}
       >
         {value.toLocaleString()}
       </div>
-      <div style={{ fontSize: 10.5, color: '#6b7280' }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: '#737373' }}>{label}</div>
     </div>
   );
 }
@@ -1025,7 +1025,7 @@ const drawer: React.CSSProperties = {
   bottom: 0,
   width: 'min(560px, 96vw)',
   background: '#fff',
-  borderLeft: '1px solid #e5e7eb',
+  borderLeft: '1px solid #e5e5e5',
   boxShadow: '-8px 0 28px rgba(17,24,39,0.14)',
   zIndex: 91,
   display: 'flex',
@@ -1037,7 +1037,7 @@ const head: React.CSSProperties = {
   alignItems: 'flex-start',
   gap: 10,
   padding: '14px 16px',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid #e5e5e5',
 };
 
 const closeBtn: React.CSSProperties = {
@@ -1045,7 +1045,7 @@ const closeBtn: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   fontSize: 15,
-  color: '#6b7280',
+  color: '#737373',
   padding: 4,
   lineHeight: 1,
 };
@@ -1058,14 +1058,14 @@ const body: React.CSSProperties = {
 
 const section: React.CSSProperties = {
   padding: '14px 0',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid #f5f5f5',
 };
 
 const sectionTitle: React.CSSProperties = {
   margin: '0 0 10px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#6b7280',
+  color: '#737373',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
 };
@@ -1074,14 +1074,14 @@ const label: React.CSSProperties = {
   display: 'block',
   fontSize: 11.5,
   fontWeight: 600,
-  color: '#374151',
+  color: '#404040',
   marginBottom: 4,
 };
 
 const input: React.CSSProperties = {
   width: '100%',
   padding: '7px 9px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   fontSize: 12.5,
   boxSizing: 'border-box',
@@ -1090,7 +1090,7 @@ const input: React.CSSProperties = {
 
 const miniSelect: React.CSSProperties = {
   padding: '6px 7px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   fontSize: 12,
   background: '#fff',
@@ -1101,7 +1101,7 @@ const radioRow: React.CSSProperties = {
   alignItems: 'flex-start',
   gap: 7,
   fontSize: 12.5,
-  color: '#374151',
+  color: '#404040',
   padding: '3px 0',
   cursor: 'pointer',
   lineHeight: 1.45,
@@ -1109,20 +1109,20 @@ const radioRow: React.CSSProperties = {
 
 const fieldNote: React.CSSProperties = {
   fontSize: 11.5,
-  color: '#6b7280',
+  color: '#737373',
   marginTop: 5,
 };
 
 const unmatchedBox: React.CSSProperties = {
   marginTop: 10,
   padding: '8px 10px',
-  background: '#f9fafb',
-  border: '1px solid #f3f4f6',
+  background: '#fafafa',
+  border: '1px solid #f5f5f5',
   borderRadius: 8,
 };
 
 const ruleBox: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   padding: '8px 10px',
   marginBottom: 7,
@@ -1132,8 +1132,8 @@ const ruleBox: React.CSSProperties = {
 const rulePill: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  color: '#3730a3',
-  background: '#e0e7ff',
+  color: '#262626',
+  background: '#e5e5e5',
   borderRadius: 999,
   padding: '1px 6px',
 };
@@ -1152,13 +1152,13 @@ const thenRow: React.CSSProperties = {
   gap: 5,
   marginTop: 7,
   paddingTop: 7,
-  borderTop: '1px dashed #e5e7eb',
+  borderTop: '1px dashed #e5e5e5',
   flexWrap: 'wrap',
 };
 
 const addConditionBtn: React.CSSProperties = {
   fontSize: 11,
-  color: '#4b5563',
+  color: '#525252',
   background: 'none',
   border: 'none',
   cursor: 'pointer',
@@ -1169,7 +1169,7 @@ const removeBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  color: '#9ca3af',
+  color: '#a3a3a3',
   fontSize: 12,
   padding: '2px 4px',
   lineHeight: 1,
@@ -1178,11 +1178,11 @@ const removeBtn: React.CSSProperties = {
 const previewBox: React.CSSProperties = {
   marginTop: 10,
   padding: '10px 12px',
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
   fontSize: 12,
-  color: '#374151',
+  color: '#404040',
 };
 
 const hitRow: React.CSSProperties = {
@@ -1191,15 +1191,15 @@ const hitRow: React.CSSProperties = {
   gap: 10,
   fontSize: 11.5,
   padding: '2px 0',
-  borderBottom: '1px solid #f1f5f9',
+  borderBottom: '1px solid #f5f5f5',
 };
 
 const rejectBox: React.CSSProperties = {
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 7,
   padding: '8px 10px',
-  color: '#991b1b',
+  color: '#171717',
   fontSize: 11.5,
   marginBottom: 8,
 };
@@ -1207,16 +1207,16 @@ const rejectBox: React.CSSProperties = {
 const warnLine: React.CSSProperties = {
   margin: '4px 0 0',
   fontSize: 11.5,
-  color: '#92400e',
+  color: '#404040',
   lineHeight: 1.5,
 };
 
 const aiNote: React.CSSProperties = {
   margin: '7px 0 0',
   fontSize: 11.5,
-  color: '#5b21b6',
-  background: '#faf5ff',
-  border: '1px solid #e9d5ff',
+  color: '#171717',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 7,
   padding: '7px 9px',
   lineHeight: 1.5,
@@ -1224,13 +1224,13 @@ const aiNote: React.CSSProperties = {
 
 const summaryToggle: React.CSSProperties = {
   fontSize: 11.5,
-  color: '#6b7280',
+  color: '#737373',
   cursor: 'pointer',
 };
 
 const muted: React.CSSProperties = {
   fontSize: 12.5,
-  color: '#6b7280',
+  color: '#737373',
   margin: '16px 0',
   lineHeight: 1.6,
 };
@@ -1238,9 +1238,9 @@ const muted: React.CSSProperties = {
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
   fontSize: 12.5,
   fontWeight: 600,
-  color: disabled ? '#9ca3af' : '#fff',
-  background: disabled ? '#f3f4f6' : '#1d4ed8',
-  border: `1px solid ${disabled ? '#e5e7eb' : '#1d4ed8'}`,
+  color: disabled ? '#a3a3a3' : '#fff',
+  background: disabled ? '#f5f5f5' : '#171717',
+  border: `1px solid ${disabled ? '#e5e5e5' : '#171717'}`,
   borderRadius: 7,
   padding: '7px 14px',
   cursor: disabled ? 'not-allowed' : 'pointer',
@@ -1248,9 +1248,9 @@ const primaryBtn = (disabled: boolean): React.CSSProperties => ({
 
 const quietBtn: React.CSSProperties = {
   fontSize: 12,
-  color: '#374151',
+  color: '#404040',
   background: '#fff',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   padding: '6px 11px',
   cursor: 'pointer',
@@ -1258,9 +1258,9 @@ const quietBtn: React.CSSProperties = {
 
 const errorBox: React.CSSProperties = {
   fontSize: 12,
-  color: '#991b1b',
-  background: '#fee2e2',
-  border: '1px solid #fecaca',
+  color: '#171717',
+  background: '#f5f5f5',
+  border: '1px solid #e5e5e5',
   borderRadius: 7,
   padding: '8px 10px',
   marginTop: 12,
@@ -1268,9 +1268,9 @@ const errorBox: React.CSSProperties = {
 
 const doneBox: React.CSSProperties = {
   fontSize: 12,
-  color: '#065f46',
-  background: '#ecfdf5',
-  border: '1px solid #a7f3d0',
+  color: '#171717',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 7,
   padding: '8px 10px',
   marginTop: 12,
@@ -1286,7 +1286,7 @@ const mapRow: React.CSSProperties = {
 const mapSource: React.CSSProperties = {
   flex: '0 0 40%',
   fontSize: 11.5,
-  color: '#111827',
+  color: '#171717',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

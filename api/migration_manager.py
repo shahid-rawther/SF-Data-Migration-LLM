@@ -545,6 +545,21 @@ class MigrationManager:
                 if counts["failed"] == 0:
                     break
 
+            if counts.get("failed", 0) > 0 and options.get("agent_diagnosis", True):
+                self._diagnose_remaining(
+                    session_id=session_id,
+                    mapping_name=mapping_name,
+                    all_objects=all_objects,
+                    source_type=source_type,
+                    source_credentials=source_credentials,
+                    destination_credentials=destination_credentials,
+                    error_messages=errors_by_object.get(result_key, []),
+                    counts=counts,
+                    by_object=by_object,
+                    errors_by_object=errors_by_object,
+                    settings=settings,
+                )
+
         return {
             **load_result,
             "records_processed": sum(c.get("processed", 0) for c in by_object.values()),
@@ -553,6 +568,91 @@ class MigrationManager:
             "errors_by_object": errors_by_object,
             "repair_attempts": attempts_log,
         }
+
+    def _diagnose_remaining(
+        self,
+        *,
+        session_id: str,
+        mapping_name: str,
+        all_objects: list[str],
+        source_type: str,
+        source_credentials: dict,
+        destination_credentials: dict,
+        error_messages: list[str],
+        counts: dict,
+        by_object: dict,
+        errors_by_object: dict,
+        settings,
+    ) -> None:
+        """Explain rows the repairs could not fix, for the person to act on.
+
+        Never blocks or fails the run: a diagnosis is advice, and the assistant
+        can still be asked about the failure if this does not produce one.
+        """
+        self._emit(
+            session_id,
+            ProgressEvent(
+                session_id=session_id,
+                phase="repair",
+                object_name=mapping_name,
+                batch_current=0,
+                batch_total=0,
+                records_fetched=0,
+                records_processed=counts.get("processed", 0),
+                records_failed=counts.get("failed", 0),
+                overall_percent=0.0,
+                status="running",
+                message=(
+                    f"Automatic repair could not fix {counts.get('failed', 0):,} "
+                    f"{mapping_name} row(s); asking the agent to diagnose why"
+                ),
+                records_by_object=by_object,
+                load_errors=errors_by_object,
+            ),
+        )
+        try:
+            from agents import diagnosis_agent, repair_agent
+            from agents.context import MigrationContext
+
+            context = MigrationContext.load(
+                source_type=source_type,
+                mapping_names=[mapping_name]
+                + [name for name in all_objects if name != mapping_name],
+                source_credentials=source_credentials,
+                destination_credentials=destination_credentials,
+            )
+            digest = repair_agent.build_digest(context, mapping_name, error_messages)
+            if digest.is_empty:
+                return
+            diagnosis = diagnosis_agent.diagnose(
+                context, mapping_name, digest, session_id=session_id, settings=settings
+            )
+        except Exception as exc:  # noqa: BLE001 — a failed diagnosis is not a failed migration
+            logger.warning("Diagnosis failed for %s (non-blocking): %s", mapping_name, exc)
+            return
+
+        self._emit(
+            session_id,
+            ProgressEvent(
+                session_id=session_id,
+                phase="repair",
+                object_name=mapping_name,
+                batch_current=0,
+                batch_total=0,
+                records_fetched=0,
+                records_processed=counts.get("processed", 0),
+                records_failed=counts.get("failed", 0),
+                overall_percent=0.0,
+                status="running",
+                message=(
+                    f"Diagnosis ready for {mapping_name}: "
+                    f"{len(diagnosis.suggestions)} suggested fix(es). See the "
+                    "assistant panel to review or apply them."
+                ),
+                records_by_object=by_object,
+                load_errors=errors_by_object,
+            ),
+        )
 
     def _count_extracted_records(self, object_names: list[str], source_type: str) -> int:
         """Count records in already-extracted CSV files for a retry run."""

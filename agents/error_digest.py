@@ -155,6 +155,12 @@ def from_messages(
     return digest
 
 
+def latest_job_dir(root: Path) -> Path | None:
+    """The highest-numbered job folder under a results root, if any."""
+    numbered = [child for child in root.iterdir() if child.is_dir() and child.name.isdigit()]
+    return max(numbered, key=lambda child: int(child.name)) if numbered else None
+
+
 def from_results(
     mapping: str,
     destination_object: str,
@@ -172,10 +178,16 @@ def from_results(
         return digest
 
     root = PATH_TO_RESULTS / folder
-    if job_table_id is not None and (root / str(job_table_id)).exists():
-        root = root / str(job_table_id)
     if not root.exists():
         return digest
+    if job_table_id is not None and (root / str(job_table_id)).exists():
+        root = root / str(job_table_id)
+    else:
+        # Every load attempt keeps its own numbered folder. Only the newest says
+        # what is failing now: earlier ones hold rows that have since loaded.
+        latest = latest_job_dir(root)
+        if latest is not None:
+            root = latest
 
     sample_limit = _sample_limit()
     merged: dict[tuple[str, str], ErrorEntry] = {}

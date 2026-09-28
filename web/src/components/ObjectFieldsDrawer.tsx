@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import type { DestinationFieldInfo } from '../api/client';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 interface ObjectFieldsDrawerProps {
   /** The Salesforce object to describe. Null closes the drawer. */
@@ -35,6 +36,7 @@ export function ObjectFieldsDrawer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [debouncedQuery, settling] = useDebouncedValue(query);
   const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export function ObjectFieldsDrawer({
   }, [objectName, onClose]);
 
   const shown = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = debouncedQuery.trim().toLowerCase();
     return fields.filter((f) => {
       if (filter === 'required' && !f.required) return false;
       if (filter === 'lookups' && !f.reference_to.length) return false;
@@ -85,7 +87,7 @@ export function ObjectFieldsDrawer({
         f.type.toLowerCase().includes(needle)
       );
     });
-  }, [fields, query, filter]);
+  }, [fields, debouncedQuery, filter]);
 
   const counts = useMemo(
     () => ({
@@ -105,10 +107,10 @@ export function ObjectFieldsDrawer({
       <aside style={drawer} role="dialog" aria-label={`${objectName} fields`}>
         <header style={head}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: '#111827' }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: '#171717' }}>
               {objectName}
             </div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#737373', marginTop: 2 }}>
               {loading
                 ? 'Describing the object…'
                 : `${counts.all} field${counts.all === 1 ? '' : 's'} · ${counts.required} required · ${counts.lookups} lookup${counts.lookups === 1 ? '' : 's'}`}
@@ -146,7 +148,7 @@ export function ObjectFieldsDrawer({
           </div>
         )}
 
-        <div style={body}>
+        <div style={{ ...body, opacity: settling ? 0.6 : 1, transition: 'opacity 0.12s ease' }}>
           {loading && <p style={muted}>Reading the schema from Salesforce…</p>}
 
           {!loading && !error && !fields.length && (
@@ -156,7 +158,7 @@ export function ObjectFieldsDrawer({
           )}
 
           {!loading && fields.length > 0 && !shown.length && (
-            <p style={muted}>Nothing matches “{query}”.</p>
+            <p style={muted}>Nothing matches “{debouncedQuery}”.</p>
           )}
 
           {shown.map((field) => (
@@ -176,31 +178,31 @@ function FieldRow({ field }: { field: DestinationFieldInfo }) {
   return (
     <div style={{ ...row, opacity: settable ? 1 : 0.55 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#111827' }}>{field.name}</code>
+        <code style={{ fontSize: 12.5, fontWeight: 700, color: '#171717' }}>{field.name}</code>
         <span style={typeBadge}>
           {field.type}
           {field.length > 0 && (field.type === 'string' || field.type === 'textarea')
             ? `(${field.length})`
             : ''}
         </span>
-        {field.required && <span style={pill('#b45309', '#fef3c7')}>required</span>}
-        {field.id_lookup && <span style={pill('#3730a3', '#e0e7ff')}>upsert key</span>}
-        {!settable && <span style={pill('#6b7280', '#f3f4f6')}>read-only</span>}
+        {field.required && <span style={pill('#404040', '#f5f5f5')}>required</span>}
+        {field.id_lookup && <span style={pill('#262626', '#e5e5e5')}>upsert key</span>}
+        {!settable && <span style={pill('#737373', '#f5f5f5')}>read-only</span>}
       </div>
 
       {field.label && field.label !== field.name && (
-        <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 2 }}>{field.label}</div>
+        <div style={{ fontSize: 11.5, color: '#737373', marginTop: 2 }}>{field.label}</div>
       )}
 
       {field.reference_to.length > 0 && (
-        <div style={{ fontSize: 11.5, color: '#4b5563', marginTop: 3 }}>
+        <div style={{ fontSize: 11.5, color: '#525252', marginTop: 3 }}>
           → points at <strong>{field.reference_to.slice(0, 4).join(', ')}</strong>
           {field.reference_to.length > 4 && ` and ${field.reference_to.length - 4} more`}
         </div>
       )}
 
       {field.picklist_values.length > 0 && (
-        <div style={{ fontSize: 11.5, color: '#4b5563', marginTop: 3 }}>
+        <div style={{ fontSize: 11.5, color: '#525252', marginTop: 3 }}>
           {field.picklist_values.slice(0, 6).join(' · ')}
           {field.picklist_values.length > 6 && ` … +${field.picklist_values.length - 6}`}
         </div>
@@ -223,7 +225,7 @@ const drawer: React.CSSProperties = {
   bottom: 0,
   width: 'min(460px, 92vw)',
   background: '#fff',
-  borderLeft: '1px solid #e5e7eb',
+  borderLeft: '1px solid #e5e5e5',
   boxShadow: '-8px 0 28px rgba(17,24,39,0.14)',
   zIndex: 91,
   display: 'flex',
@@ -235,7 +237,7 @@ const head: React.CSSProperties = {
   alignItems: 'flex-start',
   gap: 10,
   padding: '14px 16px',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: '1px solid #e5e5e5',
 };
 
 const closeBtn: React.CSSProperties = {
@@ -243,14 +245,14 @@ const closeBtn: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   fontSize: 15,
-  color: '#6b7280',
+  color: '#737373',
   padding: 4,
   lineHeight: 1,
 };
 
 const controls: React.CSSProperties = {
   padding: '10px 16px',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid #f5f5f5',
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
@@ -259,7 +261,7 @@ const controls: React.CSSProperties = {
 const search: React.CSSProperties = {
   width: '100%',
   padding: '7px 10px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 7,
   fontSize: 12.5,
   boxSizing: 'border-box',
@@ -267,9 +269,9 @@ const search: React.CSSProperties = {
 
 const chip = (active: boolean, disabled: boolean): React.CSSProperties => ({
   padding: '3px 9px',
-  background: active ? '#111827' : '#fff',
-  color: active ? '#fff' : disabled ? '#9ca3af' : '#374151',
-  border: `1px solid ${active ? '#111827' : '#e5e7eb'}`,
+  background: active ? '#171717' : '#fff',
+  color: active ? '#fff' : disabled ? '#a3a3a3' : '#404040',
+  border: `1px solid ${active ? '#171717' : '#e5e5e5'}`,
   borderRadius: 20,
   fontSize: 11.5,
   fontWeight: 600,
@@ -284,15 +286,15 @@ const body: React.CSSProperties = {
 
 const row: React.CSSProperties = {
   padding: '9px 0',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid #f5f5f5',
 };
 
 const typeBadge: React.CSSProperties = {
   fontFamily: 'monospace',
   fontSize: 11,
-  color: '#0369a1',
-  background: '#f0f9ff',
-  border: '1px solid #bae6fd',
+  color: '#404040',
+  background: '#fafafa',
+  border: '1px solid #d4d4d4',
   padding: '0 5px',
   borderRadius: 4,
 };
@@ -310,16 +312,16 @@ const pill = (color: string, background: string): React.CSSProperties => ({
 
 const muted: React.CSSProperties = {
   fontSize: 12.5,
-  color: '#6b7280',
+  color: '#737373',
   margin: '14px 0',
 };
 
 const errorBox: React.CSSProperties = {
   margin: '12px 16px',
   padding: '9px 12px',
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
+  background: '#fafafa',
+  border: '1px solid #e5e5e5',
   borderRadius: 8,
-  color: '#991b1b',
+  color: '#171717',
   fontSize: 12.5,
 };

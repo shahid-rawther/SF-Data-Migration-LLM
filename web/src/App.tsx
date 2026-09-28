@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { ArrowRightLeft, History as HistoryIcon, LayoutDashboard, Plus, Zap } from 'lucide-react';
 import { Dashboard } from './pages/Dashboard';
 import { NewMigrationWizard } from './pages/NewMigrationWizard';
 import { MigrationDetail } from './pages/MigrationDetail';
@@ -7,11 +8,11 @@ import { MappingsList, MappingEditor } from './pages/MappingEditor';
 
 /* ── Navigation items ──────────────────────────────────────────────────────── */
 
-const NAV_ITEMS: { to: string; label: string; icon: string; matchPrefix?: string }[] = [
-  { to: '/',         label: 'Dashboard',     icon: '📊' },
-  { to: '/new',      label: 'New Migration', icon: '🚀' },
-  { to: '/mappings', label: 'Mappings',      icon: '🔗', matchPrefix: '/mappings' },
-  { to: '/history',  label: 'History',        icon: '📜' },
+const NAV_ITEMS = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/new', label: 'New Migration', icon: Plus },
+  { to: '/mappings', label: 'Mappings', icon: ArrowRightLeft, matchPrefix: '/mappings' },
+  { to: '/history', label: 'History', icon: HistoryIcon },
 ];
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
@@ -25,104 +26,51 @@ function Sidebar() {
   };
 
   return (
-    <aside style={sidebarStyle}>
-      {/* Brand */}
-      <Link to="/" style={brandStyle}>
-        <span style={{ fontSize: 20 }}>⚡</span>
-        <span>ITSM Migration</span>
+    <aside className="fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground max-[800px]:w-[76px]">
+      <Link to="/" className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5 font-semibold tracking-tight max-[800px]:justify-center max-[800px]:px-0">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+          <Zap className="size-4" />
+        </span>
+        <span className="max-[800px]:hidden">ITSM Migration</span>
       </Link>
 
-      {/* Divider */}
-      <div style={{ height: 1, background: '#334155', margin: '4px 12px 12px' }} />
-
-      {/* Links */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+      <nav className="flex flex-1 flex-col gap-1 p-3">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item);
+          const Icon = item.icon;
           return (
-            <Link key={item.to} to={item.to} style={navItemStyle(active)}>
-              <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
-              <span>{item.label}</span>
+            <Link
+              key={item.to}
+              to={item.to}
+              title={item.label}
+              className={`flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors max-[800px]:justify-center max-[800px]:px-0 ${
+                active
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              }`}
+            >
+              <Icon className="size-4 shrink-0" />
+              <span className="max-[800px]:hidden">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div style={sidebarFooter}>
-        <div style={{ fontSize: 11, color: '#64748b' }}>ServiceNow → Salesforce</div>
+      <div className="border-t border-sidebar-border p-4 text-xs text-muted-foreground max-[800px]:hidden">
+        ServiceNow → Salesforce
       </div>
     </aside>
   );
 }
-
-/* ── Styles ────────────────────────────────────────────────────────────────── */
-
-const SIDEBAR_WIDTH = 220;
-
-const sidebarStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  bottom: 0,
-  width: SIDEBAR_WIDTH,
-  background: '#1e293b',
-  display: 'flex',
-  flexDirection: 'column',
-  zIndex: 50,
-  overflowY: 'auto',
-  boxShadow: '2px 0 8px rgba(0,0,0,0.12)',
-};
-
-const brandStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: '20px 16px 12px',
-  color: '#fff',
-  textDecoration: 'none',
-  fontWeight: 700,
-  fontSize: 15,
-  letterSpacing: '-0.01em',
-};
-
-const navItemStyle = (active: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: '10px 16px',
-  margin: '0 8px',
-  borderRadius: 8,
-  color: active ? '#fff' : '#94a3b8',
-  background: active ? '#334155' : 'transparent',
-  textDecoration: 'none',
-  fontSize: 13.5,
-  fontWeight: active ? 600 : 400,
-  transition: 'background 0.15s, color 0.15s',
-});
-
-const sidebarFooter: React.CSSProperties = {
-  padding: '12px 16px',
-  borderTop: '1px solid #334155',
-  marginTop: 'auto',
-};
-
-const mainContent: React.CSSProperties = {
-  marginLeft: SIDEBAR_WIDTH,
-  minHeight: '100vh',
-  background: '#f8fafc',
-  flex: 1,
-  width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
-};
 
 /* ── App ───────────────────────────────────────────────────────────────────── */
 
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <div className="app-shell">
         <Sidebar />
-        <div style={mainContent}>
+        <main className="app-main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/new" element={<NewMigrationWizard />} />
@@ -132,7 +80,7 @@ function App() {
             <Route path="/migrations/:id" element={<MigrationDetail />} />
             <Route path="/history" element={<History />} />
           </Routes>
-        </div>
+        </main>
       </div>
     </BrowserRouter>
   );

@@ -52,21 +52,21 @@ export function MappingsList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={h1}>Manage Mappings</h1>
-          <p style={{ color: '#6b7280', margin: 0 }}>
+          <p style={{ color: '#737373', margin: 0 }}>
             Define how source records map onto Salesforce objects
           </p>
         </div>
         <Link to="/mappings/new" style={primaryBtn}>+ New Mapping</Link>
       </div>
 
-      {loading && <p style={{ color: '#6b7280' }}>Loading…</p>}
-      {error && <p style={{ color: '#dc2626' }}>Error: {error}</p>}
+      {loading && <p style={{ color: '#737373' }}>Loading…</p>}
+      {error && <p style={{ color: '#0a0a0a' }}>Error: {error}</p>}
 
       {!loading && (
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: '#fff', border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
-              <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+              <tr style={{ background: '#fafafa', textAlign: 'left' }}>
                 <th style={lth}>Name</th>
                 <th style={lth}>Source</th>
                 <th style={lth}>Priority</th>
@@ -76,7 +76,7 @@ export function MappingsList() {
             </thead>
             <tbody>
               {mappings.map((m) => (
-                <tr key={m.name} style={{ borderTop: '1px solid #f1f5f9' }}>
+                <tr key={m.name} style={{ borderTop: '1px solid #f5f5f5' }}>
                   <td style={ltd}><strong>{m.name}</strong></td>
                   <td style={ltd}>{m.source_type}</td>
                   <td style={ltd}>{m.priority}</td>
@@ -443,7 +443,7 @@ export function MappingEditor() {
       <div style={{ marginBottom: 16 }}>
         <Link
           to={qpSession ? `/migrations/${qpSession}` : '/mappings'}
-          style={{ color: '#2563eb', textDecoration: 'none', fontSize: 14 }}
+          style={{ color: '#171717', textDecoration: 'none', fontSize: 14 }}
         >
           &larr; {qpSession ? 'Back to the session' : 'Back to mappings'}
         </Link>
@@ -451,7 +451,7 @@ export function MappingEditor() {
       <h1 style={h1}>{isEdit ? `Edit mapping: ${editName}` : 'New mapping'}</h1>
 
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ background: '#fafafa', border: '1px solid #e5e5e5', color: '#0a0a0a', padding: 12, borderRadius: 8, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -497,14 +497,14 @@ export function MappingEditor() {
           </div>
           <p style={hint}>
             Connections supply credentials used for schema discovery and field matching. Manage them on the
-            {' '}<Link to="/new" style={{ color: '#2563eb' }}>migration wizard</Link>.
+            {' '}<Link to="/new" style={{ color: '#171717' }}>migration wizard</Link>.
           </p>
         </section>
       )}
 
       {hasWizardContext && (
         <section style={card}>
-          <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>
+          <p style={{ margin: 0, color: '#525252', fontSize: 13 }}>
             {qpSession ? (
               <>
                 Using the <strong>{qpSource}</strong> source and Salesforce connections this
@@ -658,13 +658,13 @@ export function MappingEditor() {
 
       {/* Validation results */}
       {validation && (
-        <section style={{ ...card, borderColor: validation.valid ? '#bbf7d0' : '#fecaca' }}>
+        <section style={{ ...card, borderColor: validation.valid ? '#e5e5e5' : '#e5e5e5' }}>
           <h3 style={h3}>Validation: {validation.valid ? 'Valid' : 'Issues found'}</h3>
           {validation.errors.map((e, i) => (
-            <div key={`e${i}`} style={{ color: '#dc2626', fontSize: 13 }}>&bull; {e}</div>
+            <div key={`e${i}`} style={{ color: '#0a0a0a', fontSize: 13 }}>&bull; {e}</div>
           ))}
           {validation.warnings.map((w, i) => (
-            <div key={`w${i}`} style={{ color: '#d97706', fontSize: 13 }}>&bull; {w}</div>
+            <div key={`w${i}`} style={{ color: '#525252', fontSize: 13 }}>&bull; {w}</div>
           ))}
         </section>
       )}
@@ -684,29 +684,29 @@ export function MappingEditor() {
 
 // ── Styles ───────────────────────────────────────────────────────────────────────
 
-const pageStyle: React.CSSProperties = { padding: '32px 32px' };
+const pageStyle: React.CSSProperties = { padding: '32px', width: '100%', maxWidth: 1600, margin: '0 auto' };
 const h1: React.CSSProperties = { margin: '0 0 16px', fontSize: 24, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 16, fontWeight: 600 };
 const card: React.CSSProperties = {
   background: '#fff',
-  border: '1px solid #e5e7eb',
+  border: '1px solid #e5e5e5',
   borderRadius: 10,
   padding: 20,
   marginBottom: 16,
   boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
 };
-const fieldLabel: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: '#374151' };
+const fieldLabel: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: '#404040' };
 const selectStyle: React.CSSProperties = {
   padding: '8px 10px',
-  border: '1px solid #d1d5db',
+  border: '1px solid #d4d4d4',
   borderRadius: 8,
   fontSize: 14,
   minWidth: 200,
 };
-const hint: React.CSSProperties = { color: '#6b7280', fontSize: 12, marginTop: 10, marginBottom: 0 };
+const hint: React.CSSProperties = { color: '#737373', fontSize: 12, marginTop: 10, marginBottom: 0 };
 const primaryBtn: React.CSSProperties = {
   padding: '10px 20px',
-  background: '#2563eb',
+  background: '#171717',
   color: '#fff',
   borderRadius: 8,
   border: 'none',
@@ -718,20 +718,20 @@ const primaryBtn: React.CSSProperties = {
 const primaryBtnSm: React.CSSProperties = { ...primaryBtn, padding: '8px 14px' };
 const secondaryBtn: React.CSSProperties = {
   padding: '8px 16px',
-  background: '#f1f5f9',
-  color: '#334155',
+  background: '#f5f5f5',
+  color: '#404040',
   borderRadius: 8,
-  border: '1px solid #cbd5e1',
+  border: '1px solid #d4d4d4',
   fontWeight: 600,
   fontSize: 14,
   cursor: 'pointer',
   height: 'fit-content',
 };
-const lth: React.CSSProperties = { padding: '12px 16px', fontWeight: 600, color: '#475569', fontSize: 13 };
+const lth: React.CSSProperties = { padding: '12px 16px', fontWeight: 600, color: '#525252', fontSize: 13 };
 const ltd: React.CSSProperties = { padding: '12px 16px' };
-const linkBtn: React.CSSProperties = { color: '#2563eb', textDecoration: 'none', fontWeight: 600, fontSize: 13, marginRight: 12 };
+const linkBtn: React.CSSProperties = { color: '#171717', textDecoration: 'none', fontWeight: 600, fontSize: 13, marginRight: 12 };
 const dangerLink: React.CSSProperties = {
-  color: '#dc2626',
+  color: '#0a0a0a',
   background: 'none',
   border: 'none',
   cursor: 'pointer',
@@ -739,16 +739,16 @@ const dangerLink: React.CSSProperties = {
   fontSize: 13,
 };
 const systemBadge: React.CSSProperties = {
-  background: '#f1f5f9',
-  color: '#475569',
+  background: '#f5f5f5',
+  color: '#525252',
   padding: '2px 8px',
   borderRadius: 12,
   fontSize: 12,
   fontWeight: 600,
 };
 const customBadge: React.CSSProperties = {
-  background: '#dbeafe',
-  color: '#1d4ed8',
+  background: '#e5e5e5',
+  color: '#171717',
   padding: '2px 8px',
   borderRadius: 12,
   fontSize: 12,
