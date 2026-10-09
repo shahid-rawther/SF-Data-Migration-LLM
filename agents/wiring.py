@@ -40,6 +40,7 @@ TRANSFORM_ALLOW_LIST = frozenset(GENERIC_TRANSFORMS)
 AGENT_RELATIONSHIP = "relationship"
 AGENT_REPAIR = "repair"
 AGENT_ASSISTANT = "assistant"
+AGENT_READINESS = "readiness"
 
 # Resolution kinds. Each maps to one applier below; anything else is rejected
 # by the validator before it gets here.
@@ -52,6 +53,10 @@ KIND_EXTERNAL_ID_UPSERT = "external_id_upsert"
 KIND_SELF_REFERENCE_GUARD = "self_reference_guard"
 KIND_REMOVE_FIELD = "remove_field"
 KIND_NOTICE = "notice"
+# A lookup filled by translating source values into ids of records that
+# already exist, for parents nothing migrates — a ServiceNow role onto a
+# Profile, say, which the API cannot create.
+KIND_RECORD_VALUE_MAP = "record_value_map"
 
 RESOLUTION_KINDS = frozenset(
     {
@@ -64,6 +69,7 @@ RESOLUTION_KINDS = frozenset(
         KIND_SELF_REFERENCE_GUARD,
         KIND_REMOVE_FIELD,
         KIND_NOTICE,
+        KIND_RECORD_VALUE_MAP,
     }
 )
 
@@ -377,6 +383,7 @@ _APPLIERS = {
     KIND_CONSTANT_REFERENCE: _apply_constant_reference,
     KIND_TYPE_COERCION: _apply_transform,
     KIND_VALUE_MAP: _apply_transform,
+    KIND_RECORD_VALUE_MAP: _apply_transform,
     KIND_EXTERNAL_ID_UPSERT: _apply_external_id_upsert,
     KIND_SELF_REFERENCE_GUARD: _apply_self_reference_guard,
     KIND_REMOVE_FIELD: _apply_remove_field,

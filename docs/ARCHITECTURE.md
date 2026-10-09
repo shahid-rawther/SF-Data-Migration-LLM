@@ -10,12 +10,13 @@
 
 ## 1. Design rules
 
-1. **Only the ETL touches record data.** Agents read schema metadata, mapping drafts, dependency graphs and load-error text. They never read record payloads in bulk, never call Salesforce write APIs, and never modify staged files.
+1. **Only the ETL moves record data.** Agents read schema metadata, mapping drafts, dependency graphs and load-error text. They never call Salesforce write APIs and never modify staged files. The one exception to "no record data" is post-load diagnosis: the diagnosis and assistant agents may read a capped, truncated sample of the rows Salesforce rejected and a profile of one staged source column, because an error like *"Resolution Date must be after Start Date"* cannot be explained from schema alone. `AGENT_DIGEST_SAMPLES=0` turns the row values off (section 5.8).
 2. **Humans own field-to-field mapping.** Deciding that a source field belongs in a particular Salesforce field stays a human decision, supported by a model-assisted pass that proposes pairs and never writes one.
 3. **Agents own relationship correctness and load-error repair.** Identifier remapping, id-map wiring, parent ordering, cycles, missing parents, and post-load failures. The agent wires the fix rather than reporting a to-do.
 4. **Every agent write is bounded, validated and reversible.** Resolutions are drawn from a fixed vocabulary, validated against a live Salesforce describe and a transform allow-list, journalled with the value they replaced, and revertible one item at a time.
-5. **The pipeline degrades to deterministic behaviour.** If Bedrock is unreachable the agent pass is skipped and the run proceeds. No model call sits on a data-integrity critical path — ordering, id resolution and the launch gate are all deterministic code.
-6. **Runs are resumable.** Session state is checkpointed to S3 at every phase boundary, so an interrupted migration continues from what was already written instead of restarting.
+5. **What repair cannot fix, a person approves.** Automatic repair stops at the failures it has a safe answer for. Anything left is diagnosed and offered as a *proposal*; nothing is written until someone clicks Apply, and Apply is deterministic — it never calls the model.
+6. **The pipeline degrades to deterministic behaviour.** If Bedrock is unreachable the agent pass is skipped and the run proceeds. No model call sits on a data-integrity critical path — ordering, id resolution and the launch gate are all deterministic code.
+7. **Runs are resumable.** Session state is checkpointed to S3 at every phase boundary, so an interrupted migration continues from what was already written instead of restarting.
 
 ---
 
@@ -75,13 +76,20 @@ flowchart TD
   I --> J[9. LOAD that group to Salesforce]
   J --> K[10. Record new Salesforce ids in id_mappings]
   K --> L{Failed records?}
-  L -->|yes, repairable| M[11. Repair agent patches the field transform]
-  M --> I
+  L -->|yes| M[11a. Deterministic auto-repair rules]
+  M --> M2[11b. Repair agent on the errors the rules did not handle]
+  M2 -->|patched, retry this object| I
+  M2 -->|still failing after the attempt cap| Q[11c. Diagnosis agent explains and ranks fixes]
+  Q --> N
   L -->|no| N{More groups?}
   N -->|yes| I
   N -->|no| O[12. Scan for deferred references]
   O --> P[13. Complete + checkpoint]
+  Q -.->|after the run| R[Assistant conversation and proposals]
+  R -.->|person clicks Apply, then Re-run| I
 ```
+
+Step 11 is now three layers, cheapest first. Deterministic rules fix the error classes that have exactly one correct answer without a model call. The repair agent takes whatever the rules did not recognise. Whatever is still failing after `AGENT_REPAIR_MAX_ATTEMPTS` is handed to the diagnosis agent, which writes nothing: it explains the cause and attaches validated fixes that a person can turn into a proposal. All three are gated by `AGENT_REPAIR_ENABLED` (or the per-run `agent_repair` option), and diagnosis can additionally be switched off per run with `agent_diagnosis: false`.
 
 ### Why staged rather than streaming
 
@@ -103,10 +111,12 @@ data/
   transformations/csv/{name}/{batch}/...                               # transform output
   transformations/csv/{name}/{batch}/deferred.csv                      # rows whose lookup resolved empty
   transformations/hash/{name}/...                                      # dedupe hashes
-  results/                                                             # per-batch success / failed CSVs
+  results/{name}/{job_table_id}/{batch}/{priority}_{operation}/        # success / failed / unprocessed CSVs, one folder per load attempt
   database/db/data.db                                                  # SQLite
-  database/sql/schema/001..009_*.sql                                   # DDL
+  database/sql/schema/001..011_*.sql                                   # DDL
 ```
+
+Every load attempt writes its results under its own `job_table_id` folder, so a repaired retry does not overwrite the attempt it is retrying. Anything that asks "what is failing now" — the error digest and the `sample_failed_rows` tool — reads only the newest folder, through `error_digest.latest_job_dir()`; earlier folders hold rows that have since loaded.
 
 `staging_service.verify()` raises `StagingIncomplete` if a driving table has no staged rows, so a partial extract cannot silently produce a partial load. `workspace_service.clean_working_state()` clears downloads and transform output for the selected mappings on a fresh run; `clean_transformed_state()` clears only transform output when extraction is being skipped on a resume.
 
@@ -120,7 +130,10 @@ flowchart TB
     Wizard[New Migration Wizard - 6 steps]
     Detail[Migration detail - live progress]
     Notices[AgentNoticesPanel]
+    Assist[AgentAssistantPanel]
+    Resol[ResolutionsPanel]
     Backfill[BackfillPanel]
+    Fill[ColumnFillPanel + ColumnFillDrawer]
     Objects[SessionObjectsPanel]
     Status[SessionStatusPanel]
     Hier[DestinationHierarchy + ObjectFieldsDrawer]
@@ -137,7 +150,12 @@ flowchart TB
     Ctx[context]
     Det[detector]
     Rel[relationship_agent]
+    AR[auto_repair]
     Rep[repair_agent]
+    Diag[diagnosis_agent]
+    Asst[assistant_agent]
+    AStore[assistant_store]
+    Tools[tools - dispatcher]
     Res[resolutions validator]
     Wire[wiring]
     Pre[preflight]
@@ -157,6 +175,7 @@ flowchart TB
     Xf[transformation_service]
     Ld[loading_controller]
     BF[backfill_service]
+    CF[column_fill_service]
     CP[checkpoint_service]
     SS[session_status_service]
   end
@@ -171,14 +190,21 @@ flowchart TB
   Wizard --> R3
   Detail --> R1
   Notices --> R3
+  Assist --> R3
+  Assist -->|Re-run| R1
+  Resol --> R3
   Backfill --> R1
+  Fill --> R1
   Objects --> R1
   Status --> R1
   Hier --> R2
 
   R1 --> MM
+  R1 --> CF
   R3 --> Rel
   R3 --> Rep
+  R3 --> Diag
+  R3 --> Asst
   R3 --> Pre
   R3 --> OA
   R2 --> FM
@@ -191,7 +217,19 @@ flowchart TB
   Wire --> Aud
   Rel --> Sum
   Rel --> BC
+  Rep --> AR
+  AR --> Wire
   Rep --> BC
+  Diag --> Tools
+  Diag --> Res
+  Diag --> AStore
+  Asst --> Tools
+  Asst --> Res
+  Asst --> AStore
+  Asst -->|on Apply| Wire
+  Diag --> BC
+  Asst --> BC
+  Tools --> Files
   Pre --> Det
   Ctx --> Compat
 
@@ -200,10 +238,15 @@ flowchart TB
   MM --> Stg
   MM --> Xf
   MM --> Ld
+  MM --> Rep
+  MM --> Diag
   MM --> BF
   MM --> CP
+  CF --> Xf
+  CF --> Ld
   Xf --> Files
   Ld --> DB
+  AStore --> DB
   CP --> S3
   SS --> DB
 ```
@@ -223,22 +266,33 @@ flowchart LR
   Config --> Gate[Preflight gate]
   Gate -->|blockers stop the launch| Human
   Gate --> ETL[Staged ETL]
-  ETL -->|load errors| RepairAgent[Repair agent]
+  ETL -->|load errors| AutoRepair[Auto-repair rules]
+  AutoRepair -->|unhandled errors| RepairAgent[Repair agent]
+  AutoRepair -->|patch transform, retry one object| ETL
   RepairAgent -->|patch transform, retry one object| ETL
+  RepairAgent -->|still failing| Diagnosis[Diagnosis agent]
+  Diagnosis -->|analysis + ranked fixes| Human
+  Human <-->|questions, instructions| Assistant[Assistant agent]
+  Assistant -->|pending proposals| Human
+  Human -->|Apply| Config
   ETL -->|deferred rows| BF[Backfill units]
   BF -->|approval| Human
+  Human -->|column fill| ETL
 ```
 
 | Owner | Responsibility |
 |-------|----------------|
-| Human | Field-to-field mapping choices; approving backfill passes; deciding blockers |
-| Field matcher (`agents/field_matcher.py`) | The only suggester: proposes pairings for every unmapped field, whether the two names agree or only the meaning does. Proposals only — never writes a config |
+| Human | Field-to-field mapping choices; approving backfill passes; deciding blockers; applying or rejecting assistant proposals; requesting column fills |
+| Field matcher (`agents/field_matcher.py`) | The only suggester: proposes pairings for every unmapped field, whether the two names agree or only the meaning does, each scored by semantic similarity. Proposals only — never writes a config |
 | Value matcher (`agents/value_matcher.py`) | Proposes the value map inside a mapped picklist field, checked against the record type's values and the controlling picklist. Proposals only |
 | Detector (`agents/detector.py`) | Deterministic scan for known relationship and datatype edge cases |
 | Relationship agent (`agents/relationship_agent.py`) | Decides a remedy per finding, reports anything the detector did not recognise, writes the resolution and the load order |
 | Preflight (`agents/preflight.py`) | Deterministic launch gate; no model involved |
 | Deterministic ETL | Extract to stage, transform, load, record `id_mappings` |
-| Repair agent (`agents/repair_agent.py`) | Interprets Salesforce load errors, patches the offending field transform, signals a retry |
+| Auto-repair (`agents/auto_repair.py`) | Deterministic rules for load errors that have exactly one correct fix; runs before the repair agent's model call, no model involved |
+| Repair agent (`agents/repair_agent.py`) | Interprets the Salesforce load errors auto-repair did not handle, patches the offending field transform, signals a retry |
+| Diagnosis agent (`agents/diagnosis_agent.py`) | Explains the rows still rejected after repair, with evidence and ranked fixes. Writes no mapping — its validated fixes can be turned into proposals |
+| Assistant agent (`agents/assistant_agent.py`) | Per-session conversation about failures. Investigates with the diagnosis tools and stores proposals; never applies one |
 | Order advisor (`agents/order_advisor.py`) | Advisory migration-order narrative for the hierarchy view; never replaces the loader's order |
 
 ### 5.2 Deterministic detection — the finding vocabulary
@@ -330,10 +384,18 @@ Detection is open-ended; action is not. Whatever the model concludes, the fix it
 | `external_id_upsert` | A mapping-level `external_id_field` so a re-run upserts instead of duplicating |
 | `self_reference_guard` | `generic_lookup` against the mapping's own id-mapping table |
 | `deferred_lookup` | `generic_lookup` with `defer_to_backfill`, a `defer_reason` and the `defer_parents` it is waiting on |
-| `notice` | **Writes nothing.** Advisory only, and must carry a `suggested_action` |
+| `remove_field` | Removes the field entry from the mapping, so the destination field is no longer written. The removed entry is journalled whole, so revert restores it |
+| `notice` | **Writes nothing.** Advisory only, and must carry a `suggested_action`, which is stored in the journal's `new_value` and read back as `suggested_action` |
 | `load_order` | Writes the deterministic parent-first order onto each mapping's `priority` |
 
-Two things are worth calling out. `load_order` is written by the agent but *computed* by `compat_engine.resolve_dependency_order()` — the model never chooses a sequence. And `notice` is a first-class outcome: refusing to guess is treated as a valid conclusion rather than a failure to resolve.
+Three things are worth calling out. `load_order` is written by the agent but *computed* by `compat_engine.resolve_dependency_order()` — the model never chooses a sequence. `notice` is a first-class outcome: refusing to guess is treated as a valid conclusion rather than a failure to resolve. And `remove_field` is validated *before* the destination describe is consulted, on purpose: a field the destination no longer has is one of the main reasons to unmap it.
+
+`type_coercion` and `value_map` may set any transform in the allow-list, which is exactly `services/transforms/generic.GENERIC_TRANSFORMS`: `generic_default_if_empty`, `generic_truncate`, `generic_value_map`, `generic_format_datetime`, `generic_concat`, `generic_strip_html`, `generic_length_guard`, `generic_lookup` and `generic_rules`. Two of these carry most post-load fixes:
+
+- **`generic_rules`** chooses a value by testing ordered conditions against named source columns (`equals`, `in`, `is_empty`, `gt`, `matches` and so on); the first matching rule wins and `otherwise` decides the rest. The runtime hands transforms positional values, so `params.inputs` must list the columns in the same order as the field's comma-separated `source_field`. The column-fill preview uses the same function through `rules_trace()`, so the preview and the write can never disagree.
+- **`generic_length_guard`** enforces a minimum and maximum length. It pads repeatedly to the minimum (with a built-in filler when `pad_with` is not set), fills from `default` when every source value is empty, joins extra source fields with `context_separator`, and truncates with `truncation_suffix`. Two details exist because of real rejections. `limit_margin` stays inside both limits, for validation rules written as `LEN(x) < 1000` that reject the boundary their message names. And the maximum is reduced by the number of newlines, because the Bulk API sends CRLF and Salesforce counts each `\n` as two characters.
+
+Every generic transform now takes its values as `*values`, so any of them can be fed from more than one source field.
 
 ### 5.4 Notices, review-always, and wiring summaries
 
@@ -345,6 +407,8 @@ Three changes since the original design, all driven by the same requirement: the
 
 **Applied changes are announced as they happen.** `agents/summary.py` turns the change set into one sentence — *"Agent wired 3 lookup fields on Account before extraction started"* — and `migration_manager._prepare_relationships()` emits it as a progress event during the `preparation` phase, so it appears in the live run view before extraction begins. Notices get the equivalent sentence. `AgentNoticesPanel` in the UI shows both: applied changes prominently with per-item revert, and notices with their suggested action in a separate block.
 
+**Notices are scoped to the current attempt.** A session that is run, edited and run again used to show the notices of every attempt in one undated list, where a finding the expert had already fixed read as though it were still true. `migration_sessions.started_at` is restamped on every launch and serves as the boundary: `GET /changes?scope=latest` and `GET /diagnoses?scope=latest` return only what was recorded since it, and `DELETE /changes/notices` drops the session's notices from earlier attempts. Applied changes are never discarded this way — they remain revertible.
+
 ### 5.5 The preflight gate
 
 `agents/preflight.py` is deterministic and runs with no model involvement. It re-runs the detector over the configuration as it now stands, runs `dependency_analysis()` for the parent-first order and cycle flag, and asks `backfill_service.pending_notice()` which lookups are going to load empty and need a second pass.
@@ -355,12 +419,14 @@ It raises `PreflightBlocked` when there are blocking findings and `AGENT_PREFLIG
 
 Every write goes through `agents/wiring.py` and is journalled in `agent_changes` with the value it replaced, the agent and run that produced it, the rationale and the severity. `audit.revert_change(id)` writes the stored previous value back verbatim; `audit.revert_run(run_id)` reverts a whole run newest-first. Revert is deterministic and never needs the model to be reachable.
 
-### 5.7 Repair agent
+### 5.7 Post-load repair: rules first, then the model
 
 ```mermaid
 sequenceDiagram
   participant Ld as Loader
   participant SF as Salesforce
+  participant MM as Migration manager
+  participant AR as Auto-repair rules
   participant Rep as Repair agent
   participant BR as Bedrock
   participant Xf as Transform
@@ -368,24 +434,180 @@ sequenceDiagram
 
   Ld->>SF: Insert batch from transformed files
   SF-->>Ld: failedResults
-  Ld->>Rep: error digest - field, code, sample count
-  Rep->>BR: Classify and propose an allow-listed fix
-  BR-->>Rep: submit_repairs
-  Rep->>Rep: Validate against describe and allow-list
-  Rep->>Xf: Persist patch, re-transform this object from Stage
-  Xf->>Stage: read staged rows
-  Rep->>Ld: Retry this object only
-  Note over Rep: capped at AGENT_REPAIR_MAX_ATTEMPTS then escalate
+  Ld->>MM: counts and error messages per object
+  loop up to AGENT_REPAIR_MAX_ATTEMPTS
+    MM->>Rep: repair(mapping, error messages)
+    Rep->>Rep: build error digest from the newest results folder
+    Rep->>AR: auto_repair(digest)
+    AR-->>Rep: deterministic patches + the entries they handled
+    alt every error pattern handled
+      Rep-->>MM: should_retry, no model call
+    else some patterns remain
+      Rep->>BR: reduced digest - only the unhandled entries
+      BR-->>Rep: submit_repairs
+      Rep->>Rep: Validate against describe and allow-list
+      Rep-->>MM: should_retry
+    end
+    MM->>Xf: clean transform output, re-transform this object from Stage
+    Xf->>Stage: read staged rows
+    MM->>Ld: Retry this object only
+  end
+  Note over MM: still failing - hand to the diagnosis agent (5.8)
 ```
 
-`agents/error_digest.py` aggregates the failed-result CSVs into unique error classes with counts, so the model sees error text and schema, never record data. The repair uses the same resolution vocabulary and the same validator as the relationship agent. A repair sets `should_retry` only when it actually applied something and the error class is retryable; the retry itself is the pipeline's job.
+`agents/error_digest.py` aggregates the failed-result CSVs into unique error classes with counts. The repair agent sees error text, schema and at most `AGENT_DIGEST_SAMPLES` short sample values per class (default 2; `0` removes them). The repair uses the same resolution vocabulary and the same validator as the relationship agent. A repair sets `should_retry` only when it actually applied something and the error class is retryable; the retry itself is the pipeline's job. A retry that "fixes" a load error by making the transform discard the row is still counted as failed, so a repair cannot turn a rejection into a silent loss.
 
-### 5.8 Advisory model uses
+#### 5.7.1 Deterministic auto-repair
+
+Some Salesforce errors have exactly one correct fix, and asking a model for it costs time, tokens and reproducibility. `agents/auto_repair.py` runs first inside `repair_agent.repair()` and handles these without a model call:
+
+| Error | Fix it wires |
+|-------|--------------|
+| `INVALID_CROSS_REFERENCE_KEY` on a lookup fed a raw source id | `generic_lookup` against the id-mapping table the parent mapping (or, for a self-reference, this mapping) writes |
+| `FIELD_CUSTOM_VALIDATION_EXCEPTION` naming a *"Min character limit is N and Max character limit is M"* rule | `generic_length_guard` with those limits. If the guard already enforces them and rows still fail, `limit_margin` is tightened by one on each retry, up to 3 |
+| `STRING_TOO_LONG` | `generic_length_guard` at the length in the message, or the field's described length |
+| `UNKNOWN_EXCEPTION` with *"X must be after/before Y"* | `generic_rules` on the dependent date, clearing it whenever its prerequisite source column is empty |
+| `REQUIRED_FIELD_MISSING`, or a validation message such as *"Please enter a Cancelled Reason"* | If the field is unmapped: map it from the best-matching source column (token overlap with a small synonym table) behind `generic_default_if_empty`, or a constant `Not Specified` when nothing matches. If it is mapped but sometimes empty: wrap it in `generic_default_if_empty` |
+
+Every fix is journalled under agent `auto_repair` with the same run id as the repair pass, so it appears in the session's change log and can be reverted like any other agent write. When every error pattern was handled, the model is not called at all; otherwise the model sees only the entries the rules did not claim. Auto-repair also writes its fixes back into the shared `MigrationContext`, because the repair agent persists whole configs from its own draft and would otherwise erase them.
+
+When the destination cannot be described, auto-repair falls back to the field names in the mapping itself, so an error message can still be matched to the field it names.
+
+### 5.8 Diagnosis agent
+
+Repair stops at what it can fix safely. When an object still has rejected rows after the last attempt, `migration_manager._diagnose_remaining()` calls `agents/diagnosis_agent.py`, emits *"asking the agent to diagnose why"* on the progress stream, and later *"Diagnosis ready for Incident: 2 suggested fix(es)"*. A diagnosis is advice: it never blocks or fails the run, and it writes no mapping.
+
+The agent investigates before concluding, using a tool set shared with the assistant (`agents/tools.build_diagnosis_tools`):
+
+| Tool | What it returns |
+|------|-----------------|
+| `list_mappings`, `describe_mapping`, `describe_destination_object`, `describe_source_table`, `get_error_digest` | The same schema and configuration tools the repair agent uses |
+| `sample_failed_rows` | Up to 10 rows from the newest load's `failed.csv`: the error, the values that were sent, and the staged source row they came from (joined back through the source-id column, or through `id_mappings` from the Salesforce id) |
+| `profile_source_field` | For one staged column: row count, empty count, distinct count and the ten most common values, reading at most 200,000 rows |
+
+The two data tools are the only place an agent sees record values. Every value is truncated to 60 characters. Only the mapped source columns of a row are returned, and empty values are kept on purpose, because an empty prerequisite is often the whole explanation. With `AGENT_DIGEST_SAMPLES=0` both tools still return counts and error text, but no values.
+
+It submits once through `submit_diagnosis`: an `analysis` in plain language, the `evidence` it actually saw, and two or three ranked `suggestions`, each with a trade-off. A suggestion that a mapping change implements carries `resolutions`, and each one is run through `resolutions.validate()` before it is stored. Rejected ones are kept beside it with the reason. A suggestion that needs a person — change a validation rule, fix the source data — has none.
+
+The result is stored in `agent_diagnoses`. When the model cannot be reached, a deterministic summary of the error digest is stored instead, so the session still says what failed and the assistant can pick it up later. `POST /api/mapping-agent/diagnoses` runs a diagnosis on demand for any object in the session.
+
+### 5.9 Assistant agent and proposals
+
+`agents/assistant_agent.py` is a per-session conversation. A person asks why records failed, or tells the agent what to change, and the agent investigates with the diagnosis tools plus `get_diagnosis`. It runs the same bounded tool loop without a submit tool: the turn ends when the model answers in text. The last 20 messages are replayed as history, and consecutive same-role turns are merged so the transport's alternation rule holds. Credentials come from the session's linked saved connection when there is one.
+
+It cannot write. When a mapping change is needed it calls `propose_changes` (or `propose_rerun` when only a re-run is needed), and the proposal is built deterministically:
+
+```mermaid
+flowchart TD
+  A[Model calls propose_changes] --> B[Validate each resolution against describe and allow-list]
+  B --> C[Apply the accepted ones to a draft only]
+  C --> D[Store before/after preview in agent_proposals - status pending]
+  D --> E[Tool result tells the model what was accepted and rejected]
+  E --> F{Person decides}
+  F -->|Reject| G[rejected]
+  F -->|Apply| H{Session running?}
+  H -->|yes| I[Refused - apply once the run settles]
+  H -->|no| J[Re-validate against the mapping as it is now]
+  J --> K{Same before-values as the preview?}
+  K -->|no| L[failed - mapping moved on, propose again]
+  K -->|yes| M[Persist through wiring, journal in agent_changes]
+  M --> N[applied - offer Re-run of the affected mappings]
+  N --> O[POST /migrations/id/run-remaining]
+```
+
+Three properties matter:
+
+- **Apply never calls the model.** What is written is what was stored, re-validated. A proposal whose before-values no longer match the current mapping is refused rather than applied over someone else's edit.
+- **A diagnosis suggestion becomes a proposal in one click.** `POST /diagnoses/{id}/propose?suggestion=n` turns one of its suggestions into a pending proposal without a model call, and refuses one whose resolutions were all rejected, so a "fix" that changes nothing cannot be offered as one.
+- **Everything applied is revertible.** Applied proposals are journalled under agent `assistant` with the proposal's own `run_id`, so the usual per-item revert works.
+
+Proposals record their `origin` (`diagnosis` or `chat`) and the `diagnosis_id` they came from. `agent_messages` holds the conversation and links an assistant message to the proposal it produced.
+
+### 5.10 Resolution history
+
+`GET /api/mapping-agent/resolutions` returns every mapping change an agent applied in the session, grouped by run and agent, newest first. Auto-repair and the repair agent share a run id when they act on the same failure, so a group is identified by run *and* agent. A change written by applying a proposal is recognised by the proposal's `run_id` and shown with its summary, its origin and the diagnosis it came from. Notices are left out because they change nothing. `ResolutionsPanel` renders this from the run view's **Resolutions** button, with a per-item revert.
+
+### 5.11 Advisory model uses
 
 Two places call a model without ever writing configuration:
 
 - **Field matching** (`POST /api/mappings/semantic-suggest`) pairs the fields a draft has not mapped yet, covering both the obvious name agreements and the pairs only a reading of the labels would find. Every proposal is schema-checked, confidence-filtered against `AGENT_FIELD_MATCH_MIN_CONFIDENCE`, and then accepted by a person in the mapping step. Candidate lists are capped at `AGENT_FIELD_MATCH_MAX_FIELDS` per side; a wide table therefore takes more than one pass, which the report flags.
-- **Order advice** (`POST /api/mapping-agent/suggest-order`) narrates a migration order over the hierarchy graph. The response is validated against the deterministic graph — unknown objects dropped, parent-before-child conflicts flagged, omissions appended — and carries both the model's sequence and `computed_order` alongside a `matches_computed` flag. The loader continues to use the computed order.
+
+  The confidence shown in the field mapper's **Conf** column is the model's judgement of *semantic* similarity: how certain it is that every value in the source field would be a correct value for the destination field. It is judged from label, type, referenced object, picklist values and table, and explicitly not from name resemblance. Identical names earn no credit on their own, so `u_caller_id` → `ContactId` can score as high as `priority` → `Priority`. The bands are 0.9–1.0 for exactly the same fact, 0.7–0.9 for the same fact at a different grain or format, 0.5–0.7 for overlapping meanings where some values would not carry over, and below 0.5 for a guess. It is a model judgement rather than an embedding distance, because embeddings of field names and labels reintroduce the name bias, and their raw values are not calibrated against these thresholds.
+- **Order advice** (`POST /api/mapping-agent/suggest-order`) narrates a migration order over the hierarchy graph. The response is validated against the deterministic graph — unknown objects dropped, parent-before-child conflicts flagged, omissions appended — and carries both the model's sequence and `computed_order` alongside a `matches_computed` flag.   The loader continues to use the computed order.
+
+### 5.12 Data readiness
+
+Before a migration runs, the review step (wizard step 5) can check whether the source can actually fill what Salesforce requires. `POST /api/mapping-agent/readiness` runs the check for the selected mappings, `DataReadinessPanel` shows the result, and a person decides what to apply. Nothing is written by the check itself.
+
+**Deterministic classification.** `agents/readiness.analyse()` walks every required, createable field of each selected destination object. It then follows required lookups to the objects they point at, through the mappings that load those objects, so the chain `Incident → User → …` is checked as well. Each requirement gets exactly one status:
+
+| Status | Meaning |
+|--------|---------|
+| `covered` | Mapped to a source column that is filled on every row, a constant, or a column wrapped in a fallback transform |
+| `partial` | Mapped, but `n` source rows are empty and no fallback is in place |
+| `unmapped_with_candidate` | Not mapped, but a source column looks like the right one (weighted token overlap: a direct name match outranks a synonym match) |
+| `no_source` | Not mapped and nothing similar exists, or the mapped column is not on the source table |
+| `parent_migratable` | A required lookup whose parent object a mapping loads, either one in the run or one that could be added to it |
+| `parent_creatable` | A required lookup whose parent nothing migrates, but the API can create a record for it |
+| `parent_not_creatable` | A required lookup whose parent cannot be created through the API (`BusinessHours`, `Profile`, …) |
+| `capacity` | A User mapping would need more licences than the org has left |
+
+The status of a gap decides what the agent may change in Salesforce. There are four cases:
+
+1. **The parent can be created and a mapping migrates it** (User from `sys_user`, Account from `core_company`). Nothing is written to Salesforce. The suggestion adds that mapping to the run and wires the lookup with `lookup_reference`.
+2. **The parent can be created but nothing migrates it** (a default Queue or Group, a placeholder Account). An existing record is preferred and pinned with `constant_reference`. Only if none fits does the suggestion `create_record` one, pointed at through `{{action:0}}`.
+3. **The source has data but Salesforce has no field for it.** The suggestion is `create_custom_field`, then a mapping onto the new field.
+4. **The parent cannot be created through the API** (UserLicense, Profile, PermissionSetLicense, Organization, BusinessHours). The agent never tries to create it. It queries the existing records and maps onto them with `constant_reference` or `record_value_map`. For User it also checks free licence seats against the source user count. When capacity is short or no record fits, it returns manual steps: migrate only active users, load people as Contacts, assign records to one integration user, or have an administrator add licences.
+
+Picklist values and validation rules are always manual steps, because both are metadata deployments that are hard to revert.
+
+Source empties are counted on the source itself, not on staged data, and the counts are cached per check. A source column name is matched with or without its table prefix, so `short_description`, `incident.short_description` and the inherited `task.short_description` all count as the same column. For a comma-separated multi-column source, every column must exist.
+
+**Agent pass.** `agents/readiness_agent.py` gives the model the report, through `get_readiness_report`, plus `count_source_empty`, `query_destination_records` and the usual describe tools. It submits once through `submit_readiness`, with one or more suggestions per gap. The loop is bounded like the other agents, and on the penultimate turn the model is told to submit with what it has. A gap with no usable model suggestion gets the rule-based ones (`deterministic_suggestions`), and when the model cannot be reached the whole report is built from rules. Each gap records whether its suggestions came from `agent` or `rules`.
+
+A suggestion can combine five things:
+
+- `resolutions`: mapping changes in the existing vocabulary (§5.6), plus `record_value_map` (map source values onto existing Salesforce record ids).
+- `include_mappings`: mappings to add to the run, for a parent another mapping loads.
+- `salesforce_actions`: changes made in Salesforce.
+- `source_actions`: changes made to the data in the source system.
+- `manual_steps`: work for a person, used when the change is beyond what the API or the agent may do.
+
+The agent decides which system a fix belongs in. It changes the mapping when only Salesforce needs the value, for example a default Subject. It changes Salesforce when the org lacks a parent record or a field. It changes the source when the source record is itself incomplete and one value is right for every empty row. Where two of these are reasonable it offers both, ranked. The rule-based suggestions do the same for the cases that need no judgement. A partly empty text field gets a mapping default and, as a second option, a source fill with the same value. A required text field with a candidate column is mapped from that column, with a default. A lookup onto a parent that nothing migrates is pinned to an existing record. All of these come with an Apply button.
+
+**Source action vocabulary.** `agents/source_actions.py` accepts one kind, `fill_source_values`: set one column to one value on the records of a source table where that column is empty, optionally narrowed by an encoded-query `filter`. Validation, against the live source, requires the following:
+
+- The table must be one a mapping in the check reads.
+- The column must exist and must not be a `sys_` column.
+- A reference column's value must be the sys_id of an existing record. The agent finds one with `query_source_records`.
+- The filter must not contain an OR block (`^NQ`, or a leading `OR`) that would widen the selection.
+- The number of matching empty records must be between 1 and `READINESS_SOURCE_MAX_ROWS` (default 2000). Beyond that the fix belongs in the mapping.
+
+On apply, the matching record ids are read first and journalled in `agent_source_changes` (`013_agent_source_changes.sql`). Each record is then patched with `sysparm_suppress_auto_sys_field=true`, so `sys_updated_on` and `sys_updated_by`, which the migration carries over, stay as they were. Business rules on the table still run. Writing to the source is a provider capability (`find_record_ids`, `update_record` and `query_records` on the source plugin), and only ServiceNow implements it.
+
+**Salesforce action vocabulary.** `agents/sf_actions.py` accepts two kinds of action, and validates each against a fresh describe before it is stored:
+
+- `create_record` must supply every required createable field. A restricted picklist value must be allowed, and a lookup value must be a record id or `{{action:N}}`, meaning the record created by an earlier action in the same suggestion. A forward reference is rejected. Objects the API cannot create are refused, and so are objects that are createable but not the agent's decision: `User` (licence seats), permission sets and their assignments, `UserRole` and `Profile`.
+- `create_custom_field` needs an `__c` API name that is not on the object yet, and one of the plain types: Text, Number, TextArea, LongTextArea, Checkbox, Date, DateTime, Url, Email or Phone.
+
+When one action is rejected, every action after it in the suggestion is rejected too, because later steps usually depend on earlier ones. Resolutions may also use `{{action:N}}` as a constant or a value-map target, and it is replaced with the created id at apply time.
+
+**Transform parameters.** Every `type_coercion` and `value_map` resolution, whichever agent proposes it, is checked against `resolutions.TRANSFORM_PARAMS`. A parameter the transform does not read (`fallback_fields`, or `length` for `max_length`) is rejected with the list of accepted ones, instead of being saved and silently ignored. Extra source columns go in `source_field`, comma-separated. Columns are rewritten against the mapping's driving table unless they name one of its joined tables.
+
+**Approve, then apply.** `POST /readiness/{id}/apply?gap=&suggestion=` applies one stored suggestion. The panel shows a preview first: mappings to add, source steps with the number of records each changes, Salesforce steps, and each mapping field before and after. A suggestion that writes to either system needs a second, explicit confirmation. Apply never calls the model:
+
+1. Re-validate the stored source actions, Salesforce actions and resolutions against the current source, describe and mapping.
+2. Run the source actions. If a write fails, the records already written are emptied again.
+3. Run the Salesforce actions in order, substituting created ids. If one fails, the records already created by this apply are deleted again, the source writes are undone, and nothing is written to the mapping.
+4. Replace the placeholders in the resolutions with the created ids, then persist them through `wiring`, journalled in `agent_changes` under agent `readiness` with a fresh run id. If this fails, both earlier steps are rolled back.
+5. Store the outcome on the check. A suggestion that is already applied and not reverted is refused.
+
+The panel then reloads the affected mappings in the wizard, and adds any included mappings as new cards.
+
+**Journal and revert.** Salesforce writes are journalled in `agent_sf_changes` (object, record or field, the values sent, run id). Reverting the mapping change uses the normal `POST /runs/{run_id}/revert`. `POST /readiness/sf-changes/{id}/revert` deletes a created record. `POST /readiness/source-changes/{id}/revert` empties the column again on the journalled records, but only where it still holds the value written. A record someone has edited since is kept, and the response counts it. A created custom field is not deleted, because deleting a field in Salesforce is not reliably reversible and discards its data. The panel says so, and the field is left to an administrator. Once every change belonging to an applied suggestion is reverted, the check shows the suggestion as reverted and it can be applied again.
+
+Each check is stored in `agent_readiness` (`012_agent_readiness.sql`) with its report, suggestions and apply outcomes, and `GET /readiness/{id}` returns it. Apply works from this stored copy, never from what the browser holds. The deterministic parts — classification, source-column matching, parameter checks, action validation, placeholders and rollback — are covered by `tests/test_readiness.py`, which mocks every describe and count.
 
 ---
 
@@ -459,6 +681,37 @@ So a reference is now spoken about at both ends: before the run that leaves it e
 
 The `unresolvable_lookup` finding is correspondingly narrowed. A deferred field whose target nothing migrates is still reported — records accumulating against an object nobody has built a mapping for is worth knowing — but as a warning that the link is *kept*, advising that a mapping be built. It previously advised pinning the field to a fixed record or unmapping it, which is advice to abandon the arrangement that preserves the data.
 
+### 6.6 Column fill — writes nobody owed
+
+A backfill is *owed*: the loader could not resolve a lookup and has to come back. Sometimes a column needs a value for a different reason. A destination field turns out to be required, or the value it got was wrong, and the records are already loaded. Re-running the whole object to change one column is heavy, and for an insert-based mapping not even safe. `services/internal/column_fill_service.py` writes a single column on the records a session already loaded, and decides the value in one of three modes:
+
+| Mode | Value |
+|------|-------|
+| `constant` | The same value on every record |
+| `value_map` | Mapped from one source column — the shape the picklist value matcher produces |
+| `rules` | Ordered conditions over the source row; the first match wins (`generic_rules`) |
+
+Rows no rule or map claims are skipped, blanked, or given a fixed value, as the spec says (`unmatched`).
+
+```mermaid
+flowchart LR
+  A[ColumnFillDrawer - write spec] --> B[POST preview]
+  B --> C[Evaluate the spec against the staged source with the real transform]
+  C --> D[Counts, per-rule attribution, samples, restricted-picklist violations]
+  D --> E[POST create - draft]
+  E -->|cancel| F[cancelled]
+  E -->|run| G[Derive an update-only mapping for this one field]
+  G --> H[Normal transform + load]
+  H --> I[completed / failed]
+  I -.->|save_to_mapping| J[Field written into the original mapping]
+```
+
+There is no approval gate, because nothing is owed. The **preview** is the check instead. It runs the very transform the update will run, so what it reports is what will happen. It keeps apart three counts that are easy to conflate: rows in the staged extract, rows that actually have a destination record to update, and rows a value was produced for. It also checks produced values against a restricted picklist before anything is sent. A job is created as a `draft` and only leaves that state when it is run, so an abandoned drawer leaves a readable record of what was being considered rather than a half-applied change.
+
+The write path is nothing new. `build_config()` derives an `operation: "update"` copy of the mapping that holds only this field and points `look_up_table_names` at the original id map, since that is where each record's destination id lives. It writes under its own `transformation_name` (`…__fill__{field}`) so its CSVs never mix with the original pass's. It drops `external_id_field`, because an upsert here could create records, and it sets `skip_if_not_found` so a row the fill does not cover is left untouched. With `save_to_mapping` the field is also written into the original mapping, *without* `skip_if_not_found` — on an insert that flag would discard the whole record — so later runs of the object repeat the fill.
+
+Each fill is one row in `column_fill_jobs`, with the spec kept verbatim so a past fill can be read back and repeated long after the run that produced it. `ColumnFillPanel` in the run view lists them.
+
 ---
 
 ## 7. Session persistence and resume
@@ -472,7 +725,7 @@ A checkpoint is the record of **what has already been written to the destination
 | `id_mappings` rows for this session's tables | Credentials — redacted before upload |
 | The `migration_sessions` row: status, phase, selection, redacted config | The staged extract itself under `data/downloads` |
 | The `mapping_configs` as actually run, including agent rewiring | Attachment binaries |
-| The `agent_changes` journal for the session | |
+| The `agent_changes` journal for the session | Diagnoses, the assistant conversation and proposals (`agent_diagnoses`, `agent_messages`, `agent_proposals`), and `column_fill_jobs` — local to the app host |
 | Job, table, batch and sub-batch progress rows | |
 | Run metadata: order, completed objects, counters, per-object records, load errors | |
 | A **fingerprint** of the stage: row, byte and file counts per table | |
@@ -518,7 +771,11 @@ Restoring never overwrites local credentials for a session that already exists, 
 
 A session's object selection is append-only. `POST /api/migrations/{id}/objects` adds mappings to an existing session without starting anything; `GET /api/migrations/{id}/run-plan` shows which objects a run would execute versus skip; `POST /api/migrations/{id}/run-remaining` runs only what still needs migrating. Removal is not supported — it would orphan destination records and narrow the scope of the id map that later objects resolve against.
 
-This is what makes the deferred-reference story work across sessions: migrate `Account` today, add `User` next week to the same session, and the `Account` backfill unit becomes resolvable and reports itself as ready.
+This is what makes the deferred-reference story work across sessions: migrate `Account` today, add `User` next week to the same session, and the `Account` backfill unit becomes resolvable and reports itself as ready. It is also how an applied assistant proposal is re-run: the panel calls `run-remaining` with the proposal's `rerun` list, and rows that already loaded are skipped by the transform because they are in `id_mappings`.
+
+### Progress denominators
+
+The per-object status report (`session_status_service`) needs a "rows at the source" figure to measure progress against. A run with a record limit stages only a slice of the table, so the staged extract is no longer the first choice. Each ServiceNow extraction records the source's own row count for the date window on `job_tables.source_total` (other source types do not record it yet, and use the fallbacks). The report prefers that figure (`source_rows_origin: "source"`), then falls back to the staged row count, then to the checkpoint. When the source total is known, an object counts as completed only when everything the source reported has loaded, not merely when the run finished its slice.
 
 ### Session-scoped connections
 
@@ -567,11 +824,18 @@ sequenceDiagram
     MM->>SF: load group
     SF-->>MM: results
     MM->>API: write id_mappings
+    opt rows rejected
+      MM->>MM: auto-repair, then repair agent, re-transform and retry
+      MM->>MM: diagnosis agent for whatever still fails
+      MM-->>UI: diagnosis ready - via progress stream
+    end
     MM->>S3: checkpoint - loading
   end
   MM->>MM: backfill scan
   MM->>S3: final checkpoint
   MM-->>UI: complete
+  U->>UI: ask the assistant, apply a proposal
+  UI->>API: proposals/{id}/apply, then run-remaining
 ```
 
 ---
@@ -583,6 +847,13 @@ erDiagram
   MIGRATION_SESSIONS ||--o| SESSION_CHECKPOINTS : "checkpointed by"
   MIGRATION_SESSIONS ||--o{ BACKFILL_UNITS : defers
   MIGRATION_SESSIONS ||--o{ AGENT_CHANGES : journals
+  MIGRATION_SESSIONS ||--o{ AGENT_DIAGNOSES : diagnoses
+  MIGRATION_SESSIONS ||--o{ AGENT_MESSAGES : converses
+  MIGRATION_SESSIONS ||--o{ AGENT_PROPOSALS : proposes
+  MIGRATION_SESSIONS ||--o{ COLUMN_FILL_JOBS : fills
+  AGENT_DIAGNOSES ||--o{ AGENT_PROPOSALS : "suggests"
+  AGENT_MESSAGES }o--o| AGENT_PROPOSALS : "refers to"
+  AGENT_PROPOSALS ||--o{ AGENT_CHANGES : "applied as run_id"
   JOBS ||--o{ JOB_TABLES : contains
   JOB_TABLES ||--o{ JOB_TABLE_BATCHES : contains
   JOB_TABLE_BATCHES ||--o{ JOB_TABLE_SUB_BATCHES : contains
@@ -632,6 +903,54 @@ erDiagram
     int applied
     text reverted_at
   }
+  AGENT_DIAGNOSES {
+    int id PK
+    text session_id
+    text mapping_name
+    json digest
+    text analysis
+    json evidence
+    json suggestions
+  }
+  AGENT_MESSAGES {
+    int id PK
+    text session_id
+    text role
+    text content
+    int proposal_id
+  }
+  AGENT_PROPOSALS {
+    int id PK
+    text session_id
+    text mapping_name
+    text summary
+    json resolutions
+    json preview
+    json rerun
+    text status
+    text run_id
+    text origin
+    int diagnosis_id
+  }
+  COLUMN_FILL_JOBS {
+    int id PK
+    text session_id
+    text mapping_name
+    text field
+    text mode
+    json spec
+    text status
+    int rows_targeted
+    int records_updated
+    int saved_to_mapping
+  }
+  JOB_TABLES {
+    int id PK
+    int job_id
+    text table_name
+    text status
+    int source_total
+  }
   MAPPING_CONFIGS {
     text name PK
     text source_type
@@ -659,7 +978,9 @@ erDiagram
   }
 ```
 
-Schema files, in order: `001_id_mapping`, `002_tables_for_jobs`, `003_migration_sessions`, `004_saved_connections`, `005_mapping_configs`, `006_agent_changes`, `007_schema_cache`, `008_session_checkpoints`, `009_backfill_units`.
+Schema files, in order: `001_id_mapping`, `002_tables_for_jobs`, `003_migration_sessions`, `004_saved_connections`, `005_mapping_configs`, `006_agent_changes`, `007_schema_cache`, `008_session_checkpoints`, `009_backfill_units`, `010_column_fill_jobs`, `011_agent_assistant` (diagnoses, messages, proposals).
+
+Proposal status moves `pending` → `applied` | `rejected` | `failed`. A proposal is `failed` when it no longer validates or its before-values no longer match the mapping at Apply time. Column-fill status moves `draft` → `running` → `completed` | `failed`, or `draft` → `cancelled`.
 
 **Id remap at load time, deterministic:**
 
@@ -703,7 +1024,7 @@ flowchart TB
   SPA -->|HTTPS API + SSE| API
   API -->|Extract| SN
   API -->|Load| SF
-  API -->|Converse - metadata only| BR
+  API -->|Converse - metadata, error text, capped failed-row samples| BR
   API -->|Checkpoints - SSE-S3 or SSE-KMS| S3
   API --> Files
   API --> DB
@@ -712,8 +1033,9 @@ flowchart TB
 **Security posture**
 
 - Credentials are never sent to Bedrock. They are resolved server-side and captured by tool executors, never declared in a tool input schema, so the model can neither see nor supply them.
-- Bedrock receives schema metadata, mapping drafts, dependency graphs and error digests — never extract dumps or record payloads.
-- Agents have no Salesforce write tools. The only write path to Salesforce is the existing loader.
+- Bedrock receives schema metadata, mapping drafts, dependency graphs and error digests — never extract dumps. The only record values it sees are bounded samples: up to `AGENT_DIGEST_SAMPLES` values per error class in a digest, and, for the diagnosis and assistant agents only, up to 10 rejected rows restricted to their mapped columns and the ten most common values of one staged column. Every value is truncated to 60 characters. Set `AGENT_DIGEST_SAMPLES=0` for a client whose data may not leave the host; the agents then reason from counts, error text and schema.
+- Agents have no Salesforce write tools. The only write paths to Salesforce are the existing loader and the backfill and column-fill passes built on it.
+- The assistant cannot change a mapping on its own. Its only write-shaped tools store a pending proposal; applying one is a separate, human-initiated API call, refused while the session is running.
 - Checkpoints are redacted before upload: `password`, `client_secret`, `secret`, `access_token`, `refresh_token`, `api_key`, `api_token`, `private_key` and `security_token` are stripped.
 - Checkpoints are encrypted with the bucket's default SSE-S3, or SSE-KMS when `MIGRATION_S3_KMS_KEY_ID` is set. Keep the bucket in the same region as the instance: cross-region checkpoint writes add latency at every phase boundary.
 - Staged data stays on our side under job isolation and never leaves the app host.
@@ -729,7 +1051,7 @@ flowchart TB
 | Agents | Amazon Bedrock Converse with tool use (Claude), or the Anthropic SDK against a Bedrock endpoint |
 | Extract / transform / load | Existing controllers driven by `migration_manager` |
 | Stage | Local filesystem under `data/` |
-| Metadata | SQLite (`mapping_configs`, `id_mappings`, jobs, sessions, `agent_changes`, `backfill_units`, `schema_cache`) |
+| Metadata | SQLite (`mapping_configs`, `id_mappings`, jobs, sessions, `agent_changes`, `agent_diagnoses`, `agent_messages`, `agent_proposals`, `backfill_units`, `column_fill_jobs`, `schema_cache`) |
 | Durability | S3 session checkpoints |
 | Ordering and compatibility | `compat_engine`, `hierarchy_service`, `prerequisites_service` |
 
@@ -750,10 +1072,17 @@ All routers are mounted under `/api`.
 | `POST /plan` | The same analysis with the write suppressed |
 | `POST /suggest-order` | Advisory migration order over the hierarchy graph |
 | `POST /preflight` | Run the launch gate without starting a migration |
-| `POST /repair` | Diagnose load failures for one mapping and patch the field |
-| `GET /changes` | Journalled changes and notices, filterable by run, session or mapping |
+| `POST /repair` | Auto-repair, then the repair agent, for one mapping's load failures |
+| `GET /changes` | Journalled changes and notices, filterable by run, session or mapping; `scope=latest` limits to the current attempt |
+| `DELETE /changes/notices?session_id=` | Drop the session's notices from earlier attempts |
 | `POST /changes/{id}/revert` | Revert one change |
 | `POST /runs/{run_id}/revert` | Revert a whole agent run |
+| `GET /diagnoses?session_id=&scope=latest` | Newest diagnosis per failing object |
+| `POST /diagnoses` | Diagnose one object's current failures on demand |
+| `POST /diagnoses/{id}/propose?suggestion=n` | Turn one suggestion into a pending proposal; no model call |
+| `GET`/`POST`/`DELETE /chat` | Conversation history with proposals and diagnoses; one assistant turn; clear the conversation |
+| `POST /proposals/{id}/apply`, `/reject` | Apply (re-validated, journalled, revertible) or reject a proposal |
+| `GET /resolutions?session_id=` | Every applied agent change in the session, grouped by run and origin |
 
 ### Migrations — `/api/migrations`
 
@@ -772,6 +1101,10 @@ All routers are mounted under `/api`.
 | `GET /backfill` | Deferred reference units |
 | `POST /backfill/{id}/decision`, `POST /backfill/{id}/run` | Approve or skip; execute |
 | `POST /{id}/backfill/run-approved` | Execute every approved unit for a session |
+| `GET /{id}/column-fill/targets` | Mappings in the session whose loaded records can be filled |
+| `POST /{id}/column-fill/preview` | Evaluate a fill spec against the staged source; writes nothing |
+| `POST /{id}/column-fill` | Record a fill as a draft |
+| `POST /column-fill/{job_id}/run`, `/cancel`; `GET /column-fill` | Execute or cancel a draft; list fills |
 
 ### Mapping and schema
 
@@ -804,8 +1137,11 @@ Step 5 runs the compatibility check and the agent preflight, so deferred lookups
 | Component | What it shows |
 |-----------|---------------|
 | `MigrationDetail` | Live progress over SSE, phase, per-object counters, controls, activity log |
-| `AgentNoticesPanel` | What the agent wired, with per-item revert; notices with their suggested action |
+| `AgentNoticesPanel` | What the agent wired, with per-item revert; notices with their suggested action, for the current attempt |
+| `AgentAssistantPanel` | Diagnoses with ranked suggestions, the assistant conversation, pending proposals with before/after, Apply / Reject, and Re-run after applying |
+| `ResolutionsPanel` | Drawer from the **Resolutions** button: every applied agent change grouped by run and origin, with revert |
 | `BackfillPanel` | Deferred references, resolvable counts, approve / skip / run |
+| `ColumnFillPanel` + `ColumnFillDrawer` | Past and draft column fills; the drawer builds a constant, value-map or rules spec and shows the preview before running |
 | `SessionObjectsPanel` | Session run plan, add objects, run remaining |
 | `SessionStatusPanel` | Per-object status report, polled every 4s while running |
 | `Dashboard` | Session list with progress, plus a cross-session reminder for runnable backfills |
@@ -826,7 +1162,8 @@ Step 5 runs the compatibility check and the agent preflight, so deferred lookups
 | `AGENT_PREFLIGHT_ENFORCE` | true | Whether blocking findings stop a launch |
 | `AGENT_AUTOWIRE` | true | Run the relationship agent at launch |
 | `AGENT_REVIEW_ALWAYS` | true | Invoke the model even when the detector found nothing |
-| `AGENT_REPAIR_ENABLED` / `_MAX_ATTEMPTS` | true / 2 | Post-load repair |
+| `AGENT_REPAIR_ENABLED` / `_MAX_ATTEMPTS` | true / 2 | Post-load auto-repair, repair agent and diagnosis. Per run, `agent_repair` overrides it and `agent_diagnosis: false` skips only the diagnosis |
+| `AGENT_DIGEST_SAMPLES` | 2 | Sample values per error class in a digest; `0` also hides row values from `sample_failed_rows` and `profile_source_field` |
 | `AGENT_FIELD_MATCH` / `_MAX_FIELDS` / `_MIN_CONFIDENCE` | true / 250 / 0.5 | Model-assisted field matching |
 | `MIGRATION_S3_BUCKET` / `_PREFIX` / `_REGION` / `_KMS_KEY_ID` / `_ENABLED` | — / `itsm-migration` / `us-east-1` / — / true | Session checkpoints |
 | `SEED_SYSTEM_MAPPINGS` | 1 | Seed shipped JSON mappings when `mapping_configs` is empty |
@@ -856,6 +1193,14 @@ Step 5 runs the compatibility check and the agent preflight, so deferred lookups
 | Model-assisted field matching, replacing the name-similarity pass | done |
 | Review-always, notices with suggested actions, wiring summaries in the run view | done |
 | Transform functions scoped by source type, enforced at preflight | done |
+| Column fill: preview-first single-column updates on loaded records | done |
+| Deterministic auto-repair ahead of the repair agent | done |
+| Diagnosis agent for failures repair could not fix | done |
+| Assistant conversation with human-approved proposals, resolution history | done |
+| `remove_field` and applied `deferred_lookup` resolutions; `generic_rules` transform | done |
+| Notices and diagnoses scoped to the current attempt | done |
+| Source-reported row totals as the progress denominator | done |
+| Semantic-similarity confidence for field matching | done |
 
 ---
 

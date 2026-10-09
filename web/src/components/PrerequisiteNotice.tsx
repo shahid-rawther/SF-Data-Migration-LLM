@@ -40,6 +40,7 @@ export function PrerequisiteNotice({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [showOther, setShowOther] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [open, setOpen] = useState(false);
   const requestRef = useRef(0);
 
   // Only the populated destination fields can change the answer, so keying the
@@ -149,8 +150,8 @@ export function PrerequisiteNotice({
         borderColor: ready ? '#d4d4d4' : '#d4d4d4',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <strong style={{ fontSize: 13, color: ready ? '#171717' : '#404040' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 12.5, color: ready ? '#404040' : '#171717' }}>
           {!hierarchy
             ? `${sfObject} has no Salesforce lookups that need another migrated object`
             : ready
@@ -158,18 +159,28 @@ export function PrerequisiteNotice({
               : `${missing.length} Salesforce object${missing.length === 1 ? '' : 's'} must be loaded before ${sfObject}`}
         </strong>
         {loading && <span style={{ fontSize: 11, color: '#404040' }}>refreshing&hellip;</span>}
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          style={{ ...ghostBtn, marginLeft: 'auto' }}
-        >
-          Dismiss
-        </button>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {addable.length > 0 && !open && (
+            <button
+              type="button"
+              onClick={() => onAddTables(tablesFor(addable.map((n) => n.object)))}
+              style={ghostBtn}
+            >
+              Add all {addable.length}
+            </button>
+          )}
+          <button type="button" onClick={() => setOpen((o) => !o)} style={ghostBtn}>
+            {open ? 'Hide details' : 'Details'}
+          </button>
+          <button type="button" onClick={() => setDismissed(true)} style={ghostBtn}>
+            Dismiss
+          </button>
+        </span>
       </div>
 
-      {hierarchy && (
+      {open && hierarchy && (
         <>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: ready ? '#171717' : '#404040' }}>
+          <p style={{ margin: '8px 0 10px', fontSize: 12, color: ready ? '#171717' : '#404040' }}>
             Salesforce assigns its own record ids, so a lookup can only be filled in once the
             record it points at has been created. Load in this order.
           </p>
@@ -188,7 +199,7 @@ export function PrerequisiteNotice({
         </>
       )}
 
-      {addable.length > 0 && (
+      {open && addable.length > 0 && (
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -217,7 +228,7 @@ export function PrerequisiteNotice({
         </div>
       )}
 
-      {report.cycles.map((cycle) => (
+      {open && report.cycles.map((cycle) => (
         <div key={cycle.join()} style={noteStyle}>
           <strong>{cycle.join(', ')}</strong> reference each other, so no strict order exists
           between them. Load them in any order and expect some lookups to fill in only after all
@@ -238,7 +249,7 @@ export function PrerequisiteNotice({
         </div>
       )}
 
-      {report.unresolved_references.length > 0 && (
+      {open && report.unresolved_references.length > 0 && (
         <div style={noteStyle}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Lookups that will not resolve</div>
           {report.unresolved_references.map((gap) => (
@@ -250,13 +261,13 @@ export function PrerequisiteNotice({
         </div>
       )}
 
-      {report.truncated && (
+      {open && report.truncated && (
         <div style={noteStyle}>
           The chain was {report.truncation_reason} — there may be more beyond what is listed.
         </div>
       )}
 
-      {report.other_references.length > 0 && (
+      {open && report.other_references.length > 0 && (
         <div style={{ marginTop: 8 }}>
           <button
             type="button"
@@ -395,7 +406,7 @@ function StatusChip({ node }: { node: PrerequisiteNode }) {
 }
 
 const panel: React.CSSProperties = {
-  padding: 12,
+  padding: '8px 12px',
   marginBottom: 14,
   borderRadius: 8,
   border: '1px solid',

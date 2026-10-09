@@ -8,6 +8,15 @@ interface Props {
   sourceType: string;
   /** Re-read when the run reaches a point that could have changed the answer. */
   refreshKey?: number;
+  /**
+   * Drawer-only mode: the page offers the action elsewhere (a menu), opens the
+   * drawer through `open`, and is told whether the action can run at all.
+   */
+  compact?: boolean;
+  open?: boolean;
+  onClose?: () => void;
+  /** null when a fill can be started; otherwise why not. */
+  onAvailabilityChange?: (reason: string | null) => void;
 }
 
 /**
@@ -25,12 +34,16 @@ interface Props {
  * single row: the rule builder needs real room, and it is not something anyone
  * needs to look at while reading the run.
  */
-export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props) {
+export function ColumnFillPanel({
+  sessionId, sourceType, refreshKey = 0, compact = false, open: openProp, onClose, onAvailabilityChange,
+}: Props) {
   const [targets, setTargets] = useState<ColumnFillTarget[]>([]);
   const [jobs, setJobs] = useState<ColumnFillJob[]>([]);
   const [conns, setConns] = useState<SessionConnections | null>(null);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const open = compact ? Boolean(openProp) : openState;
+  const close = () => (compact ? onClose?.() : setOpen(false));
 
   const load = useCallback(async () => {
     try {
@@ -59,14 +72,81 @@ export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props
       .catch(() => setConns(null));
   }, [sessionId]);
 
-  // Before anything has loaded there is no record to update, so the row would
-  // offer something that could only fail. Past fills keep it present after that.
-  if (!loaded || (!targets.length && !jobs.length)) return null;
-
   const destConnId = conns?.destination.connection_id ?? '';
   const sourceConnId = conns?.source.connection_id ?? '';
   const linked = Boolean(destConnId);
   const recorded = jobs.filter((j) => j.status !== 'draft');
+  const unavailable = !loaded
+    ? 'Still reading this session'
+    : !targets.length
+      ? 'Nothing in this session has loaded records yet'
+      : !linked
+        ? 'Link a Salesforce connection to this session first'
+        : null;
+
+  useEffect(() => {
+    onAvailabilityChange?.(unavailable);
+  }, [unavailable, onAvailabilityChange]);
+
+  const drawer = (
+    <ColumnFillDrawer
+      sessionId={sessionId}
+      sourceType={sourceType}
+      sourceCreds={NO_CREDENTIALS}
+      destCreds={NO_CREDENTIALS}
+      sourceConnectionId={sourceConnId || undefined}
+      destConnectionId={destConnId || undefined}
+      open={open && !unavailable}
+      onClose={close}
+      onFilled={() => void load()}
+    />
+  );
+
+  const history = recorded.length > 0 && (
+    <details style={{ marginTop: 8 }}>
+      <summary style={summaryToggle}>
+        {recorded.length} column{recorded.length === 1 ? '' : 's'} filled here
+      </summary>
+      <div style={{ marginTop: 7 }}>
+        {recorded.map((job) => (
+          <div key={job.id} style={jobRow(job.status)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+              <code style={{ fontSize: 12, fontWeight: 700, color: '#171717' }}>
+                {job.destination_object}.{job.field}
+              </code>
+              <span style={modePill}>{MODE_LABELS[job.mode] ?? job.mode}</span>
+              {job.saved_to_mapping && (
+                <span style={savedPill}>also in the mapping</span>
+              )}
+            </div>
+            <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#525252' }}>
+              {job.summary}
+            </p>
+            {job.detail && job.status === 'failed' && (
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: '#171717' }}>
+                {job.detail}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+
+  // The action itself lives in the page's menu; only the record of past fills
+  // stays on the page, and only once there is one.
+  if (compact) {
+    return (
+      <>
+        {history && <section style={panel}>{history}</section>}
+        {drawer}
+      </>
+    );
+  }
+
+  // Before anything has loaded there is no record to update, so the row would
+  // offer something that could only fail. Past fills keep it present after that.
+  if (!loaded || (!targets.length && !jobs.length)) return null;
 
   return (
     <section style={panel}>
@@ -108,48 +188,9 @@ export function ColumnFillPanel({ sessionId, sourceType, refreshKey = 0 }: Props
         </p>
       )}
 
-      {recorded.length > 0 && (
-        <details style={{ marginTop: 8 }}>
-          <summary style={summaryToggle}>
-            {recorded.length} column{recorded.length === 1 ? '' : 's'} filled here
-          </summary>
-          <div style={{ marginTop: 7 }}>
-            {recorded.map((job) => (
-              <div key={job.id} style={jobRow(job.status)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                  <code style={{ fontSize: 12, fontWeight: 700, color: '#171717' }}>
-                    {job.destination_object}.{job.field}
-                  </code>
-                  <span style={modePill}>{MODE_LABELS[job.mode] ?? job.mode}</span>
-                  {job.saved_to_mapping && (
-                    <span style={savedPill}>also in the mapping</span>
-                  )}
-                </div>
-                <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#525252' }}>
-                  {job.summary}
-                </p>
-                {job.detail && job.status === 'failed' && (
-                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#171717' }}>
-                    {job.detail}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      {history}
 
-      <ColumnFillDrawer
-        sessionId={sessionId}
-        sourceType={sourceType}
-        sourceCreds={NO_CREDENTIALS}
-        destCreds={NO_CREDENTIALS}
-        sourceConnectionId={sourceConnId || undefined}
-        destConnectionId={destConnId || undefined}
-        open={open}
-        onClose={() => setOpen(false)}
-        onFilled={() => void load()}
-      />
+      {drawer}
     </section>
   );
 }

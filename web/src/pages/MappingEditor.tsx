@@ -670,6 +670,16 @@ export function MappingEditor() {
       )}
 
       {/* Actions */}
+      {error && (
+        <div role="alert" style={{ background: '#fafafa', border: '1px solid #d4d4d4', color: '#0a0a0a', padding: 12, borderRadius: 8, marginTop: 8, fontSize: 13 }}>
+          {error}
+          {!isEdit && /already exists/i.test(error) && (
+            <div style={{ marginTop: 6, color: '#525252' }}>
+              Pick a different mapping name above, or open the existing one from the session to edit it.
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
         <button type="button" onClick={save} disabled={busy === 'save'} style={primaryBtn}>
           {busy === 'save' ? 'Saving\u2026' : 'Save mapping'}

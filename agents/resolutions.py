@@ -21,6 +21,38 @@ from agents.wiring import Resolution
 
 _SEVERITIES = {"info", "warning", "blocker"}
 _SALESFORCE_ID = re.compile(r"^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$")
+# The id of a record a readiness suggestion creates before its mapping change
+# is written, e.g. "{{action:0}}". Replaced with the real id at apply time.
+PLACEHOLDER = re.compile(r"^\{\{action:(\d+)\}\}$")
+
+
+def is_placeholder(value: object) -> bool:
+    return bool(PLACEHOLDER.match(str(value or "").strip()))
+
+
+# The parameters each allow-listed transform reads. A misspelt or invented one
+# is silently ignored at transform time, so the change would validate and then
+# do less than it claims.
+TRANSFORM_PARAMS: dict[str, set[str]] = {
+    "generic_default_if_empty": {"default"},
+    "generic_truncate": {"max_length", "suffix"},
+    "generic_value_map": {"map", "default", "case_insensitive", "passthrough_if_missing"},
+    "generic_format_datetime": {"input_format", "output_format"},
+    "generic_concat": {"separator", "skip_empty", "min_length", "pad_with", "max_length"},
+    "generic_strip_html": {"default"},
+    "generic_length_guard": {
+        "min_length", "max_length", "pad_with", "default", "context_separator",
+        "truncation_suffix", "limit_margin",
+    },
+    "generic_rules": {"inputs", "rules", "otherwise", "case_insensitive"},
+}
+
+
+def _unknown_params(transform: str, params: dict) -> list[str]:
+    accepted = TRANSFORM_PARAMS.get(transform)
+    if accepted is None or not isinstance(params, dict):
+        return []
+    return sorted(set(params) - accepted)
 
 
 @dataclass
@@ -65,6 +97,14 @@ def _to_resolution(item: dict) -> Resolution:
     kind = str(item.get("kind") or "")
     if kind == wiring.KIND_VALUE_MAP:
         params["transform"] = "generic_value_map"
+        params["params"] = {
+            "map": item.get("value_map") or {},
+            "default": item.get("value_map_default", ""),
+            "case_insensitive": True,
+        }
+    elif kind == wiring.KIND_RECORD_VALUE_MAP:
+        params["transform"] = "generic_value_map"
+        params["target_object"] = str(item.get("target_object") or "")
         params["params"] = {
             "map": item.get("value_map") or {},
             "default": item.get("value_map_default", ""),
@@ -184,6 +224,7 @@ def _validate_kind(
         wiring.KIND_DEFERRED_LOOKUP,
         wiring.KIND_TYPE_COERCION,
         wiring.KIND_VALUE_MAP,
+        wiring.KIND_RECORD_VALUE_MAP,
     )
     if entry is None and needs_source and not source_field:
         return (
@@ -274,12 +315,19 @@ def _validate_kind(
         constant = resolution.params.get("constant_value", "")
         if not constant:
             return "constant_reference needs constant_value"
-        if meta.get("type") == "reference" and not _SALESFORCE_ID.match(str(constant)):
+        if (
+            meta.get("type") == "reference"
+            and not _SALESFORCE_ID.match(str(constant))
+            and not is_placeholder(constant)
+        ):
             return (
                 f"'{constant}' is not a destination record id; a lookup pinned to a "
                 "constant needs the 15- or 18-character id of an existing record"
             )
         return ""
+
+    if resolution.kind == wiring.KIND_RECORD_VALUE_MAP:
+        return _validate_record_value_map(context, resolution, meta)
 
     if resolution.kind in (wiring.KIND_TYPE_COERCION, wiring.KIND_VALUE_MAP):
         transform = resolution.params.get("transform", "")
@@ -294,6 +342,13 @@ def _validate_kind(
             return (
                 f"'{resolution.field}' is a lookup; use lookup_reference or "
                 "constant_reference rather than a value transform"
+            )
+        unknown_params = _unknown_params(transform, resolution.params.get("params") or {})
+        if unknown_params:
+            return (
+                f"{transform} does not read {unknown_params}; it accepts "
+                f"{sorted(TRANSFORM_PARAMS[transform]) or 'no parameters'}. Extra source "
+                "fields go in source_field, comma-separated"
             )
         if resolution.kind == wiring.KIND_VALUE_MAP:
             value_map = (resolution.params.get("params") or {}).get("map") or {}
@@ -325,6 +380,43 @@ def _validate_kind(
                 if invalid:
                     return invalid
         return ""
+
+
+def _validate_record_value_map(context, resolution: Resolution, meta: dict) -> str:
+    """Every target must be a real record of an object the lookup accepts."""
+    if meta.get("type") != "reference":
+        return (
+            f"'{resolution.field}' is a {meta.get('type')} field, not a lookup; use "
+            "value_map for picklists"
+        )
+    targets = list(meta.get("reference_to") or [])
+    target_object = resolution.params.get("target_object") or (targets[0] if len(targets) == 1 else "")
+    if not target_object:
+        return f"'{resolution.field}' accepts {targets}; name the target_object the ids belong to"
+    if target_object not in targets:
+        return f"'{resolution.field}' points at {targets}, not {target_object}"
+    params = resolution.params.get("params") or {}
+    value_map = params.get("map") or {}
+    if not value_map:
+        return "record_value_map needs at least one source value to map"
+    ids = [str(v) for v in [*value_map.values(), params.get("default") or ""] if v]
+    malformed = sorted(
+        {v for v in ids if not _SALESFORCE_ID.match(v) and not is_placeholder(v)}
+    )
+    if malformed:
+        return f"{malformed[:5]} are not {target_object} record ids"
+    real = [v for v in ids if not is_placeholder(v)]
+    if not real:
+        return ""
+    from services.internal import sf_inventory
+
+    found = sf_inventory.existing_ids(target_object, real, context.destination_credentials)
+    if found is None:
+        return f"{target_object} could not be queried, so the ids cannot be verified"
+    unknown = sorted(set(real) - found)
+    if unknown:
+        return f"{unknown[:5]} are not existing {target_object} records"
+    return ""
 
 
 def _dependency_conflicts(

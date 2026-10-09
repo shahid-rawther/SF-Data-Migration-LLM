@@ -7,9 +7,20 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.env
 .venv
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets — only the example file is committed
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
 logs/
 
@@ -21,22 +32,22 @@ data/staging/
 data/database/db/*.db
 data/database/db/*.db-shm
 data/database/db/*.db-wal
+data/database/db/*.db-journal
 
 # Node
 node_modules/
 web/dist/
+web/.vite/
+*.tsbuildinfo
 
-# Debug / utility scripts (not part of the application)
-_check_state.py
-_check_db_mapping.py
-_verify_*.py
-_probe_*.py
-_seed_*.py
-_inspect_*.py
-_reset_*.py
-_setup_*.py
-_patch_*.py
-_delete_*.py
+# Debug / utility scripts at the repo root (not part of the application)
+/_*.py
+
+# Editor undo-recovery copies
+.undo-recovery-backup/
+
+# IDE
+.idea/
 
 # OS
 .DS_Store

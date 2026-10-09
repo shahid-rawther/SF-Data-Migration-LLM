@@ -18,6 +18,10 @@ from tools.csv_manager import save_as_csv
 from services.external import duckdb_client
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Why each table failed in the most recent extract. A failed table stages
+# nothing, and without this the run can only say that no data was found.
+last_errors: dict[str, str] = {}
+
 
 def extract_servicenow_tables(
     job_id: int,
@@ -26,6 +30,7 @@ def extract_servicenow_tables(
     start_date: str | None = None,
     end_date: str | None = None,
 ):
+    last_errors.clear()
     executer_queue = ThreadPoolExecutor(max_workers=5)
     futures = []
     for servicenow_table in service_now_tables:
@@ -124,6 +129,7 @@ def extract_servicenow_table(
         )
     except Exception as e:
         had_error = True
+        last_errors[servicenow_table] = str(e)
         logger.error(
             f"Exception occured during fetching table: Job Table Id: {job_table_id}, Error: {e}"
         )

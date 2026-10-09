@@ -14,6 +14,8 @@ interface DestinationHierarchyProps {
    */
   destConnectionId?: string;
   sourceType?: string;
+  /** Start with only the summary line showing. */
+  defaultCollapsed?: boolean;
 }
 
 /** The Salesforce dependency hierarchy above a selection, drawn top to bottom.
@@ -28,6 +30,7 @@ export function DestinationHierarchy({
   destCreds,
   destConnectionId,
   sourceType,
+  defaultCollapsed = false,
 }: DestinationHierarchyProps) {
   const [graph, setGraph] = useState<HierarchyGraph | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,12 +39,13 @@ export function DestinationHierarchy({
   const [suggesting, setSuggesting] = useState(false);
   const [suggestError, setSuggestError] = useState('');
   const [focus, setFocus] = useState('');
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   // The object whose fields are open in the side drawer, if any.
   const [describing, setDescribing] = useState<string | null>(null);
-  // Most of an ancestor graph is reachable without being needed, so the view can
-  // be narrowed to the objects the selection genuinely cannot load without.
-  const [neededOnly, setNeededOnly] = useState(false);
+  // Most of an ancestor graph is reachable without being needed, so the view
+  // opens on the objects the selection genuinely cannot load without and the
+  // rest of the graph is there on request.
+  const [neededOnly, setNeededOnly] = useState(true);
 
   const key = useMemo(() => [...selectedObjects].sort().join(','), [selectedObjects]);
   const requested = useRef('');
@@ -130,8 +134,10 @@ export function DestinationHierarchy({
     if (!focus || !graph) return null;
     const ancestors = new Set<string>();
     const descendants = new Set<string>();
+    // Walking through hidden objects would link cards the view shows as unrelated.
+    const visible = graph.edges.filter((e) => keep(e.child) && keep(e.parent));
     const walk = (from: string, into: Set<string>, up: boolean) => {
-      const next = graph.edges
+      const next = visible
         .filter((e) => (up ? e.child === from : e.parent === from))
         .map((e) => (up ? e.parent : e.child));
       for (const name of next) {
@@ -143,7 +149,7 @@ export function DestinationHierarchy({
     walk(focus, ancestors, true);
     walk(focus, descendants, false);
     return { ancestors, descendants };
-  }, [focus, graph]);
+  }, [focus, graph, keep]);
 
   if (!selectedObjects.length) return null;
 
@@ -158,7 +164,11 @@ export function DestinationHierarchy({
             Salesforce dependency hierarchy
           </h3>
           <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#737373' }}>
-            {graph ? summarise(graph) : 'Reading what the selected objects depend on.'}
+            {graph
+              ? neededOnly
+                ? summariseNeeded(graph)
+                : summarise(graph)
+              : 'Reading what the selected objects depend on.'}
           </p>
         </div>
         {loading && (
@@ -177,21 +187,25 @@ export function DestinationHierarchy({
 
           {graph && graph.nodes.length > 0 && (
             <>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>
+                  {neededOnly
+                    ? `Needed for this migration (${
+                        graph.needed_objects.length + graph.selected_objects.length
+                      })`
+                    : `Full hierarchy (${graph.nodes.length})`}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setNeededOnly(false)}
-                  style={toggleBtn(!neededOnly)}
+                  onClick={() => {
+                    setNeededOnly(!neededOnly);
+                    setFocus('');
+                  }}
+                  style={ghostBtn}
                 >
-                  Everything above the selection ({graph.nodes.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNeededOnly(true)}
-                  style={toggleBtn(neededOnly)}
-                >
-                  Only what is needed (
-                  {graph.needed_objects.length + graph.selected_objects.length})
+                  {neededOnly
+                    ? `Show full hierarchy (${graph.nodes.length} objects)`
+                    : 'Show only what is needed'}
                 </button>
               </div>
 
@@ -614,6 +628,36 @@ function summarise(graph: HierarchyGraph): string {
   );
 }
 
+/** The same facts as ``summarise``, led by what has to load first. */
+function summariseNeeded(graph: HierarchyGraph): string {
+  const one = graph.selected_objects.length === 1;
+  const selected = listNames(graph.selected_objects);
+  const needed = graph.needed_objects;
+  const optional = graph.nodes.length - graph.selected_objects.length - needed.length;
+  const rest =
+    optional > 0
+      ? ` ${optional} more object${optional === 1 ? ' sits' : 's sit'} above ${
+          one ? 'it' : 'them'
+        } but can load empty.`
+      : '';
+  if (!needed.length) {
+    return (
+      `${selected} can load on ${one ? 'its own' : 'their own'} — nothing above ` +
+      `${one ? 'it' : 'them'} is needed.${rest}`
+    );
+  }
+  return (
+    `${selected} ${one ? 'needs' : 'need'} ${needed.length} ` +
+    `object${needed.length === 1 ? '' : 's'} loaded first: ${listNames(needed)}.${rest}`
+  );
+}
+
+function listNames(names: string[], limit = 4): string {
+  if (names.length > limit) return `${names.slice(0, limit).join(', ')} and ${names.length - limit} more`;
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 function Legend({ swatch, border, label }: { swatch: string; border: string; label: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -757,17 +801,6 @@ const describeBtn: React.CSSProperties = {
   cursor: 'pointer',
   boxShadow: '0 1px 4px rgba(17,24,39,0.25)',
 };
-
-const toggleBtn = (active: boolean): React.CSSProperties => ({
-  padding: '6px 12px',
-  background: active ? '#171717' : '#fff',
-  color: active ? '#fff' : '#404040',
-  border: `1px solid ${active ? '#171717' : '#d4d4d4'}`,
-  borderRadius: 7,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-});
 
 const ghostBtn: React.CSSProperties = {
   padding: '5px 11px',

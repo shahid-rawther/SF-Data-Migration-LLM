@@ -495,6 +495,19 @@ def get_migration(session_id: str):
     live_status = migration_manager.get_status(session_id)
     if live_status:
         session["live_progress"] = live_status
+    else:
+        # Live counters are held in memory only, so after a restart the last
+        # run's totals survive only in the checkpoint index.
+        from services.internal import checkpoint_service
+
+        index = checkpoint_service.get_index(session_id)
+        if index:
+            session["last_run"] = {
+                "records_fetched": int(index.get("records_fetched") or 0),
+                "records_processed": int(index.get("records_processed") or 0),
+                "records_failed": int(index.get("records_failed") or 0),
+                "saved_at": index.get("saved_at") or "",
+            }
     return session
 
 

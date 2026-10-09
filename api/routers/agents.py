@@ -389,6 +389,121 @@ def resolution_history(session_id: str):
     return assistant_agent.resolution_history(session_id)
 
 
+# ── data readiness ─────────────────────────────────────────────────────────────
+
+
+class ReadinessRequest(BaseModel):
+    source_type: str = "servicenow"
+    selected_objects: list[str] = []
+    source_credentials: dict = {}
+    source_connection_id: str | None = None
+    destination_credentials: dict = {}
+    destination_connection_id: str | None = None
+
+
+class ReadinessApplyRequest(BaseModel):
+    source_credentials: dict = {}
+    source_connection_id: str | None = None
+    destination_credentials: dict = {}
+    destination_connection_id: str | None = None
+
+
+@router.post("/readiness")
+def run_readiness(body: ReadinessRequest):
+    """Check the source can fill every required destination field and parent.
+
+    Stores the report with validated suggestions. Nothing is written to a
+    mapping or to Salesforce until a suggestion is applied.
+    """
+    from agents import readiness_agent
+
+    if not body.selected_objects:
+        raise HTTPException(status_code=400, detail="selected_objects is required")
+    result = readiness_agent.check(
+        source_type=body.source_type,
+        mapping_names=body.selected_objects,
+        source_credentials=_resolve_credentials(
+            body.source_credentials, body.source_connection_id
+        ),
+        destination_credentials=_resolve_credentials(
+            body.destination_credentials, body.destination_connection_id
+        ),
+    )
+    return result.to_dict()
+
+
+@router.get("/readiness/{readiness_id}")
+def get_readiness(readiness_id: int):
+    from agents import readiness_store
+
+    stored = readiness_store.get_readiness(readiness_id)
+    if not stored:
+        raise HTTPException(status_code=404, detail=f"No readiness check {readiness_id}")
+    return stored
+
+
+@router.post("/readiness/{readiness_id}/apply")
+def apply_readiness_suggestion(
+    readiness_id: int, body: ReadinessApplyRequest, gap: int = 0, suggestion: int = 0
+):
+    """Apply one suggestion a person approved: source writes, Salesforce writes, then mappings."""
+    from agents import readiness_agent
+    from agents.source_actions import SourceWriteError
+    from services.internal.sf_inventory import SalesforceWriteError
+
+    def call():
+        return readiness_agent.apply_suggestion(
+            readiness_id,
+            gap,
+            suggestion,
+            _resolve_credentials(body.source_credentials, body.source_connection_id),
+            _resolve_credentials(
+                body.destination_credentials, body.destination_connection_id
+            ),
+        )
+
+    try:
+        return _agent_errors(call)
+    except (SalesforceWriteError, SourceWriteError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/readiness/source-changes/{change_id}/revert")
+def revert_readiness_source_change(change_id: int, body: ReadinessApplyRequest):
+    """Empty again the source values a readiness suggestion wrote."""
+    from agents import readiness_agent
+    from agents.source_actions import SourceWriteError
+
+    try:
+        return _agent_errors(
+            lambda: readiness_agent.revert_source_change(
+                change_id,
+                _resolve_credentials(body.source_credentials, body.source_connection_id),
+            )
+        )
+    except SourceWriteError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/readiness/sf-changes/{change_id}/revert")
+def revert_readiness_sf_change(change_id: int, body: ReadinessApplyRequest):
+    """Delete a record a readiness suggestion created in Salesforce."""
+    from agents import readiness_agent
+    from services.internal.sf_inventory import SalesforceWriteError
+
+    try:
+        return _agent_errors(
+            lambda: readiness_agent.revert_sf_change(
+                change_id,
+                _resolve_credentials(
+                    body.destination_credentials, body.destination_connection_id
+                ),
+            )
+        )
+    except SalesforceWriteError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("/runs/{run_id}/revert")
 def revert_run(run_id: str):
     from agents import audit

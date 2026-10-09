@@ -25,6 +25,7 @@ from agents.detector import detect
 SUBMIT_TOOL = "submit_resolutions"
 SUBMIT_REPAIR_TOOL = "submit_repairs"
 SUBMIT_DIAGNOSIS_TOOL = "submit_diagnosis"
+SUBMIT_READINESS_TOOL = "submit_readiness"
 PROPOSE_CHANGES_TOOL = "propose_changes"
 PROPOSE_RERUN_TOOL = "propose_rerun"
 
@@ -63,8 +64,10 @@ RESOLUTION_ITEM_SCHEMA: dict = {
                 "transform (generic_rules for conditional values, "
                 "generic_default_if_empty for fallbacks). remove_field: stop "
                 "writing a destination field. external_id_upsert: make re-runs "
-                "update instead of duplicate. notice: flag something a human must "
-                "decide, changing nothing."
+                "update instead of duplicate. record_value_map: fill a lookup by "
+                "translating source values into ids of records that already exist "
+                "(e.g. ServiceNow role -> Profile id). notice: flag something a human "
+                "must decide, changing nothing."
             ),
         },
         "mapping": {"type": "string"},
@@ -100,7 +103,14 @@ RESOLUTION_ITEM_SCHEMA: dict = {
         "transform_params": {"type": "object"},
         "value_map": {
             "type": "object",
-            "description": "For value_map: source value -> destination picklist value.",
+            "description": (
+                "For value_map: source value -> destination picklist value. For "
+                "record_value_map: source value -> destination record id."
+            ),
+        },
+        "target_object": {
+            "type": "string",
+            "description": "For record_value_map: the object the mapped ids belong to.",
         },
         "value_map_default": {"type": "string"},
         "external_id_field": {"type": "string"},
@@ -425,6 +435,231 @@ def build_diagnosis_tools() -> list[ToolSpec]:
     ]
 
 
+# One Salesforce write a readiness suggestion needs, as the model states it.
+# Checked by agents.sf_actions before a person sees it, and again on Apply.
+SF_ACTION_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "enum": ["create_record", "create_custom_field"],
+            "description": (
+                "create_record: make one record in an object the API can create, "
+                "e.g. a default Group or a placeholder Account, so a required lookup "
+                "has something to point at. Refer to it from a resolution as "
+                "{{action:N}}, N being its position in this list. "
+                "create_custom_field: add a field for source data with no home."
+            ),
+        },
+        "object": {"type": "string"},
+        "rationale": {"type": "string"},
+        "values": {
+            "type": "object",
+            "description": (
+                "For create_record: field -> value, including every field the object "
+                "requires. A lookup takes a record id or {{action:N}} of an earlier action."
+            ),
+        },
+        "field_api_name": {"type": "string", "description": "For create_custom_field; ends with __c."},
+        "field_label": {"type": "string"},
+        "field_type": {
+            "type": "string",
+            "enum": [
+                "Text", "Number", "TextArea", "LongTextArea", "Checkbox",
+                "Date", "DateTime", "Url", "Email", "Phone",
+            ],
+        },
+        "length": {"type": "integer"},
+        "description": {"type": "string"},
+    },
+    "required": ["kind", "object", "rationale"],
+}
+
+
+# One write to the source system a readiness suggestion needs. Checked by
+# agents.source_actions before a person sees it, and again on Apply.
+SOURCE_ACTION_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "enum": ["fill_source_values"],
+            "description": (
+                "fill_source_values: set one column to one value on the records of a "
+                "source table where that column is empty. Records that already have a "
+                "value are never touched; the change can be undone."
+            ),
+        },
+        "table": {"type": "string", "description": "A source table a mapping in this migration reads."},
+        "field": {"type": "string", "description": "The column, bare (short_description, not incident.short_description)."},
+        "value": {
+            "type": "string",
+            "description": "The value to write. For a reference column, the sys_id of an existing record.",
+        },
+        "filter": {
+            "type": "string",
+            "description": (
+                "Optional encoded query that narrows the records further, e.g. active=true. "
+                "The column-is-empty condition is always added."
+            ),
+        },
+        "rationale": {"type": "string"},
+    },
+    "required": ["kind", "table", "field", "value", "rationale"],
+}
+
+
+def build_readiness_tools() -> list[ToolSpec]:
+    """Tools for checking the source can supply what the destination requires.
+
+    Everything here reads. The live counts replace the staged-data tools the
+    post-load agents use, because at this point nothing has been extracted.
+    """
+    general = {tool.name: tool for tool in build_tools()}
+    repair = {tool.name: tool for tool in build_repair_tools()}
+    return [
+        ToolSpec(
+            name="get_readiness_report",
+            description=(
+                "The deterministic readiness check: every required destination field of "
+                "every mapping, its status, source row and empty counts, candidate source "
+                "columns, the parent object of each required lookup and whether the API "
+                "can create it, and user licence capacity. This is the work list."
+            ),
+            input_schema={"type": "object", "properties": {}},
+        ),
+        general["list_mappings"],
+        repair["describe_mapping"],
+        repair["describe_destination_object"],
+        general["describe_source_table"],
+        ToolSpec(
+            name="count_source_empty",
+            description=(
+                "Live count of rows in a source table, and of rows where one column is "
+                "empty. Nothing needs to be extracted first."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "table_name": {"type": "string"},
+                    "field_name": {"type": "string"},
+                },
+                "required": ["table_name", "field_name"],
+            },
+        ),
+        ToolSpec(
+            name="query_destination_records",
+            description=(
+                "Records that already exist in a destination object: id and name, "
+                "optionally filtered by a name search, plus the total count and whether "
+                "the API can create more. Use it to find a Profile, Group, Queue or "
+                "Account a lookup can point at."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "object_name": {"type": "string"},
+                    "search": {"type": "string"},
+                    "limit": {"type": "integer", "description": "At most 50."},
+                },
+                "required": ["object_name"],
+            },
+        ),
+        ToolSpec(
+            name="query_source_records",
+            description=(
+                "Records in a source table: sys_id and a few columns, filtered by an "
+                "encoded query. Use it to find the record a reference column should be "
+                "filled with (a default caller in sys_user, an assignment group) or to "
+                "look at rows where a required column is empty."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "table_name": {"type": "string"},
+                    "query": {"type": "string", "description": "Encoded query, e.g. nameLIKEservice desk."},
+                    "fields": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Columns to return besides sys_id; at most 8.",
+                    },
+                    "limit": {"type": "integer", "description": "At most 25."},
+                },
+                "required": ["table_name"],
+            },
+        ),
+        ToolSpec(
+            name=SUBMIT_READINESS_TOOL,
+            description=(
+                "Submit once, after investigating. For each gap, explain it and rank one "
+                "to three suggestions. A suggestion can add mappings to the run, change "
+                "mappings, make Salesforce changes, fix the data in the source system, or "
+                "any combination; one that needs a person has manual steps instead."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "Two or three sentences on whether the source can fill the destination.",
+                    },
+                    "gaps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "key": {
+                                    "type": "string",
+                                    "description": "The requirement key from the report, Mapping.Field.",
+                                },
+                                "analysis": {"type": "string"},
+                                "suggestions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "title": {"type": "string"},
+                                            "explanation": {
+                                                "type": "string",
+                                                "description": "What it does and its trade-off.",
+                                            },
+                                            "include_mappings": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                                "description": "Mappings to add to the run.",
+                                            },
+                                            "salesforce_actions": {
+                                                "type": "array",
+                                                "items": SF_ACTION_ITEM_SCHEMA,
+                                            },
+                                            "source_actions": {
+                                                "type": "array",
+                                                "items": SOURCE_ACTION_ITEM_SCHEMA,
+                                                "description": "Writes to the source system, run before anything else.",
+                                            },
+                                            "resolutions": {
+                                                "type": "array",
+                                                "items": RESOLUTION_ITEM_SCHEMA,
+                                            },
+                                            "manual_steps": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                        },
+                                        "required": ["title", "explanation"],
+                                    },
+                                },
+                            },
+                            "required": ["key", "analysis", "suggestions"],
+                        },
+                    },
+                },
+                "required": ["summary", "gaps"],
+            },
+        ),
+    ]
+
+
 def build_assistant_tools() -> list[ToolSpec]:
     """Tools for the conversational agent: investigate, then propose."""
     return [
@@ -509,6 +744,8 @@ class ToolDispatcher:
     diagnoses: list[dict] | None = None
     on_propose_changes: Callable[[dict], dict] | None = None
     on_propose_rerun: Callable[[dict], dict] | None = None
+    # Present only for a readiness check: the deterministic report.
+    readiness: dict | None = None
     # Per-call cache of staged source rows by table, keyed by source id.
     _staged: dict[str, dict[str, dict]] = field(default_factory=dict, repr=False)
 
@@ -847,6 +1084,87 @@ class ToolDispatcher:
             "empty": empty,
             "distinct": len(counts),
             "top_values": [{"value": _truncate(v), "count": c} for v, c in top],
+        }
+
+    # ── readiness-only ─────────────────────────────────────────────────────
+
+    def _tool_get_readiness_report(self, _: dict) -> dict:
+        if self.readiness is None:
+            raise ValueError("No readiness report is available in this run")
+        return self.readiness
+
+    def _tool_count_source_empty(self, arguments: dict) -> dict:
+        from api import sources as source_registry
+
+        table = arguments.get("table_name", "")
+        column = str(arguments.get("field_name", "")).split(".")[-1]
+        if not table or not column:
+            raise ValueError("table_name and field_name are required")
+        if not self.context.has_source_field(table, column):
+            raise ValueError(f"'{column}' is not a field on source table '{table}'")
+        provider = source_registry.get(self.context.source_type)
+        if provider is None:
+            raise ValueError(f"No source provider for '{self.context.source_type}'")
+        credentials = self.context.source_credentials
+        total = provider.count_rows(table, credentials)
+        empty = provider.count_empty(table, column, credentials)
+        return {
+            "table": table,
+            "field": column,
+            "rows": total,
+            "empty": empty,
+            "note": "" if total >= 0 and empty >= 0 else "The source could not count this.",
+        }
+
+    def _tool_query_destination_records(self, arguments: dict) -> dict:
+        from services.internal import sf_inventory
+
+        object_name = arguments.get("object_name", "")
+        if not object_name:
+            raise ValueError("object_name is required")
+        credentials = self.context.destination_credentials
+        info = sf_inventory.object_info(object_name, credentials)
+        page = sf_inventory.sample_records(
+            object_name,
+            credentials,
+            search=str(arguments.get("search") or ""),
+            limit=int(arguments.get("limit") or 20),
+        )
+        if page["total"] < 0:
+            raise ValueError(f"{object_name} could not be queried")
+        return {
+            "object": object_name,
+            "createable": bool(info.get("createable")),
+            "total": page["total"],
+            "name_field": page["name_field"],
+            "records": [
+                {"id": r["id"], "name": _truncate(r["name"])} for r in page["records"]
+            ],
+        }
+
+    def _tool_query_source_records(self, arguments: dict) -> dict:
+        from api import sources as source_registry
+
+        table = str(arguments.get("table_name") or "")
+        if not table:
+            raise ValueError("table_name is required")
+        provider = source_registry.get(self.context.source_type)
+        if provider is None or not hasattr(provider, "query_records"):
+            raise ValueError(f"{self.context.source_type} records cannot be queried")
+        fields = [str(f).split(".")[-1] for f in arguments.get("fields") or [] if f][:8]
+        query = str(arguments.get("query") or "")
+        records = provider.query_records(
+            table,
+            self.context.source_credentials,
+            query,
+            fields,
+            min(max(int(arguments.get("limit") or 10), 1), 25),
+        )
+        return {
+            "table": table,
+            "query": query,
+            "total": provider.count_rows(table, self.context.source_credentials, query),
+            "records": [{k: _truncate(str(v)) for k, v in r.items()} for r in records],
         }
 
     # ── assistant-only ─────────────────────────────────────────────────────

@@ -61,6 +61,8 @@ export function FieldMapper({
   const add = () =>
     onChange([...fields, { source_field: '', destination_field: '' }]);
 
+  const showConfidence = fields.some((f) => f.confidence !== undefined);
+
   return (
     <div>
       <div style={{ overflowX: 'auto', border: '1px solid #e5e5e5', borderRadius: 8 }}>
@@ -70,15 +72,14 @@ export function FieldMapper({
               <th style={th}>Source field</th>
               <th style={th}>Destination field</th>
               <th style={th}>Transform</th>
-              <th style={th}>Params (JSON)</th>
-              <th style={th}>Conf.</th>
+              {showConfidence && <th style={th} title="How sure the AI match was">Match</th>}
               <th style={th}></th>
             </tr>
           </thead>
           <tbody>
             {fields.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...td, textAlign: 'center', color: '#a3a3a3' }}>
+                <td colSpan={showConfidence ? 5 : 4} style={{ ...td, textAlign: 'center', color: '#a3a3a3' }}>
                   No field mappings yet. Use "AI match remaining" or add rows manually.
                 </td>
               </tr>
@@ -98,6 +99,7 @@ export function FieldMapper({
                 siblingFields={fields}
                 onDestFieldsChange={onDestFieldsChange}
                 transforms={transforms}
+                showConfidence={showConfidence}
                 onUpdate={(patch) => update(idx, patch)}
                 onRemove={() => remove(idx)}
               />
@@ -125,9 +127,11 @@ function FieldRow({
   siblingFields = [],
   onDestFieldsChange,
   transforms,
+  showConfidence,
   onUpdate,
   onRemove,
 }: {
+  showConfidence: boolean;
   field: MappingFieldDef;
   sourceFields: SourceFieldInfo[];
   destFields: DestinationFieldInfo[];
@@ -1251,18 +1255,27 @@ function FieldRow({
                 <option value={field.transformation_function}>{field.transformation_function}</option>
               )}
           </select>
+          {field.transformation_function && (
+            <input
+              value={paramsText}
+              placeholder='Parameters, e.g. {"default":""}'
+              title="Transform parameters (JSON)"
+              onChange={(e) => commitParams(e.target.value)}
+              style={{
+                ...inputStyle,
+                marginTop: 4,
+                fontSize: 11.5,
+                fontFamily: 'monospace',
+                borderColor: paramsError ? '#0a0a0a' : '#e5e5e5',
+              }}
+            />
+          )}
         </td>
-        <td style={td}>
-          <input
-            value={paramsText}
-            placeholder='{"default":""}'
-            onChange={(e) => commitParams(e.target.value)}
-            style={{ ...inputStyle, borderColor: paramsError ? '#0a0a0a' : '#d4d4d4' }}
-          />
-        </td>
-        <td style={{ ...td, color: confColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {conf === undefined ? '\u2014' : `${Math.round(conf * 100)}%`}
-        </td>
+        {showConfidence && (
+          <td style={{ ...td, color: confColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {conf === undefined ? '\u2014' : `${Math.round(conf * 100)}%`}
+          </td>
+        )}
         <td style={td}>
           <button type="button" onClick={onRemove} style={removeBtn} title="Remove">
             ✕
@@ -1271,7 +1284,7 @@ function FieldRow({
       </tr>
       {(warningBadge || guardrailBadge || lookupPanel || valueMapPanel) && (
         <tr>
-          <td colSpan={6} style={{ padding: '0 10px 6px' }}>
+          <td colSpan={showConfidence ? 5 : 4} style={{ padding: '0 10px 6px' }}>
             {warningBadge}
             {guardrailBadge}
             {lookupPanel}

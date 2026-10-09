@@ -154,9 +154,11 @@
       </p>
       <div class="card">
         <ol class="compact">
-          <li><strong>Only the ETL touches data.</strong> Agents read schema, dependency graphs and
-            error summaries. They never read record payloads in bulk, never write to Salesforce, and
-            never modify staged files.</li>
+          <li><strong>Only the ETL moves data.</strong> Agents read schema, dependency graphs and
+            error summaries. They never write to Salesforce and never modify staged files. The one
+            place an agent sees record values is post-load diagnosis: a capped, truncated sample of
+            the rows Salesforce rejected, because some failures cannot be explained from schema alone.
+            A single setting turns those values off for a client whose data may not leave our side.</li>
           <li><strong>Humans own field-to-field mapping.</strong> Choosing that a source field belongs
             in a particular Salesforce field remains a human decision, supported by a model-assisted
             pass that proposes pairings and never writes one.</li>
@@ -169,6 +171,9 @@
             remedy set is resolved autonomously. A decision that genuinely needs human judgement — a
             required parent that is out of scope, an ambiguous default — is raised as a blocker instead
             of guessed at.</li>
+          <li><strong>What repair cannot fix, a person approves.</strong> Load failures left after
+            automatic repair are explained, and the fix is offered as a proposal with a before/after.
+            Nothing is written until someone clicks Apply, and applying never calls the model.</li>
           <li><strong>Every change is validated before it is written.</strong> The agent's work is
             checked against the live Salesforce describe and an allow-list of transform functions.
             Anything that fails validation is discarded rather than applied, and everything applied is
@@ -189,8 +194,8 @@
         A migration runs as the numbered sequence below, start to finish, split into the two halves it
         naturally has: the design-time half on the left, where the migration is configured and nothing
         has moved yet, and the run itself on the right. Every step already exists today except the
-        three highlighted ones — <strong>step 2, step 4 and step 11</strong> — which are the entire
-        scope of this work. Following the numbers is the clearest way to see how little of the pipeline
+        highlighted ones — <strong>step 2, step 4 and step 11</strong>, with step 11 now followed by
+        a diagnosis step, <strong>11b</strong> — which are the entire scope of this work. Following the numbers is the clearest way to see how little of the pipeline
         changes.
       </p>
 
@@ -207,13 +212,16 @@ flowchart TB
     A8["<b>8. Load that group into Salesforce</b>"]
     A9["<b>9. Record the new Salesforce identifiers</b><br/>so later groups can resolve them"]
     D1{"10. Any failed<br/>records?"}
-    A11["<b>11. Repair Agent patches<br/>the mapping</b><br/>then retries this one object"]
+    A11["<b>11. Repair</b><br/>fixed rules for known errors first,<br/>then the Repair Agent for the rest;<br/>retries this one object"]
+    A11b["<b>11b. Diagnosis Agent</b><br/>explains what repair could not fix<br/>and ranks fixes — writes nothing"]
     D2{"12. More object<br/>groups?"}
     A13["<b>13. Migration complete</b>"]
 
     A5 --> A6 --> A7 --> A8 --> A9 --> D1
-    D1 -- "yes, and repairable" --> A11
+    D1 -- "yes" --> A11
     A11 -- "re-transform from staged data" --> A7
+    A11 -- "still failing after the attempt cap" --> A11b
+    A11b --> D2
     D1 -- "no" --> D2
     D2 -- "yes, next group" --> A7
     D2 -- "no" --> A13
@@ -233,6 +241,7 @@ flowchart TB
   style A2 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
   style A4 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
   style A11 fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
+  style A11b fill:#fdf6e7,stroke:#8a5a00,stroke-width:2px
   style A13 fill:#eaf6f0,stroke:#1f6b4a
         </pre>
       </div>
@@ -245,6 +254,13 @@ flowchart TB
         at no cost, while everything on the right is touching a live Salesforce org. Note also that
         step 7 is re-entered from two places: once per object group in the normal loop, and again after
         a repair — which is why a repair costs one object's transform rather than a restart.
+      </p>
+      <p>
+        Step 11b is the one step that ends with a person rather than a write. When rows are still
+        rejected after the last repair attempt, the Diagnosis Agent explains why and attaches the
+        mapping changes that would fix it. After the run, the migration engineer can discuss the failure
+        with an assistant, apply one of those fixes as a reviewed proposal, and re-run only the affected
+        object (section 6.4).
       </p>
 
       <h3>Inside step 2 — how the Relationship Agent works</h3>
@@ -333,7 +349,7 @@ flowchart TB
             <td><strong>11 — Repair</strong></td>
             <td>Only when an object reports failed records at step 10</td>
             <td>Migration manager, inside the per-group loop after the load call returns</td>
-            <td>Field-level patches to transform functions and their parameters, followed by a re-transform and re-load of that single object from staged data.</td>
+            <td>Fixed rules first for errors with exactly one correct fix, then the Repair Agent for the rest — field-level patches to transform functions and their parameters, followed by a re-transform and re-load of that single object from staged data. Whatever still fails is diagnosed (11b) and offered to a person as proposed fixes.</td>
           </tr>
         </tbody>
       </table>
@@ -465,17 +481,27 @@ sequenceDiagram
   note over M,SF: STEP 11 - repair at run time
   M->>SF: Load object group
   SF-->>M: Failed records with error messages
-  M->>AG: Send error summary and mapping config
+  M->>M: Fixed rules patch the errors they recognise
+  M->>AG: Send the remaining errors and mapping config
   AG->>B: Reason over errors and field metadata
   B-->>AG: Submit field patches
   AG->>M: Validated patch
   M->>M: Save config, re-transform from staged data
   M->>SF: Re-load the failed object only
-  SF-->>M: Result - retry once more or surface to user
+  SF-->>M: Result - retry once more, or diagnose
+  end
+
+  rect rgb(243,247,244)
+  note over U,M: STEP 11b - diagnosis and approval
+  M->>AG: Rows still rejected after the last attempt
+  AG->>T: Sample rejected rows, profile source columns
+  AG->>B: Explain the cause, rank fixes
+  AG-->>U: Diagnosis with validated fixes
+  U->>A: Apply a fix as a proposal, then re-run the object
   end
         </pre>
       </div>
-      <p class="caption">Diagram 2 — Resolution loop at design time; repair loop at run time.</p>
+      <p class="caption">Diagram 2 — Resolution loop at design time; repair loop at run time; diagnosis and human approval for what repair could not fix.</p>
     </section>
 
     <section>
@@ -628,8 +654,10 @@ sequenceDiagram
       <p>
         The loader already extracts unique error messages from Salesforce's failed-record output and
         returns them per object. The repair agent receives that error summary, the object's mapping
-        configuration, and the destination field metadata. It never sees record data — only error text
-        and schema — which keeps the same data-handling posture as the Relationship Agent.
+        configuration, and the destination field metadata. Beyond error text and schema it sees at
+        most a couple of short sample values per error class, because the offending value is often
+        the only way to tell a wrong date format from a wrong timezone. Those samples can be switched
+        off entirely.
       </p>
       <p>
         Salesforce error messages are self-describing enough to reason from, and the same bounded
@@ -661,7 +689,57 @@ sequenceDiagram
         Abort immediately if an attempt does not reduce the failure count, if the error class is on the
         non-repairable list, or if the same patch has already been tried. A run that exhausts repair
         finishes in the existing completed-with-errors state with the unresolved errors attached — the
-        agent can improve an outcome but never worsen one.
+        agent can improve an outcome but never worsen one. A retry that "fixes" a rejection by making
+        the transform discard the row still counts as a failure.
+      </div>
+
+      <h3>6.3 Fixed rules before the model</h3>
+      <p>
+        Some Salesforce errors have exactly one correct fix, and asking a model for it costs time,
+        tokens and reproducibility. Those are now handled by deterministic rules that run before the
+        Repair Agent, with no model call. When the rules handle every error on an object, the model is
+        not called at all; otherwise it sees only the errors the rules did not recognise.
+      </p>
+      <table>
+        <thead><tr><th>Error</th><th>What the rule wires</th></tr></thead>
+        <tbody>
+          <tr><td>A raw source identifier sent to a lookup</td><td>The identifier lookup against the map the parent mapping populates</td></tr>
+          <tr><td>A validation rule stating a minimum and maximum length</td><td>A length guard with those limits, tightened a character at a time if the rule rejects its own boundary</td></tr>
+          <tr><td>Value too long for the field</td><td>A length guard at the stated or described length, allowing for line breaks counting double on the wire</td></tr>
+          <tr><td>"X must be after Y" on dates</td><td>A conditional rule that clears the dependent date whenever its prerequisite is empty at the source</td></tr>
+          <tr><td>A field a validation rule makes required</td><td>Maps it from the best-matching source column with a fallback default, or a constant when nothing matches</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Every rule-made change is recorded and reversible exactly like an agent change, and appears in
+        the same change log.
+      </p>
+
+      <h3>6.4 Diagnosis, the assistant, and proposals</h3>
+      <p>
+        Repair deliberately stops at what it can fix safely. When rows are still rejected after the last
+        attempt, the <strong>Diagnosis Agent</strong> takes over. Its job is not to change anything but
+        to explain: it reads a small sample of the rejected rows alongside the staged source rows they
+        came from, sizes the problem by profiling the relevant source column, and says in plain language
+        whether this is a data problem, a mapping problem or a destination rule. It then ranks two or
+        three fixes with their trade-offs. Where a mapping change would work, the fix carries it, already
+        validated. Where it needs a person — a validation rule to relax, source data to correct — it says
+        who needs to do what.
+      </p>
+      <p>
+        The migration engineer can then talk to an <strong>assistant</strong> about the session's
+        failures, using the same investigation tools. The assistant cannot change a mapping. When a
+        change is needed it stores a <em>proposal</em>: the validated changes, applied to a draft to
+        show a before/after, waiting for a decision. Apply is a separate, deterministic step. It
+        re-validates the change, refuses if the mapping has moved on since the preview or the session is
+        running, records every change so it can be reverted, and then offers to re-run only the affected
+        object.
+      </p>
+      <div class="callout">
+        <strong>Why this layer asks rather than acts.</strong> By the time a failure reaches diagnosis,
+        the safe mechanical fixes have been tried. What is left usually involves a judgement about the
+        client's data — clear a date, or default it, or leave the record out — which is exactly the
+        decision the first design rules reserve for a person. Making it one click keeps that cheap.
       </div>
     </section>
 
@@ -676,6 +754,13 @@ sequenceDiagram
         Because the agent writes rather than suggests, this table is doing three jobs at once: it is the
         audit trail, the mechanism that makes any individual change reversible, and the cost ledger. It
         also feeds the scenario-frequency analysis described in section 5.5.
+      </p>
+      <p>
+        Three further tables hold the post-load conversation: the diagnoses written for failing objects,
+        the per-session messages with the assistant, and the proposals awaiting a decision, each with its
+        before/after preview and the diagnosis it came from. An applied proposal writes its changes into
+        the same change log under its own run, so a reviewer can tell a change the agent made on its own
+        from one a person approved.
       </p>
 
       <h3>7.2 Existing state the agents depend on</h3>
@@ -700,7 +785,10 @@ sequenceDiagram
           <tr><td>Resolve endpoint</td><td>Takes the current selection and credential references. Runs the agent, validates its conclusions, writes the resulting configuration, and returns a change log, the outstanding blockers, and token usage.</td></tr>
           <tr><td>Preview mode on the same endpoint</td><td>Identical analysis with the write suppressed. Useful for a first run on an unfamiliar client dataset, and for testing.</td></tr>
           <tr><td>Revert endpoint</td><td>Takes a change reference and restores the prior value from the audit record. Reversal is per item, not per run.</td></tr>
-          <tr><td>Notices endpoint</td><td>Serves current relationship notices for the pre-launch banner and the run view.</td></tr>
+          <tr><td>Notices endpoint</td><td>Serves current relationship notices for the pre-launch banner and the run view, limited to the current migration attempt so a finding already fixed does not read as still true.</td></tr>
+          <tr><td>Diagnosis endpoints</td><td>List the latest diagnosis per failing object, run one on demand, and turn one of its suggested fixes into a proposal without a model call.</td></tr>
+          <tr><td>Assistant endpoints</td><td>One conversational turn, the conversation history, and apply or reject for a stored proposal.</td></tr>
+          <tr><td>Resolution history endpoint</td><td>Every change an agent applied in the session, grouped by run and tagged with where it came from.</td></tr>
         </tbody>
       </table>
 
@@ -717,6 +805,9 @@ sequenceDiagram
           notice categories.</li>
         <li>A repair state on the progress view, so an in-flight repair and its rationale are visible
           while it happens rather than only in the final error list.</li>
+        <li>An assistant panel in the run view: diagnoses with their ranked fixes, the conversation,
+          pending proposals with a before/after, Apply and Reject, and a re-run of the affected object.</li>
+        <li>A resolutions drawer listing every applied agent change for the session, with revert.</li>
       </ul>
     </section>
 
@@ -773,6 +864,14 @@ sequenceDiagram
         is the only component that runs inside a live migration, it arrives last, and it sits behind
         both a feature flag and its own attempt cap.
       </div>
+
+      <div class="callout ok">
+        <strong>Delivered beyond this plan.</strong> All nine stages are complete. Since then, the
+        repair stage has gained fixed rules that run ahead of the model (6.3), a Diagnosis Agent for
+        failures repair cannot fix, and an assistant whose fixes are applied only on approval (6.4).
+        Alongside these: a preview-first way to fill a single column on records that have already
+        migrated, and field-matching confidence scored on meaning rather than name resemblance.
+      </div>
     </section>
 
     <section>
@@ -781,9 +880,10 @@ sequenceDiagram
         <thead><tr><th>Concern</th><th>Handling</th></tr></thead>
         <tbody>
           <tr><td>Bedrock unavailable or throttled</td><td>Adaptive retry, then fall through to the deterministic path; the run proceeds as it does today</td></tr>
-          <tr><td>What the model receives</td><td>Schema and error text only — field names, types, allowed values, and Salesforce error messages. No record payloads, no credentials, no attachments</td></tr>
+          <tr><td>What the model receives</td><td>Schema and error text — field names, types, allowed values, and Salesforce error messages — plus, for repair and diagnosis only, a capped and truncated sample of rejected rows and source-column profiles. One setting removes those values. No extract dumps, no credentials, no attachments</td></tr>
+          <tr><td>Fixes that need judgement</td><td>Diagnosed and offered as proposals with a before/after. Nothing is applied without a person, applying never calls the model, and a proposal made stale by a later edit is refused rather than applied over it</td></tr>
           <tr><td>Credential handling</td><td>Resolved server-side by reference; never declared in a tool schema, never placed in a prompt</td></tr>
-          <tr><td>Cost</td><td>A resolution pass is a modest number of tokens against a schema, not against data; a repair is smaller still. Both are capped and logged per call, so spend is measurable per migration from day one</td></tr>
+          <tr><td>Cost</td><td>A resolution pass is a modest number of tokens against a schema, not against data; a repair is smaller still, and none at all when the fixed rules handle every error. All are capped and logged per call, so spend is measurable per migration from day one</td></tr>
           <tr><td>Latency</td><td>Resolution is user-initiated at design time and takes tens of seconds. Repair adds one model call and a scoped re-transform to a run that had already failed</td></tr>
           <tr><td>Non-determinism</td><td>Deterministic decoding settings, and every conclusion validated against live schema before it is written. Two runs may reach the same outcome by different routes; neither can write an invalid configuration</td></tr>
           <tr><td>Wrong-but-valid changes</td><td>The residual risk of autonomy: a change that passes validation but is not what the client wanted. Contained by the change log, per-item revert, and the pre-flight gate at step 4 — not by asking a human to approve every item, which is the review nobody performs carefully</td></tr>

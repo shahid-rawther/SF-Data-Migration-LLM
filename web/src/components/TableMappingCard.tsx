@@ -6,7 +6,9 @@ import type {
   DestinationFieldInfo,
   SemanticSuggestReport,
 } from '../api/client';
+import { Disclosure } from './Disclosure';
 import { FieldMapper } from './FieldMapper';
+import { MoreMenu } from './MoreMenu';
 import { PrerequisiteNotice } from './PrerequisiteNotice';
 import { SearchableSelect } from './SearchableSelect';
 import { SemanticMatchPanel } from './SemanticMatchPanel';
@@ -57,6 +59,9 @@ export interface TableMappingState {
   joins: JoinDef[];
   // Row filters: only source rows matching all filters are migrated.
   filters: FilterDef[];
+  // The saved mapping this card was read from or has written. Saving under any
+  // other name that already exists would replace someone else's mapping.
+  savedAs?: string;
 }
 
 interface Props {
@@ -335,6 +340,12 @@ export function TableMappingCard({
     }
   };
 
+  const advancedHint = [
+    state.operation.charAt(0).toUpperCase() + state.operation.slice(1),
+    `${state.joins.length} join${state.joins.length === 1 ? '' : 's'}`,
+    `${state.filters.length} filter${state.filters.length === 1 ? '' : 's'}`,
+  ].join(' · ');
+
   return (
     <div style={cardStyle}>
       {/* Header */}
@@ -352,58 +363,48 @@ export function TableMappingCard({
           <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 14 }}>
             {state.sourceTable}
           </span>
-          <span style={{ fontSize: 12, color: '#737373' }}>
-            {state.sfObject ? `${'->'}  ${state.sfObject}` : '(not mapped)'}
-            {' | '}
-            {state.fields.length} field(s)
+          <span style={{ fontSize: 13, color: state.sfObject ? '#404040' : '#a3a3a3' }}>
+            {state.sfObject ? `\u2192 ${state.sfObject}` : 'no Salesforce object yet'}
+          </span>
+          <span style={{ fontSize: 12, color: '#a3a3a3' }}>
+            · {state.fields.length} field{state.fields.length === 1 ? '' : 's'}
           </span>
         </div>
 
-        {/* Reorder & split buttons */}
-        <div style={{ display: 'flex', gap: 2, marginLeft: 'auto', marginRight: 8 }}>
-          <button
-            type="button"
-            disabled={index === 0}
-            onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
-            style={reorderBtn}
-            title="Move up (higher priority)"
-          >
-            &#9650;
-          </button>
-          <button
-            type="button"
-            disabled={index === total - 1}
-            onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
-            style={reorderBtn}
-            title="Move down (lower priority)"
-          >
-            &#9660;
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onSplit(); }}
-            style={splitBtn}
-            title="Split: map this source table to an additional Salesforce object"
-          >
-            &#8621;
-          </button>
-          <button
-            type="button"
-            disabled={!canRemove}
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            style={{
-              ...removeCardBtn,
-              opacity: canRemove ? 1 : 0.35,
-              cursor: canRemove ? 'pointer' : 'not-allowed',
-            }}
-            title={canRemove ? 'Remove this mapping card' : 'Cannot remove the only card for this source table'}
-          >
-            &#10005;
-          </button>
+        <div style={{ marginLeft: 'auto', marginRight: 8 }}>
+          <MoreMenu
+            compact
+            items={[
+              {
+                label: 'Move up',
+                description: 'Load this object earlier',
+                disabled: index === 0,
+                onSelect: onMoveUp,
+              },
+              {
+                label: 'Move down',
+                description: 'Load this object later',
+                disabled: index === total - 1,
+                onSelect: onMoveDown,
+              },
+              {
+                label: 'Also map to another object',
+                description: 'Send this source table to a second Salesforce object',
+                onSelect: onSplit,
+              },
+              {
+                label: 'Remove',
+                disabled: !canRemove,
+                title: canRemove ? undefined : 'This is the only card for this source table',
+                danger: true,
+                onSelect: onRemove,
+              },
+            ]}
+          />
         </div>
 
         <span
-          style={{ fontSize: 16, userSelect: 'none', cursor: 'pointer' }}
+          style={{ fontSize: 12, color: '#737373', userSelect: 'none', cursor: 'pointer' }}
           onClick={() => setExpanded((e) => !e)}
         >
           {expanded ? '\u25B2' : '\u25BC'}
@@ -448,24 +449,36 @@ export function TableMappingCard({
                 style={inputStyle}
               />
             </div>
-            <div style={{ flex: '0 0 130px' }}>
-              <label style={labelStyle}>Operation</label>
+          </div>
+
+          {state.sfObject && (
+          <Disclosure
+            label="Advanced: operation, joins & row filters"
+            count={state.joins.length + state.filters.length}
+            hint={advancedHint}
+            defaultOpen={state.joins.length + state.filters.length > 0 || state.operation !== 'insert'}
+            style={{ marginBottom: 14 }}
+          >
+            <div style={{ ...joinBoxStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#404040' }}>Operation</div>
+                <div style={{ fontSize: 11, color: '#737373', marginTop: 2 }}>
+                  Insert creates new records. Update and upsert need a key to match existing ones.
+                </div>
+              </div>
               <select
                 value={state.operation}
                 onChange={(e) =>
                   patch({ operation: e.target.value as 'insert' | 'update' | 'upsert' })
                 }
-                style={selectStyle}
+                style={{ ...selectStyle, width: 130 }}
               >
                 <option value="insert">Insert</option>
                 <option value="update">Update</option>
                 <option value="upsert">Upsert</option>
               </select>
             </div>
-          </div>
 
-          {/* Related tables / Joins */}
-          {state.sfObject && (
             <div style={joinBoxStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
@@ -544,10 +557,7 @@ export function TableMappingCard({
                 </div>
               ))}
             </div>
-          )}
 
-          {/* Row filters */}
-          {state.sfObject && (
             <div style={joinBoxStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
@@ -720,6 +730,7 @@ export function TableMappingCard({
                 );
               })}
             </div>
+          </Disclosure>
           )}
 
           {/* Action buttons */}
@@ -861,42 +872,9 @@ const priorityBadge: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const reorderBtn: React.CSSProperties = {
-  width: 22,
-  height: 22,
-  padding: 0,
-  border: '1px solid #d4d4d4',
-  borderRadius: 4,
-  background: '#fff',
-  cursor: 'pointer',
-  fontSize: 10,
-  lineHeight: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const splitBtn: React.CSSProperties = {
-  ...reorderBtn,
-  fontSize: 13,
-  color: '#171717',
-  border: '1px solid #d4d4d4',
-  background: '#f5f5f5',
-  marginLeft: 4,
-};
-
-const removeCardBtn: React.CSSProperties = {
-  ...reorderBtn,
-  fontSize: 11,
-  color: '#0a0a0a',
-  border: '1px solid #e5e5e5',
-  background: '#fafafa',
-  marginLeft: 4,
-};
-
 const joinBoxStyle: React.CSSProperties = {
   padding: 12,
-  marginBottom: 14,
+  marginBottom: 10,
   borderRadius: 8,
   background: '#fafafa',
   border: '1px solid #e5e5e5',
@@ -931,7 +909,15 @@ const joinTableChip: React.CSSProperties = {
 };
 
 const removeJoinBtn: React.CSSProperties = {
-  ...reorderBtn,
+  width: 22,
+  height: 22,
+  padding: 0,
+  borderRadius: 4,
+  cursor: 'pointer',
+  lineHeight: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   fontSize: 11,
   color: '#0a0a0a',
   border: '1px solid #e5e5e5',

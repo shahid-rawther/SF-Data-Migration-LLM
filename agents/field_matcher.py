@@ -16,7 +16,7 @@ here.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from common.logger import logger
 
@@ -30,6 +30,14 @@ from agents.bedrock_client import (
 from agents.config import PURPOSE_FIELD_MATCH, AgentSettings, load_settings
 
 SUBMIT_TOOL = "submit_field_matches"
+
+# A wide table yields well over 100 pairs, each with a rationale, all in a single
+# tool call. Kept under ~21k because the Anthropic SDK refuses larger
+# non-streaming requests.
+OUTPUT_TOKENS = 16_000
+# A reply that still overflows is retried on halves of the source fields until
+# a batch is this small.
+MIN_BATCH = 10
 
 SYSTEM_PROMPT = """\
 You map fields from a source ITSM system onto Salesforce fields for a data \
@@ -66,7 +74,8 @@ same fact, 0.7 to 0.9 when they hold the same fact at a slightly different \
 grain or format, 0.5 to 0.7 when the meanings overlap but some values would \
 not carry over, and below 0.5 when you are guessing.
 - Write the rationale for a migration engineer who cannot see this prompt. Say \
-what fact the two fields hold, not that the names look alike.
+what fact the two fields hold, not that the names look alike. Keep it to one \
+short sentence.
 
 Call submit_field_matches exactly once with everything you found. If nothing \
 matches, submit an empty list.
@@ -502,28 +511,25 @@ def suggest(
     }
 
     try:
-        client = client or build_client(PURPOSE_FIELD_MATCH, settings)
-        result = run_tool_loop(
-            client,
-            system=SYSTEM_PROMPT,
-            prompt=_build_prompt(
-                source_table, destination_object, source_candidates, destination_candidates
+        client = client or build_client(
+            PURPOSE_FIELD_MATCH,
+            replace(
+                settings,
+                max_tokens_per_call=max(settings.max_tokens_per_call, OUTPUT_TOKENS),
             ),
-            tools=[SUBMIT_TOOL_SPEC],
-            dispatch=_no_tools,
-            submit_tool=SUBMIT_TOOL,
+        )
+        raw_matches, summary = _request_matches(
+            client, source_table, destination_object, source_candidates, destination_candidates
         )
     except AgentError as exc:
         report.error = str(exc)
         logger.warning("[field-match] %s -> %s failed: %s", source_table, destination_object, exc)
         return report
 
-    report.usage = result.usage
-    submission = result.submission or {}
-    raw_matches = submission.get("matches")
-    if not isinstance(raw_matches, list):
+    report.usage = client.usage.to_dict()
+    if raw_matches is None:
         report.error = "The model finished without submitting any matches."
-        report.summary = result.final_text
+        report.summary = summary
         return report
 
     report.matches, report.rejected = _validate(
@@ -533,7 +539,7 @@ def suggest(
         lookup_targets,
         settings.field_match_min_confidence,
     )
-    report.summary = str(submission.get("summary") or result.final_text or "")
+    report.summary = summary
     logger.info(
         "[field-match] %s -> %s: %d accepted, %d rejected from %d proposals",
         source_table,
@@ -543,6 +549,64 @@ def suggest(
         len(raw_matches),
     )
     return report
+
+
+def _request_matches(
+    client: AgentClient,
+    source_table: str,
+    destination_object: str,
+    source_candidates: list[dict],
+    destination_candidates: list[dict],
+) -> tuple[list[dict] | None, str]:
+    """Ask for matches, halving the source fields while the reply overflows.
+
+    Returns ``(raw_matches, summary)``; ``raw_matches`` is None when nothing
+    usable was submitted. A pair proposed in two batches is de-duplicated by
+    ``_validate``.
+    """
+    result = run_tool_loop(
+        client,
+        system=SYSTEM_PROMPT,
+        prompt=_build_prompt(
+            source_table, destination_object, source_candidates, destination_candidates
+        ),
+        tools=[SUBMIT_TOOL_SPEC],
+        dispatch=_no_tools,
+        submit_tool=SUBMIT_TOOL,
+    )
+    truncated = result.stop_reason == "max_tokens"
+
+    if truncated and len(source_candidates) >= 2 * MIN_BATCH:
+        half = len(source_candidates) // 2
+        logger.info(
+            "[field-match] %s -> %s: reply hit the output limit with %d source "
+            "fields; retrying in two batches",
+            source_table,
+            destination_object,
+            len(source_candidates),
+        )
+        parts = [
+            _request_matches(
+                client, source_table, destination_object, batch, destination_candidates
+            )
+            for batch in (source_candidates[:half], source_candidates[half:])
+        ]
+        found = [matches for matches, _ in parts if matches is not None]
+        summary = " ".join(text for _, text in parts if text)
+        if not found:
+            return None, summary
+        return [m for matches in found for m in matches], summary
+
+    submission = result.submission or {}
+    raw_matches = submission.get("matches")
+    if truncated or not isinstance(raw_matches, list):
+        if truncated:
+            return None, (
+                "The reply hit the output token limit before the match list was "
+                "complete. Raise AGENT_MAX_TOKENS_PER_CALL or map some fields first."
+            )
+        return None, result.final_text
+    return raw_matches, str(submission.get("summary") or result.final_text or "")
 
 
 def _no_tools(name: str, arguments: dict):

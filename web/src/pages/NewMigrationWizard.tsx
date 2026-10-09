@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, DeferredLookupNotice, PreflightResult } from '../api/client';
-import { CredentialForm } from '../components/CredentialForm';
+import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, CredentialsSchema, DeferredLookupNotice, PreflightResult } from '../api/client';
+import { ConnectionPicker } from '../components/ConnectionPicker';
+import { DataReadinessPanel } from '../components/DataReadinessPanel';
+import { Disclosure } from '../components/Disclosure';
 import { DestinationHierarchy } from '../components/DestinationHierarchy';
 import { DestinationObjectSelector } from '../components/DestinationObjectSelector';
 import { SourceTableSelector } from '../components/SourceTableSelector';
@@ -40,6 +42,9 @@ export function NewMigrationWizard() {
   const [loadingSfObjects, setLoadingSfObjects] = useState(false);
   const [tableMappings, setTableMappings] = useState<TableMappingState[]>([]);
   const [savingMappings, setSavingMappings] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Every mapping already saved, so a new card never reuses one of their names.
+  const [savedMappingNames, setSavedMappingNames] = useState<Set<string>>(new Set());
   const [options, setOptions] = useState({
     start_date: '',
     end_date: '',
@@ -69,6 +74,7 @@ export function NewMigrationWizard() {
   // no opportunity to fix it first.
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [expandedCompatObj, setExpandedCompatObj] = useState<string | null>(null);
+  const [showAllCompatFields, setShowAllCompatFields] = useState(false);
 
   // Custom field creation state
   const [creatingField, setCreatingField] = useState<string | null>(null); // "objectName::fieldName" key
@@ -95,6 +101,10 @@ export function NewMigrationWizard() {
   useEffect(() => {
     api.sources.list().then(setSources);
     api.connections.list('salesforce').then(setSavedDestConns);
+    api.mappings
+      .list()
+      .then((ms) => setSavedMappingNames(new Set(ms.map((m) => m.name))))
+      .catch(() => {});
   }, []);
 
   // Reload source connections whenever the selected source changes
@@ -113,14 +123,14 @@ export function NewMigrationWizard() {
     try {
       const res = await api.sources.validateCredentials(selectedSource.id, sourceCreds);
       if (res.valid) {
-        setValidationMsg('✅ Connection successful');
+        setValidationMsg('Connected');
         setSourceValidated(true);
       } else {
-        setValidationMsg('❌ Connection failed');
+        setValidationMsg('Connection failed');
         setSourceValidated(false);
       }
     } catch {
-      setValidationMsg('❌ Could not reach server');
+      setValidationMsg('Could not reach the server');
       setSourceValidated(false);
     } finally {
       setValidating(false);
@@ -234,11 +244,9 @@ export function NewMigrationWizard() {
     }
   }, [destCreds]);
 
-  const defaultMappingName = (table: string) =>
-    table.replace(/^(sc_|sys_)/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\s/g, '');
-
-  const syncTableMappings = useCallback((tables: string[]) => {
+  const syncTableMappings = useCallback((tables: string[], sfSelection: string[], taken: Set<string>) => {
     setTableMappings((prev) => {
+      const names = new Set([...taken, ...prev.map((m) => m.mappingName)]);
       const existingByTable = new Map<string, TableMappingState[]>();
       for (const m of prev) {
         const arr = existingByTable.get(m.sourceTable) ?? [];
@@ -253,21 +261,9 @@ export function NewMigrationWizard() {
           result.push(...existing);
           existingByTable.delete(t);
         } else {
-          result.push({
-            id: crypto.randomUUID(),
-            sourceTable: t,
-            sfObject: '',
-            mappingName: defaultMappingName(t),
-            operation: 'insert' as const,
-            priority: 0,
-            fields: [],
-            sourceFields: [],
-            destFields: [],
-            fieldsLoaded: false,
-            joinTables: [],
-            joins: [],
-            filters: [],
-          });
+          const card = newCard(t, names, guessSfObject(t, sfSelection));
+          names.add(card.mappingName);
+          result.push(card);
         }
       }
       // Drop cards whose sourceTable was deselected (not in the new set)
@@ -292,51 +288,75 @@ export function NewMigrationWizard() {
     if (newTables.length === 0) return;
     setSelectedTables((prev) => [...newTables, ...prev]);
     setTableMappings((prev) => {
-      const newCards: TableMappingState[] = newTables.map((t) => ({
-        id: crypto.randomUUID(),
-        sourceTable: t,
-        sfObject: '',
-        mappingName: defaultMappingName(t),
-        operation: 'insert' as const,
-        priority: 0,
-        fields: [],
-        sourceFields: [],
-        destFields: [],
-        fieldsLoaded: false,
-        joinTables: [],
-        joins: [],
-        filters: [],
-      }));
+      const names = new Set([...savedMappingNames, ...prev.map((m) => m.mappingName)]);
+      const newCards = newTables.map((t) => {
+        const card = newCard(t, names);
+        names.add(card.mappingName);
+        return card;
+      });
       const next = [...prev];
       next.splice(requestingIdx, 0, ...newCards);
       return next.map((m, i) => ({ ...m, priority: i + 1 }));
     });
-  }, [selectedTables]);
+  }, [selectedTables, savedMappingNames]);
 
   const handleSplitMapping = useCallback((idx: number) => {
     setTableMappings((prev) => {
       const source = prev[idx];
-      const suffix = prev.filter((m) => m.sourceTable === source.sourceTable).length + 1;
-      const newCard: TableMappingState = {
-        id: crypto.randomUUID(),
-        sourceTable: source.sourceTable,
-        sfObject: '',
-        mappingName: `${defaultMappingName(source.sourceTable)}_${suffix}`,
-        operation: 'insert',
-        priority: 0,
-        fields: [],
+      const names = new Set([...savedMappingNames, ...prev.map((m) => m.mappingName)]);
+      const split: TableMappingState = {
+        ...newCard(source.sourceTable, names),
         sourceFields: source.sourceFields,
-        destFields: [],
-        fieldsLoaded: false,
         joinTables: [...source.joinTables],
         joins: source.joins.map((j) => ({ ...j })),
         filters: source.filters.map((f) => ({ ...f })),
       };
       const next = [...prev];
-      next.splice(idx + 1, 0, newCard);
+      next.splice(idx + 1, 0, split);
       return next.map((m, i) => ({ ...m, priority: i + 1 }));
     });
-  }, []);
+  }, [savedMappingNames]);
+
+  /** Replace a card's contents with the saved mapping of the same name. */
+  const loadSavedMapping = async (cardId: string, name: string) => {
+    try {
+      const { config } = await api.mappings.get(name);
+      const [driving, ...joined] = config.source_tables ?? [];
+      setTableMappings((prev) =>
+        prev.map((m) =>
+          m.id !== cardId
+            ? m
+            : {
+                ...m,
+                sourceTable: driving || m.sourceTable,
+                sfObject: config.destination_object,
+                operation: config.operation ?? 'insert',
+                fields: config.fields ?? [],
+                fieldsLoaded: false,
+                sourceFields: [],
+                destFields: [],
+                joinTables: joined,
+                joins: (config.joins ?? []) as TableMappingState['joins'],
+                filters: (config.filters ?? []) as TableMappingState['filters'],
+                savedAs: name,
+              },
+        ),
+      );
+      setSaveError(null);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : `Could not read the saved mapping ${name}`);
+    }
+  };
+
+  const renameCard = (cardId: string) => {
+    setTableMappings((prev) => {
+      const names = new Set([...savedMappingNames, ...prev.map((m) => m.mappingName)]);
+      return prev.map((m) =>
+        m.id === cardId ? { ...m, mappingName: uniqueName(m.mappingName, names) } : m,
+      );
+    });
+    setSaveError(null);
+  };
 
   const handleRemoveMapping = useCallback((idx: number) => {
     setTableMappings((prev) => {
@@ -378,8 +398,20 @@ export function NewMigrationWizard() {
     [tableMappings],
   );
 
-  const saveMappingsToDb = async () => {
+  /** Cards whose name belongs to a saved mapping they were not loaded from. */
+  const nameConflicts = useMemo(
+    () =>
+      tableMappings.filter(
+        (m) => m.sfObject && m.mappingName && savedMappingNames.has(m.mappingName) && m.savedAs !== m.mappingName,
+      ),
+    [tableMappings, savedMappingNames],
+  );
+
+  const saveMappingsToDb = async (): Promise<boolean> => {
+    if (nameConflicts.length > 0) return false;
     setSavingMappings(true);
+    setSaveError(null);
+    const written = new Map<string, string>();
     try {
       for (let i = 0; i < tableMappings.length; i++) {
         const m = tableMappings[i];
@@ -417,15 +449,24 @@ export function NewMigrationWizard() {
           fields: m.fields,
         };
         const sourceType = selectedSource?.id ?? 'servicenow';
-        try {
-          await api.mappings.create(m.mappingName, config, sourceType);
-        } catch {
+        if (m.savedAs === m.mappingName) {
           await api.mappings.update(m.mappingName, config, sourceType);
+        } else {
+          await api.mappings.create(m.mappingName, config, sourceType);
         }
+        written.set(m.id, m.mappingName);
       }
+      return true;
     } catch (err) {
-      console.error('Failed to save mappings', err);
+      setSaveError(err instanceof Error ? `Could not save the mappings: ${err.message}` : 'Could not save the mappings');
+      return false;
     } finally {
+      if (written.size) {
+        setTableMappings((prev) =>
+          prev.map((m) => (written.has(m.id) ? { ...m, savedAs: written.get(m.id) } : m)),
+        );
+        setSavedMappingNames((prev) => new Set([...prev, ...written.values()]));
+      }
       setSavingMappings(false);
     }
   };
@@ -436,7 +477,7 @@ export function NewMigrationWizard() {
     try {
       const res = await api.destinations.validateSalesforceCredentials(destCreds);
       if (res.valid) {
-        setDestValidationMsg('Connection successful');
+        setDestValidationMsg('Connected');
         setDestValidated(true);
       } else {
         setDestValidationMsg(res.message ? `Connection failed: ${res.message}` : 'Connection failed');
@@ -451,6 +492,91 @@ export function NewMigrationWizard() {
   };
 
   const mappingNames = tableMappings.filter((m) => m.sfObject && m.mappingName).map((m) => m.mappingName);
+
+  // A saved connection has worked before; typed credentials have to be tested
+  // first, or step 3 opens on an empty table list with no reason given.
+  const sourceReady =
+    !!selectedSource && (sourceValidated || (!!selectedSourceConn && selectedSourceConn !== 'new'));
+
+  const launchBlockers = [
+    ...(compatReport?.blocking_required_fields ?? []).map((b) => ({
+      where: `${b.mapping}.${b.field}`,
+      detail: b.reason,
+    })),
+    ...(preflight?.blockers ?? []).map((f) => ({
+      where: `${f.mapping}${f.field ? `.${f.field}` : ''}`,
+      detail: f.detail,
+    })),
+  ];
+
+  const warningCount =
+    (compatReport?.dependency_warnings ?? []).length +
+    (compatReport?.dependency_missing_parents ?? []).length +
+    (compatReport?.picklist_mapping_warnings ?? []).length +
+    deferredLookups.length +
+    (preflight?.warnings ?? []).length +
+    (compatReport?.objects ?? []).reduce((n, o) => n + o.type_mismatches, 0);
+
+  /**
+   * Pull mappings a readiness suggestion changed back into the wizard.
+   *
+   * Step 4's cards are the wizard's copy of each mapping, and every entry into
+   * step 5 saves them again — so a fix applied to the saved config would be
+   * overwritten the moment the person went back and forward. A mapping the
+   * suggestion added to the run becomes a card, with its table selected so
+   * step 4 does not drop it again.
+   */
+  const refreshMappingsFromDb = async (touched: string[], included: string[]) => {
+    const names = [...new Set([...touched, ...included])];
+    const loaded = await Promise.all(
+      names.map(async (name) => {
+        try {
+          return { name, config: (await api.mappings.get(name)).config };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const configs = new Map(loaded.filter((l) => l !== null).map((l) => [l.name, l.config]));
+    const existing = new Set(tableMappings.map((m) => m.mappingName));
+    const added: TableMappingState[] = [];
+    for (const name of included) {
+      const config = configs.get(name);
+      const [driving, ...joined] = config?.source_tables ?? [];
+      if (!config || !driving || existing.has(name)) continue;
+      added.push({
+        id: crypto.randomUUID(),
+        sourceTable: driving,
+        sfObject: config.destination_object,
+        mappingName: name,
+        operation: config.operation ?? 'insert',
+        priority: 0,
+        fields: config.fields ?? [],
+        sourceFields: [],
+        destFields: [],
+        fieldsLoaded: false,
+        joinTables: joined,
+        joins: (config.joins ?? []) as TableMappingState['joins'],
+        filters: (config.filters ?? []) as TableMappingState['filters'],
+        savedAs: name,
+      });
+    }
+    setTableMappings((prev) => {
+      // Parents load first, so an added mapping goes ahead of what needs it.
+      const next = [
+        ...added,
+        ...prev.map((m) => {
+          const config = configs.get(m.mappingName);
+          return config ? { ...m, fields: config.fields ?? m.fields, operation: config.operation ?? m.operation } : m;
+        }),
+      ];
+      return next.map((m, i) => ({ ...m, priority: i + 1 }));
+    });
+    if (added.length) {
+      setSelectedTables((prev) => [...new Set([...added.map((m) => m.sourceTable), ...prev])]);
+      setSelectedSfObjects((prev) => [...new Set([...prev, ...added.map((m) => m.sfObject)])]);
+    }
+  };
 
   const duplicateMappingNames = useMemo(() => {
     const counts = new Map<string, number>();
@@ -631,11 +757,11 @@ export function NewMigrationWizard() {
       if (sfObjects.length === 0) loadSfObjects();
     }
     if (s === 4) {
-      syncTableMappings(selectedTables);
+      syncTableMappings(selectedTables, selectedSfObjects, savedMappingNames);
       if (sfObjects.length === 0) loadSfObjects();
     }
     if (s === 5) {
-      await saveMappingsToDb();
+      if (!(await saveMappingsToDb())) return;
       setCompatReport(null);
       setCompatError(null);
       setDeferredLookups([]);
@@ -688,15 +814,16 @@ export function NewMigrationWizard() {
         {/* Step 1 — Source */}
         {step === 1 && (
           <div>
-            <h2 style={h2}>Select Migration Source</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+            <h2 style={h2}>Where is the data coming from?</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10, marginBottom: 24 }}>
               {sources.map((s) => (
                 <label
                   key={s.id}
                   style={{
                     ...sourceCard,
-                    border: selectedSource?.id === s.id ? '2px solid #171717' : '1px solid #e5e5e5',
-                    background: selectedSource?.id === s.id ? '#f5f5f5' : '#fff',
+                    border: selectedSource?.id === s.id ? '1px solid #171717' : '1px solid #e5e5e5',
+                    boxShadow: selectedSource?.id === s.id ? '0 0 0 1px #171717' : 'none',
+                    background: selectedSource?.id === s.id ? '#fafafa' : '#fff',
                   }}
                 >
                   <input
@@ -707,96 +834,43 @@ export function NewMigrationWizard() {
                     onChange={() => { setSelectedSource(s); setSourceCreds({}); setSelectedSourceConn(''); setSourceValidated(false); setValidationMsg(null); setSourceConnSaved(false); }}
                   />
                   <div>
-                    <div style={{ fontWeight: 600 }}>{s.name}</div>
-                    <div style={{ fontSize: 13, color: '#737373' }}>{s.description}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
+                    <div style={{ fontSize: 12, color: '#737373', marginTop: 2, lineHeight: 1.45 }}>{s.description}</div>
                   </div>
                 </label>
               ))}
             </div>
 
             {selectedSource && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={h3}>{selectedSource.name} Credentials</h3>
-
-                {/* Saved connections selector */}
-                {savedSourceConns.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Use Saved Connection</label>
-                    <select
-                      value={selectedSourceConn}
-                      onChange={(e) => onSelectSourceConn(e.target.value)}
-                      style={{ ...inputStyle, marginBottom: 8 }}
-                    >
-                      <option value="">— Select a saved connection —</option>
-                      {savedSourceConns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                      <option value="new">+ Enter new credentials</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Show credential form for new or no-selection */}
-                {(selectedSourceConn === 'new' || selectedSourceConn === '' || savedSourceConns.length === 0) && (
-                  <CredentialForm
-                    schema={selectedSource.credentials_schema}
-                    values={sourceCreds}
-                    onChange={(v) => { setSourceCreds(v); setSourceValidated(false); setValidationMsg(null); setSourceConnSaved(false); }}
-                  />
-                )}
-
-                {/* Show badge for selected saved connection */}
-                {selectedSourceConn && selectedSourceConn !== 'new' && (
-                  <div style={{ padding: '12px 16px', background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, fontSize: 13, color: '#171717' }}>
-                    Using saved connection: <strong>{savedSourceConns.find((c) => c.id === selectedSourceConn)?.name}</strong>
-                  </div>
-                )}
-
-                <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={validateSource} disabled={validating} style={secondaryBtn}>
-                    {validating ? 'Testing…' : 'Test Connection'}
-                  </button>
-                  {validationMsg && <span style={{ fontSize: 13 }}>{validationMsg}</span>}
-                </div>
-
-                {/* Save connection prompt */}
-                {sourceValidated && !sourceConnSaved && (!selectedSourceConn || selectedSourceConn === 'new') && (
-                  <div style={{ marginTop: 16, padding: 16, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#262626' }}>
-                      💾 Save this connection for future use?
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="Connection name (e.g. Dev ServiceNow)"
-                        value={sourceConnName}
-                        onChange={(e) => setSourceConnName(e.target.value)}
-                        style={{ ...inputStyle, flex: 1 }}
-                      />
-                      <button
-                        onClick={saveSourceConnection}
-                        disabled={savingSourceConn || !sourceConnName.trim()}
-                        style={primaryBtn}
-                      >
-                        {savingSourceConn ? 'Saving…' : 'Save'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {sourceConnSaved && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: '#171717' }}>
-                    ✅ Connection saved as "{sourceConnName}"
-                  </div>
-                )}
+              <div style={{ marginBottom: 8 }}>
+                <h3 style={h3}>{selectedSource.name} connection</h3>
+                <ConnectionPicker
+                  schema={selectedSource.credentials_schema}
+                  savedConnections={savedSourceConns}
+                  selected={selectedSourceConn}
+                  onSelect={onSelectSourceConn}
+                  credentials={sourceCreds}
+                  onCredentialsChange={(v) => { setSourceCreds(v); setSourceValidated(false); setValidationMsg(null); setSourceConnSaved(false); }}
+                  testing={validating}
+                  testResult={validationMsg ? { ok: sourceValidated && validationMsg === 'Connected', message: validationMsg } : null}
+                  onTest={validateSource}
+                  saveName={sourceConnName}
+                  onSaveNameChange={setSourceConnName}
+                  saving={savingSourceConn}
+                  savedAsName={sourceConnSaved ? sourceConnName : null}
+                  onSave={saveSourceConnection}
+                  namePlaceholder="Name, e.g. Dev ServiceNow"
+                />
               </div>
             )}
 
             <div style={navRow}>
               <span />
               <button
-                disabled={!selectedSource}
+                disabled={!sourceReady}
                 onClick={() => goStep(2)}
-                style={primaryBtn}
+                style={{ ...primaryBtn, opacity: sourceReady ? 1 : 0.5 }}
+                title={sourceReady ? undefined : 'Choose a saved connection or test the new one first'}
               >
                 Next →
               </button>
@@ -807,101 +881,49 @@ export function NewMigrationWizard() {
         {/* Step 2 — Destination */}
         {step === 2 && (
           <div>
-            <h2 style={h2}>Configure Destination (Salesforce)</h2>
+            <h2 style={h2}>Where is it going?</h2>
+            <p style={stepIntro}>Salesforce</p>
 
-            {/* Saved connections selector */}
-            {savedDestConns.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Use Saved Connection</label>
-                <select
-                  value={selectedDestConn}
-                  onChange={(e) => onSelectDestConn(e.target.value)}
-                  style={{ ...inputStyle, marginBottom: 8 }}
-                >
-                  <option value="">— Select a saved connection —</option>
-                  {savedDestConns.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                  <option value="new">+ Enter new credentials</option>
-                </select>
-              </div>
-            )}
+            <ConnectionPicker
+              schema={SALESFORCE_SCHEMA as CredentialsSchema}
+              savedConnections={savedDestConns}
+              selected={selectedDestConn}
+              onSelect={onSelectDestConn}
+              credentials={destCreds}
+              onCredentialsChange={(nextCreds) => {
+                setDestCreds(nextCreds);
+                setDestValidated(false);
+                setDestValidationMsg(null);
+                setDiagnostics(null);
+                setExpandDetails(false);
+                setDestConnSaved(false);
+              }}
+              testing={validatingDest}
+              testResult={destValidationMsg ? { ok: destValidated && destValidationMsg === 'Connected', message: destValidationMsg } : null}
+              onTest={validateDestination}
+              saveName={destConnName}
+              onSaveNameChange={setDestConnName}
+              saving={savingDestConn}
+              savedAsName={destConnSaved ? destConnName : null}
+              onSave={saveDestConnection}
+              namePlaceholder="Name, e.g. Prod Salesforce"
+            />
 
-            {/* Show credential form for new or no-selection */}
-            {(selectedDestConn === 'new' || selectedDestConn === '' || savedDestConns.length === 0) && (
-              <CredentialForm
-                schema={SALESFORCE_SCHEMA as any}
-                values={destCreds}
-                onChange={(nextCreds) => {
-                  setDestCreds(nextCreds);
-                  setDestValidated(false);
-                  setDestValidationMsg(null);
-                  setDiagnostics(null);
-                  setExpandDetails(false);
-                  setDestConnSaved(false);
-                }}
-              />
-            )}
-
-            {/* Show badge for selected saved connection */}
-            {selectedDestConn && selectedDestConn !== 'new' && (
-              <div style={{ padding: '12px 16px', background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, fontSize: 13, color: '#171717', marginBottom: 12 }}>
-                Using saved connection: <strong>{savedDestConns.find((c) => c.id === selectedDestConn)?.name}</strong>
-              </div>
-            )}
-
-            <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button onClick={validateDestination} disabled={validatingDest} style={secondaryBtn}>
-                {validatingDest ? 'Testing…' : 'Test Connection'}
-              </button>
-              {destValidationMsg && <span style={{ fontSize: 13 }}>{destValidationMsg}</span>}
-            </div>
-
-            {/* Save connection prompt */}
-            {destValidated && !destConnSaved && (!selectedDestConn || selectedDestConn === 'new') && (
-              <div style={{ marginTop: 16, padding: 16, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#262626' }}>
-                  💾 Save this connection for future use?
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="Connection name (e.g. Prod Salesforce)"
-                    value={destConnName}
-                    onChange={(e) => setDestConnName(e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button
-                    onClick={saveDestConnection}
-                    disabled={savingDestConn || !destConnName.trim()}
-                    style={primaryBtn}
-                  >
-                    {savingDestConn ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            )}
-            {destConnSaved && (
-              <div style={{ marginTop: 8, fontSize: 13, color: '#171717' }}>
-                ✅ Connection saved as "{destConnName}"
-              </div>
-            )}
-
-            {/* Object Visibility Check */}
-            <div style={{ marginTop: 16, marginBottom: 16 }}>
-              <button
-                onClick={checkObjectVisibility}
-                disabled={checkingDiagnostics || !destValidated}
-                style={{
-                  ...secondaryBtn,
-                  opacity: destValidated ? 1 : 0.6,
-                  cursor: destValidated ? 'pointer' : 'not-allowed',
-                }}
-                title={destValidated ? 'Check which selected objects are accessible' : 'Test connection first to check object visibility'}
+            {destValidated && (
+              <Disclosure
+                label="Check object access"
+                hint="optional: confirm the integration user can see the objects you need"
+                style={{ marginTop: 18 }}
               >
-                {checkingDiagnostics ? 'Checking…' : '🔍 Check Object Visibility'}
-              </button>
-            </div>
+                <button
+                  onClick={checkObjectVisibility}
+                  disabled={checkingDiagnostics}
+                  style={smallBtn}
+                >
+                  {checkingDiagnostics ? 'Checking…' : 'Run check'}
+                </button>
+              </Disclosure>
+            )}
 
             {/* Diagnostics Results */}
             {diagnostics && (
@@ -920,8 +942,8 @@ export function NewMigrationWizard() {
               >
                 <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
                   {diagnostics.missing_objects && diagnostics.missing_objects.length > 0
-                    ? '⚠️ Some objects may not be accessible'
-                    : '✅ All objects are accessible'}
+                    ? 'Some objects may not be accessible'
+                    : 'All objects are accessible'}
                 </div>
                 <div style={{ fontSize: 12, color: '#404040', marginBottom: 6 }}>
                   <strong>Run-as User:</strong> {diagnostics.run_as_user_id || 'N/A'}
@@ -987,8 +1009,8 @@ export function NewMigrationWizard() {
                   Next →
                 </button>
                 {!destValidated && (
-                  <span style={{ fontSize: 12, color: '#404040' }}>
-                    Please test Salesforce connection successfully before continuing.
+                  <span style={{ fontSize: 12, color: '#737373' }}>
+                    Test the connection to continue.
                   </span>
                 )}
                 {diagnostics?.missing_objects && diagnostics.missing_objects.length > 0 && (
@@ -1004,11 +1026,9 @@ export function NewMigrationWizard() {
         {/* Step 3 — Select what to migrate, on both sides */}
         {step === 3 && (
           <div>
-            <h2 style={h2}>Select Objects</h2>
-            <p style={{ color: '#737373', fontSize: 13, marginBottom: 20 }}>
-              Choose the {selectedSource?.name ?? 'source'} tables to read from, and the Salesforce
-              objects you are migrating into. The Salesforce side is what the dependency hierarchy
-              below is worked out from.
+            <h2 style={h2}>What should move?</h2>
+            <p style={stepIntro}>
+              Pick the {selectedSource?.name ?? 'source'} tables to read and the Salesforce objects they go into.
             </p>
 
             <div style={selectionPanel}>
@@ -1064,6 +1084,7 @@ export function NewMigrationWizard() {
               selectedObjects={selectedSfObjects}
               destCreds={destCreds}
               sourceType={selectedSource?.id}
+              defaultCollapsed
             />
 
             <div style={navRow}>
@@ -1082,17 +1103,11 @@ export function NewMigrationWizard() {
         {/* Step 4 — Map to Salesforce (inline mapping) */}
         {step === 4 && (
           <div>
-            <h2 style={h2}>Map to Salesforce</h2>
-            <p style={{ color: '#737373', fontSize: 13, marginBottom: 16 }}>
-              For each selected source table, choose a Salesforce object and configure field mappings.
-              {loadingSfObjects && ' Loading Salesforce objects...'}
+            <h2 style={h2}>Map the fields</h2>
+            <p style={stepIntro}>
+              For each table, pick its Salesforce object, then load and match the fields.
+              {loadingSfObjects && ' Loading Salesforce objects…'}
             </p>
-
-            {savingMappings && (
-              <div style={{ padding: 12, background: '#f5f5f5', border: '1px solid #d4d4d4', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
-                Saving mappings...
-              </div>
-            )}
 
             {tableMappings.map((m, idx) => (
               <TableMappingCard
@@ -1125,19 +1140,35 @@ export function NewMigrationWizard() {
             )}
 
             {duplicateMappingNames.length > 0 && (
-              <div style={{
-                padding: 12, marginBottom: 12, borderRadius: 8,
-                background: '#fafafa', border: '1px solid #d4d4d4', fontSize: 13, color: '#171717',
-              }}>
-                <strong>Duplicate mapping names detected:</strong> {duplicateMappingNames.join(', ')}.
-                Each mapping must have a unique name. Rename the duplicates before proceeding.
+              <div style={noticeBox}>
+                <strong>Two cards share a mapping name:</strong> {duplicateMappingNames.join(', ')}.
+                Rename one of them to continue.
               </div>
             )}
+
+            {nameConflicts.map((m) => (
+              <div key={m.id} style={{ ...noticeBox, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ flex: 1, minWidth: 260 }}>
+                  A saved mapping is already called <strong>{m.mappingName}</strong>. Continuing would
+                  replace it, so choose whether to edit that mapping or save this card under a new name.
+                </span>
+                <button type="button" style={smallBtn} onClick={() => loadSavedMapping(m.id, m.mappingName)}>
+                  Edit the saved one
+                </button>
+                <button type="button" style={smallBtn} onClick={() => renameCard(m.id)}>
+                  Use a new name
+                </button>
+              </div>
+            ))}
+
+            {saveError && <div style={noticeBox}>{saveError}</div>}
 
             <div style={navRow}>
               <button onClick={() => goStep(3)} style={secondaryBtn}>← Back</button>
               <button
-                disabled={mappingNames.length === 0 || savingMappings || duplicateMappingNames.length > 0}
+                disabled={
+                  mappingNames.length === 0 || savingMappings || duplicateMappingNames.length > 0 || nameConflicts.length > 0
+                }
                 onClick={() => goStep(5)}
                 style={primaryBtn}
               >
@@ -1150,10 +1181,9 @@ export function NewMigrationWizard() {
         {/* Step 5 — Compatibility Check */}
         {step === 5 && (
           <div>
-            <h2 style={h2}>Compatibility Check</h2>
-            <p style={{ color: '#737373', fontSize: 13, marginBottom: 16 }}>
-              Analyse how well your mappings work with the Salesforce destination.
-              This is a dry-run analysis — no data is moved.
+            <h2 style={h2}>Check before you run</h2>
+            <p style={stepIntro}>
+              Nothing is moved here. The checks read both systems and report what would go wrong.
             </p>
 
             <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -1162,7 +1192,7 @@ export function NewMigrationWizard() {
                 disabled={checkingCompat}
                 style={primaryBtn}
               >
-                {checkingCompat ? 'Checking...' : 'Run Compatibility Check'}
+                {checkingCompat ? 'Checking…' : compatReport ? 'Re-run compatibility check' : 'Run compatibility check'}
               </button>
             </div>
 
@@ -1200,7 +1230,7 @@ export function NewMigrationWizard() {
                     >
                       <div>
                         <strong>{obj.source_label}</strong>
-                        <span style={{ fontSize: 12, color: '#737373', marginLeft: 8 }}>{'->'} {obj.salesforce_object}</span>
+                        <span style={{ fontSize: 12, color: '#737373', marginLeft: 8 }}>&rarr; {obj.salesforce_object}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span style={{
@@ -1273,6 +1303,16 @@ export function NewMigrationWizard() {
                             ))}
                           </div>
                         )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, color: '#737373' }}>
+                            {showAllCompatFields
+                              ? `All ${obj.fields.length} fields`
+                              : `${obj.fields.filter((f) => f.status !== 'mapped').length} field(s) need attention`}
+                          </span>
+                          <button type="button" onClick={() => setShowAllCompatFields((v) => !v)} style={linkBtn}>
+                            {showAllCompatFields ? 'Show only problems' : `Show all ${obj.fields.length} fields`}
+                          </button>
+                        </div>
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: '#f5f5f5' }}>
@@ -1284,7 +1324,7 @@ export function NewMigrationWizard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {obj.fields.map((f, i) => {
+                            {obj.fields.filter((f) => showAllCompatFields || f.status !== 'mapped').map((f, i) => {
                               const fieldKey = `${obj.salesforce_object}::${f.destination_field}`;
                               return (
                               <tr key={i} style={{ borderBottom: '1px solid #e5e5e5' }}>
@@ -1416,8 +1456,13 @@ export function NewMigrationWizard() {
 
                 {/* Execution Order section */}
                 {compatReport.dependency_order && compatReport.dependency_order.length > 0 && (
-                  <div style={{ marginTop: 20 }}>
-                    <h3 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700 }}>Execution Order</h3>
+                  <Disclosure
+                    label="Load order"
+                    count={compatReport.dependency_order.length}
+                    hint={compatReport.dependency_order.join(' \u2192 ')}
+                    variant="boxed"
+                    style={{ marginTop: 16 }}
+                  >
                     <p style={{ fontSize: 12, color: '#737373', marginBottom: 10 }}>
                       Objects will be migrated in this order based on Salesforce reference field dependencies.
                       {compatReport.dependency_has_cycle && (
@@ -1517,9 +1562,19 @@ export function NewMigrationWizard() {
                         );
                       })}
                     </div>
-                  </div>
+                  </Disclosure>
                 )}
               </div>
+            )}
+
+            {selectedSource && (
+              <DataReadinessPanel
+                sourceType={selectedSource.id}
+                mappingNames={mappingNames}
+                sourceCreds={sourceCreds}
+                destCreds={destCreds}
+                onMappingsChanged={refreshMappingsFromDb}
+              />
             )}
 
             <div style={navRow}>
@@ -1532,29 +1587,32 @@ export function NewMigrationWizard() {
         {/* Step 6 — Options & Review */}
         {step === 6 && (
           <div>
-            <h2 style={h2}>Review & Run</h2>
+            <h2 style={h2}>Review &amp; run</h2>
+            <p style={stepIntro}>
+              {selectedSource?.name} &rarr; Salesforce{destCreds.base_url ? ` (${destCreds.base_url.replace(/^https?:\/\//, '')})` : ''}
+              {' · '}{mappingNames.length} mapping{mappingNames.length === 1 ? '' : 's'}
+              {compatReport && <> · {compatReport.overall_pct}% compatible</>}
+            </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-              <div>
-                <label style={labelStyle}>Start Date (optional)</label>
-                <input
-                  type="date"
-                  value={options.start_date}
-                  onChange={(e) => setOptions((o) => ({ ...o, start_date: e.target.value }))}
-                  style={inputStyle}
-                />
+            {launchBlockers.length > 0 && (
+              <div style={{ ...noticeBox, border: '1px solid #a3a3a3', marginBottom: 18 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  {launchBlockers.length} issue{launchBlockers.length === 1 ? '' : 's'} must be fixed before launching
+                </div>
+                {launchBlockers.map((b, i) => (
+                  <div key={`lb-${i}`} style={{ fontSize: 12.5, marginBottom: 3 }}>
+                    <b>{b.where}</b> — {b.detail}
+                  </div>
+                ))}
+                <div style={{ fontSize: 12, color: '#525252', marginTop: 6 }}>
+                  Fix these in step 4 (set a source field, constant or lookup), then re-run the check in step 5.
+                </div>
               </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 16, alignItems: 'start', marginBottom: 12 }}>
               <div>
-                <label style={labelStyle}>End Date (optional)</label>
-                <input
-                  type="date"
-                  value={options.end_date}
-                  onChange={(e) => setOptions((o) => ({ ...o, end_date: e.target.value }))}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Rows to pull from each source table</label>
+                <label style={labelStyle}>Rows per source table</label>
                 <input
                   type="number"
                   min={1}
@@ -1564,33 +1622,62 @@ export function NewMigrationWizard() {
                   }
                   style={inputStyle}
                 />
-                <p style={{ fontSize: 12, color: '#737373', margin: '6px 0 0' }}>
-                  Applies to each table separately, so {options.service_now_batch_size || 0} across{' '}
-                  {sourceTableCount === 1 ? '1 table' : `${sourceTableCount} tables`} stages up to{' '}
-                  <strong>
-                    {((options.service_now_batch_size || 0) * sourceTableCount).toLocaleString()} rows
-                  </strong>
-                  . A later run continues after the rows already migrated rather than repeating them.
-                </p>
               </div>
+              <p style={{ fontSize: 12, color: '#737373', margin: '26px 0 0', lineHeight: 1.5 }}>
+                Up to{' '}
+                <strong>{((options.service_now_batch_size || 0) * sourceTableCount).toLocaleString()} rows</strong>{' '}
+                across {sourceTableCount === 1 ? '1 table' : `${sourceTableCount} tables`}. A later run picks up
+                after the rows already migrated.
+              </p>
             </div>
 
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 24, fontSize: 14 }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, fontSize: 14 }}>
               <input
                 type="checkbox"
                 checked={options.disable_load}
                 onChange={(e) => setOptions((o) => ({ ...o, disable_load: e.target.checked }))}
               />
-              Dry Run (extract & transform only, skip Salesforce upload)
+              Dry run <span style={{ color: '#737373', fontSize: 13 }}>— read and transform only, write nothing to Salesforce</span>
             </label>
 
+            <Disclosure
+              label="More options"
+              hint={options.start_date || options.end_date
+                ? `Date range ${options.start_date || '…'} to ${options.end_date || '…'}`
+                : 'Date range'}
+              defaultOpen={Boolean(options.start_date || options.end_date)}
+              style={{ marginBottom: 20 }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 520 }}>
+                <div>
+                  <label style={labelStyle}>Created on or after</label>
+                  <input
+                    type="date"
+                    value={options.start_date}
+                    onChange={(e) => setOptions((o) => ({ ...o, start_date: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Created on or before</label>
+                  <input
+                    type="date"
+                    value={options.end_date}
+                    onChange={(e) => setOptions((o) => ({ ...o, end_date: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            </Disclosure>
+
             {/* Summary */}
-            <div style={{ background: '#fafafa', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Summary</h3>
+            <Disclosure
+              label="What will run"
+              hint="load order and fields per object"
+              variant="boxed"
+              style={{ marginBottom: 10 }}
+            >
               <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div><strong>Source:</strong> {selectedSource?.name}</div>
-                <div><strong>Destination:</strong> Salesforce ({destCreds.base_url || 'not set'})</div>
-                <div><strong>Mappings:</strong> {mappingNames.length} configured</div>
                 {compatReport?.dependency_order && compatReport.dependency_order.length > 0 ? (
                   <div style={{ marginLeft: 16 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#404040', marginBottom: 4 }}>Execution Order:</div>
@@ -1651,10 +1738,17 @@ export function NewMigrationWizard() {
                   </div>
                 )}
 
-                <div><strong>Dry run:</strong> {options.disable_load ? 'Yes (extract & transform only)' : 'No'}</div>
               </div>
-            </div>
+            </Disclosure>
 
+            {warningCount > 0 && (
+            <Disclosure
+              label="Warnings"
+              count={warningCount}
+              hint="these will not stop the run"
+              variant="boxed"
+              style={{ marginBottom: 10 }}
+            >
             {/* Dependency warnings banner */}
             {compatReport && (
               (compatReport.dependency_warnings ?? []).length > 0 ||
@@ -1679,27 +1773,6 @@ export function NewMigrationWizard() {
                     <span>{mp.mapping} — {mp.reason}</span>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Blocking required-field banner — hard gate before launch */}
-            {compatReport && (compatReport.blocking_required_fields ?? []).length > 0 && (
-              <div style={{
-                padding: 14, marginBottom: 16, borderRadius: 8,
-                background: '#fafafa', border: '1px solid #e5e5e5',
-              }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#171717', marginBottom: 8 }}>
-                  Resolve these before launching
-                </div>
-                {(compatReport.blocking_required_fields ?? []).map((b, i) => (
-                  <div key={`b-${i}`} style={{ fontSize: 12, color: '#0a0a0a', marginBottom: 4, display: 'flex', gap: 6 }}>
-                    <span>✕</span>
-                    <span><b>{b.mapping}.{b.field}</b> — {b.reason}</span>
-                  </div>
-                ))}
-                <div style={{ fontSize: 11, color: '#171717', marginTop: 8 }}>
-                  Fix these in Step 4 (set a Source field, Constant, or Lookup), then re-run the compatibility check.
-                </div>
               </div>
             )}
 
@@ -1763,27 +1836,18 @@ export function NewMigrationWizard() {
             )}
 
             {/* What the launch gate found, before it can refuse the launch */}
-            {preflight && (preflight.blockers.length > 0 || preflight.warnings.length > 0) && (
+            {preflight && preflight.warnings.length > 0 && (
               <div style={{
                 padding: 14, marginBottom: 16, borderRadius: 8,
-                background: preflight.blockers.length > 0 ? '#fafafa' : '#fafafa',
-                border: `1px solid ${preflight.blockers.length > 0 ? '#d4d4d4' : '#d4d4d4'}`,
+                background: '#fafafa', border: '1px solid #d4d4d4',
               }}>
-                <div style={{
-                  fontSize: 13, fontWeight: 600, marginBottom: 8,
-                  color: preflight.blockers.length > 0 ? '#171717' : '#404040',
-                }}>
-                  {preflight.blockers.length > 0
-                    ? `${preflight.blockers.length} issue${preflight.blockers.length === 1 ? '' : 's'} will stop this migration from starting`
-                    : `${preflight.warnings.length} thing${preflight.warnings.length === 1 ? '' : 's'} worth checking before you launch`}
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#404040' }}>
+                  {`${preflight.warnings.length} thing${preflight.warnings.length === 1 ? '' : 's'} worth checking before you launch`}
                 </div>
-                {[...preflight.blockers, ...preflight.warnings].map((f, i) => (
+                {preflight.warnings.map((f, i) => (
                   <div
                     key={`pf-${i}`}
-                    style={{
-                      fontSize: 12, marginBottom: 6, lineHeight: 1.55,
-                      color: i < preflight.blockers.length ? '#0a0a0a' : '#404040',
-                    }}
+                    style={{ fontSize: 12, marginBottom: 6, lineHeight: 1.55, color: '#404040' }}
                   >
                     <b>
                       {f.mapping}
@@ -1823,6 +1887,8 @@ export function NewMigrationWizard() {
                   ))}
               </div>
             )}
+            </Disclosure>
+            )}
 
             {error && <p style={{ color: '#0a0a0a', fontSize: 13 }}>Error: {error}</p>}
 
@@ -1831,14 +1897,14 @@ export function NewMigrationWizard() {
               <button
                 onClick={submit}
                 disabled={submitting || (compatReport?.blocking_required_fields ?? []).length > 0}
-                style={primaryBtn}
+                style={{ ...primaryBtn, opacity: (compatReport?.blocking_required_fields ?? []).length > 0 ? 0.5 : 1 }}
                 title={
                   (compatReport?.blocking_required_fields ?? []).length > 0
                     ? 'Resolve the required-field blockers above before launching'
                     : ''
                 }
               >
-                {submitting ? 'Creating...' : 'Create Migration'}
+                {submitting ? 'Creating…' : options.disable_load ? 'Create dry run' : 'Create migration'}
               </button>
             </div>
           </div>
@@ -1846,6 +1912,40 @@ export function NewMigrationWizard() {
       </div>
     </div>
   );
+}
+
+const defaultMappingName = (table: string) =>
+  table.replace(/^(sc_|sys_)/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\s/g, '');
+
+function uniqueName(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
+/** The Salesforce object chosen in step 3 whose name matches the table, if exactly that. */
+function guessSfObject(table: string, selection: string[]): string {
+  const wanted = defaultMappingName(table).toLowerCase();
+  return selection.find((o) => o.toLowerCase() === wanted) ?? '';
+}
+
+function newCard(table: string, taken: Set<string>, sfObject = ''): TableMappingState {
+  return {
+    id: crypto.randomUUID(),
+    sourceTable: table,
+    sfObject,
+    mappingName: uniqueName(defaultMappingName(table), taken),
+    operation: 'insert',
+    priority: 0,
+    fields: [],
+    sourceFields: [],
+    destFields: [],
+    fieldsLoaded: false,
+    joinTables: [],
+    joins: [],
+    filters: [],
+  };
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -1859,7 +1959,10 @@ const pageStyle: React.CSSProperties = {
 const h2: React.CSSProperties = { margin: '0 0 20px', fontSize: 20, fontWeight: 700 };
 const h3: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 };
 const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12, padding: 28 };
-const navRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', marginTop: 24 };
+const navRow: React.CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 24,
+  paddingTop: 18, borderTop: '1px solid #f0f0f0',
+};
 const selectionPanel: React.CSSProperties = {
   border: '1px solid #e5e5e5', borderRadius: 10, padding: 16, background: '#fff',
 };
@@ -1874,6 +1977,19 @@ const secondaryBtn: React.CSSProperties = {
   padding: '10px 22px', background: '#fff', color: '#404040', border: '1px solid #d4d4d4',
   borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
+const linkBtn: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, color: '#404040', textDecoration: 'underline',
+  cursor: 'pointer', fontSize: 12,
+};
+const smallBtn: React.CSSProperties = {
+  padding: '6px 12px', background: '#fff', color: '#262626', border: '1px solid #d4d4d4',
+  borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12.5, whiteSpace: 'nowrap',
+};
+const noticeBox: React.CSSProperties = {
+  padding: '10px 12px', marginBottom: 10, borderRadius: 8,
+  background: '#fafafa', border: '1px solid #d4d4d4', fontSize: 13, color: '#171717', lineHeight: 1.5,
+};
+const stepIntro: React.CSSProperties = { color: '#737373', fontSize: 13, margin: '-12px 0 18px' };
 // ── Compatibility colour helpers ───────────────────────────────────────────────
 const COMPAT_HIGH = 80;  // pct threshold for "good" (green)
 const COMPAT_MID  = 50;  // pct threshold for "warning" (amber)

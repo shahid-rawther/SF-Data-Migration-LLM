@@ -218,8 +218,13 @@ class MigrationContext:
         fields = self.source_fields(table_name)
         if not fields:
             return True
-        bare = field_name.split(".")[-1]
-        return any(entry["name"] in (field_name, bare) for entry in fields)
+        # ServiceNow introspection names columns "incident.short_description",
+        # while mappings and agents name them bare or by the table they inherit
+        # from ("task.short_description"). A multi-column source_field is
+        # comma-separated, and every column in it has to exist.
+        known = {entry["name"].split(".")[-1] for entry in fields}
+        columns = [c.strip() for c in field_name.split(",") if c.strip()]
+        return bool(columns) and all(c.split(".")[-1] in known for c in columns)
 
     # ── analysis ───────────────────────────────────────────────────────────
 

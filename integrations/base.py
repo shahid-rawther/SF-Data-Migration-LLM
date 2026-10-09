@@ -108,6 +108,37 @@ class SourceProvider(ABC):
         """
         return []
 
+    def count_rows(self, table_name: str, credentials: dict, query: str = "") -> int:
+        """Count the rows of a raw source table, optionally filtered.
+
+        Used to size a data gap before anything is extracted. Returns -1 when
+        the provider cannot count, so callers can tell "unknown" from "none".
+        """
+        return -1
+
+    def count_empty(self, table_name: str, field_name: str, credentials: dict) -> int:
+        """Count the rows of a raw source table where one column is empty.
+
+        Returns -1 when the provider cannot count.
+        """
+        return -1
+
+    def find_record_ids(
+        self, table_name: str, credentials: dict, query: str, limit: int
+    ) -> list[str]:
+        """Ids of the source records matching a provider-native query, at most ``limit``.
+
+        Used before a readiness fix writes to the source, so the exact records
+        it touches are known and can be put back. Raises when unsupported.
+        """
+        raise NotImplementedError(f"{self.display_name} cannot be written to")
+
+    def update_record(
+        self, table_name: str, record_id: str, values: dict, credentials: dict
+    ) -> None:
+        """Write field values onto one source record. Raises when unsupported."""
+        raise NotImplementedError(f"{self.display_name} cannot be written to")
+
     def get_field_values(
         self, table_name: str, field_name: str, credentials: dict, limit: int = 500
     ) -> list[dict]:

@@ -545,7 +545,17 @@ def run_tool_loop(
                 usage=client.usage.to_dict(),
             )
 
-        messages.append(client.tool_result_message(outcomes))
+        reply = client.tool_result_message(outcomes)
+        if submit_tool and iterations == client.settings.max_tool_iterations - 1:
+            # Without this an agent still investigating on its last turn ends the
+            # loop with nothing submitted, and everything it found is lost.
+            reply["content"].extend(
+                client.user_message(
+                    f"This is your last turn. Call {submit_tool} now with what you "
+                    "have found; do not call any other tool."
+                )["content"]
+            )
+        messages.append(reply)
 
     return LoopResult(
         final_text=final_text,

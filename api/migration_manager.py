@@ -687,6 +687,12 @@ class MigrationManager:
         _dbg.write_text(f"[{datetime.now(timezone.utc).isoformat()}] Migration started: {session_id}\n", encoding="utf-8")
         try:
             self._do_run(session_id, config, state)
+            if state.token.is_cancelled():
+                # A phase write after the stop may have set the row back to
+                # running, which would block every later start.
+                session_db.update_session_status(session_id, "stopped")
+                with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration stopped\n")
+                return
             with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration completed successfully\n")
         except Exception as exc:
             with open(_dbg, "a") as f: f.write(f"[{datetime.now(timezone.utc).isoformat()}] Migration FAILED: {exc}\n")
@@ -791,6 +797,10 @@ class MigrationManager:
             source_credentials=source_credentials,
             destination_credentials=destination_credentials,
         )
+        # The agent pass can take minutes, and a stop pressed during it must not
+        # be followed by the status write below.
+        if token.is_cancelled():
+            return
 
         ordered = _build_schema_ordered_groups(
             selected_objects,
@@ -921,7 +931,17 @@ class MigrationManager:
                 )
 
         # The staging boundary: refuse to transform what was never staged.
-        manifest = staging_service.verify(flat, source_type=source_type)
+        try:
+            manifest = staging_service.verify(flat, source_type=source_type)
+        except staging_service.StagingIncomplete as exc:
+            errors_of = getattr(source_plugin, "extraction_errors", None)
+            errors = errors_of() if callable(errors_of) else {}
+            if not errors:
+                raise
+            details = "; ".join(f"{table}: {error}" for table, error in errors.items())
+            raise staging_service.StagingIncomplete(
+                f"Extraction failed — the source returned an error. {details}"
+            ) from exc
         staging_service.write_manifest(manifest, extraction_job_number)
         if not total_fetched:
             total_fetched = manifest.total_rows

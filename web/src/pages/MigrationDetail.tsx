@@ -13,6 +13,9 @@ import { ColumnFillPanel } from '../components/ColumnFillPanel';
 import { AgentNoticesPanel } from '../components/AgentNoticesPanel';
 import { AgentAssistantPanel } from '../components/AgentAssistantPanel';
 import { SessionObjectsPanel } from '../components/SessionObjectsPanel';
+import { Disclosure } from '../components/Disclosure';
+import { MoreMenu } from '../components/MoreMenu';
+import { Sheet, SheetContent, SheetTitle } from '../components/ui/sheet';
 import { useMigrationProgress } from '../hooks/useMigrationProgress';
 
 export function MigrationDetail() {
@@ -23,6 +26,11 @@ export function MigrationDetail() {
   const [logs, setLogs] = useState<string[]>([]);
   const [statusOpen, setStatusOpen] = useState(false);
   const [resolutionsOpen, setResolutionsOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const [fillOpen, setFillOpen] = useState(false);
+  const [fillUnavailable, setFillUnavailable] = useState<string | null>('Still reading this session');
+  const [diagnosisCount, setDiagnosisCount] = useState(0);
+  const [logOpenChoice, setLogOpen] = useState<boolean | null>(null);
 
   const { progress } = useMigrationProgress(
     session && ['running', 'paused'].includes(status) ? id ?? null : null,
@@ -51,10 +59,24 @@ export function MigrationDetail() {
     }
   }, [progress?.status, status]);
 
+  // The log is what there is to watch during a run, so it starts open then.
+  const logOpen = logOpenChoice ?? status === 'running';
+
+  const settled = ['completed', 'completed_with_errors', 'failed'].includes(status);
+  useEffect(() => {
+    if (!id) return;
+    api.agents
+      .diagnoses(id)
+      .then((d) => setDiagnosisCount(d.length))
+      .catch(() => setDiagnosisCount(0));
+  }, [id, settled, askOpen]);
+
   if (loading) return <div style={pageStyle}><p>Loading…</p></div>;
   if (!session) return <div style={pageStyle}><p>Session not found</p></div>;
 
   const liveProgress = progress ?? session.live_progress;
+  const counts = liveProgress ?? session.last_run;
+  const countsFromLastRun = !liveProgress && !!session.last_run;
   const overallPercent = liveProgress?.overall_percent ?? 0;
   const phase = liveProgress?.phase ?? session.phase ?? '';
 
@@ -87,16 +109,34 @@ export function MigrationDetail() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <StatusBadge status={status} />
             {phase && <span style={{ fontSize: 13, color: '#737373' }}>Phase: <strong>{phase}</strong></span>}
-            <span style={{ fontSize: 12, color: '#a3a3a3' }}>ID: {session.id}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={() => setStatusOpen(true)} style={statusBtn}>
-            Migration status
+          <button onClick={() => setAskOpen(true)} style={statusBtn}>
+            Ask the agent
+            {diagnosisCount > 0 && <span style={countPill}>{diagnosisCount}</span>}
           </button>
-          <button onClick={() => setResolutionsOpen(true)} style={statusBtn}>
-            Resolutions
-          </button>
+          <MoreMenu
+            items={[
+              {
+                label: 'Migration status',
+                description: 'Checkpoint and per-object progress in detail',
+                onSelect: () => setStatusOpen(true),
+              },
+              {
+                label: 'Resolutions',
+                description: 'Fixes applied to this session’s mappings',
+                onSelect: () => setResolutionsOpen(true),
+              },
+              {
+                label: 'Fill a column',
+                description: 'Set or correct one field on records already migrated',
+                disabled: fillUnavailable !== null,
+                title: fillUnavailable ?? undefined,
+                onSelect: () => setFillOpen(true),
+              },
+            ]}
+          />
           <MigrationControls sessionId={session.id} status={status} onStatusChange={(s) => {
             setStatus(s);
             if (s === 'running') setLogs([]);
@@ -133,22 +173,39 @@ export function MigrationDetail() {
       </div>
 
       {/* Record counts */}
+      {countsFromLastRun && session.last_run?.saved_at && (
+        <div style={{ fontSize: 12, color: '#737373', marginBottom: 6 }}>
+          Last run, {new Date(session.last_run.saved_at).toLocaleString()} — see “Objects in this session” for totals across all runs
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
         <div style={{ ...statCardStyle, borderLeft: '4px solid #262626' }}>
           <div style={statLabel}>Records Fetched</div>
-          <div style={statValue}>{(liveProgress?.records_fetched ?? 0).toLocaleString()}</div>
+          <div style={statValue}>{(counts?.records_fetched ?? 0).toLocaleString()}</div>
         </div>
         <div style={{ ...statCardStyle, borderLeft: '4px solid #171717' }}>
           <div style={statLabel}>Records Processed</div>
-          <div style={{ ...statValue, color: '#171717' }}>{(liveProgress?.records_processed ?? 0).toLocaleString()}</div>
+          <div style={{ ...statValue, color: '#171717' }}>{(counts?.records_processed ?? 0).toLocaleString()}</div>
         </div>
         <div style={{ ...statCardStyle, borderLeft: '4px solid #0a0a0a' }}>
           <div style={statLabel}>Records Failed</div>
-          <div style={{ ...statValue, color: (liveProgress?.records_failed ?? 0) > 0 ? '#0a0a0a' : '#404040' }}>
-            {(liveProgress?.records_failed ?? 0).toLocaleString()}
+          <div style={{ ...statValue, color: (counts?.records_failed ?? 0) > 0 ? '#0a0a0a' : '#404040' }}>
+            {(counts?.records_failed ?? 0).toLocaleString()}
           </div>
         </div>
       </div>
+
+      {status === 'running' && phase === 'preparation' && (
+        <div style={{ ...cardStyle, background: '#fafafa', border: '1px solid #d4d4d4' }}>
+          <div style={{ fontSize: 13, color: '#404040', fontWeight: 600, marginBottom: 4 }}>
+            {liveProgress?.message || 'Preparing the run'}
+          </div>
+          <div style={{ fontSize: 13, color: '#525252' }}>
+            The agent checks how the selected objects link to each other before any data is pulled.
+            This can take a few minutes, and the counts stay at 0 until extraction starts.
+          </div>
+        </div>
+      )}
 
       {/* Current object */}
       {liveProgress && liveProgress.object && (
@@ -171,20 +228,38 @@ export function MigrationDetail() {
         </div>
       )}
 
+      {/* Failures the automatic repairs could not fix wait in the side panel;
+          this line is how anyone finds out they are there */}
+      {diagnosisCount > 0 && (
+        <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px' }}>
+          <span style={{ flex: 1, fontSize: 13, color: '#262626' }}>
+            <strong>
+              {diagnosisCount} problem{diagnosisCount === 1 ? '' : 's'} the automatic repairs could not fix
+            </strong>{' '}
+            — the agent has explained {diagnosisCount === 1 ? 'it' : 'them'} and suggested fixes.
+          </span>
+          <button onClick={() => setAskOpen(true)} style={statusBtn}>Review fixes</button>
+        </div>
+      )}
+
       {/* Concerns the agent raised, including ones no fixed check looks for */}
       <AgentNoticesPanel sessionId={session.id} refreshKey={backfillRefreshKey} />
 
-      {/* Failures the automatic repairs could not fix: explained, discussed,
-          and fixed only on approval */}
-      <AgentAssistantPanel
-        sessionId={session.id}
-        status={status}
-        refreshKey={backfillRefreshKey}
-        onStarted={(s) => {
-          setStatus(s);
-          setLogs([]);
-        }}
-      />
+      <Sheet open={askOpen} onOpenChange={setAskOpen}>
+        <SheetContent className="max-w-2xl overflow-y-auto p-4">
+          <SheetTitle className="sr-only">Ask the agent</SheetTitle>
+          <AgentAssistantPanel
+            sessionId={session.id}
+            status={status}
+            refreshKey={backfillRefreshKey}
+            onStarted={(s) => {
+              setStatus(s);
+              setLogs([]);
+              setAskOpen(false);
+            }}
+          />
+        </SheetContent>
+      </Sheet>
 
       {/* References the load left empty, waiting on a decision to attach them,
           plus any from earlier runs that this one has just made fillable */}
@@ -195,11 +270,15 @@ export function MigrationDetail() {
       />
 
       {/* Putting a value into one column of an object that already migrated.
-          Not something owed by the run, so it sits quietly rather than asking */}
+          Offered from the More menu; only past fills show here */}
       <ColumnFillPanel
         sessionId={session.id}
         sourceType={session.source_type}
         refreshKey={backfillRefreshKey}
+        compact
+        open={fillOpen}
+        onClose={() => setFillOpen(false)}
+        onAvailabilityChange={setFillUnavailable}
       />
 
       {/* Per-object breakdown */}
@@ -285,9 +364,12 @@ export function MigrationDetail() {
         }}
       />
 
-      {/* Migration info */}
-      <div style={cardStyle}>
-        <h2 style={h2}>Session Info</h2>
+      <Disclosure
+        label="Session details"
+        hint={`ID ${session.id.slice(0, 8)} · ${session.config?.options?.disable_load ? 'dry run' : 'live run'}`}
+        variant="boxed"
+        style={{ marginBottom: 12, padding: '12px 20px' }}
+      >
         <div style={{ fontSize: 13, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div><strong>Source:</strong> {session.source_type}</div>
           <div><strong>Destination:</strong> Salesforce</div>
@@ -300,14 +382,21 @@ export function MigrationDetail() {
             <strong>Dry run:</strong>{' '}
             {session.config?.options?.disable_load ? 'Yes' : 'No'}
           </div>
+          <div style={{ gridColumn: '1 / -1', color: '#737373' }}><strong>ID:</strong> {session.id}</div>
         </div>
-      </div>
+      </Disclosure>
 
-      {/* Live log */}
-      <div style={cardStyle}>
-        <h2 style={h2}>Live Activity</h2>
+      <Disclosure
+        label="Live activity"
+        count={logs.length}
+        hint={logs.length ? logs[logs.length - 1] : 'messages appear here while a run is going'}
+        open={logOpen}
+        onOpenChange={setLogOpen}
+        variant="boxed"
+        style={{ marginBottom: 16, padding: '12px 20px' }}
+      >
         <LogViewer lines={logs} />
-      </div>
+      </Disclosure>
     </div>
   );
 }
@@ -328,6 +417,10 @@ const statValue: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '
 const statusBtn: React.CSSProperties = {
   padding: '8px 14px', background: '#fff', border: '1px solid #d4d4d4',
   borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#404040', cursor: 'pointer',
+};
+const countPill: React.CSSProperties = {
+  marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#fff', background: '#171717',
+  borderRadius: 999, padding: '1px 7px',
 };
 const thStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, color: '#737373', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px' };

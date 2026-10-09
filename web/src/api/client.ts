@@ -71,6 +71,13 @@ export interface MigrationSession {
   updated_at: string;
   completed_at?: string;
   live_progress?: ProgressEvent;
+  /** Totals of the most recent run, from its checkpoint, when none is live. */
+  last_run?: {
+    records_fetched: number;
+    records_processed: number;
+    records_failed: number;
+    saved_at: string;
+  };
 }
 
 export interface SessionConfig {
@@ -1047,6 +1054,217 @@ export interface MappingValidationResult {
 
 // ── Sources ───────────────────────────────────────────────────────────────────
 
+// ── Data readiness ────────────────────────────────────────────────────────────
+
+export type ReadinessStatus =
+  | 'covered'
+  | 'partial'
+  | 'unmapped_with_candidate'
+  | 'no_source'
+  | 'parent_migratable'
+  | 'parent_creatable'
+  | 'parent_not_creatable'
+  | 'capacity';
+
+/** One required destination field, and whether the source can fill it. */
+export interface ReadinessRequirement {
+  key: string;
+  mapping: string;
+  object: string;
+  field: string;
+  label: string;
+  type: string;
+  status: ReadinessStatus;
+  detail: string;
+  source_table: string;
+  source_field: string;
+  value_source: string;
+  /** -1 when the source could not count. */
+  total_rows: number;
+  empty_rows: number;
+  candidates: string[];
+  reference_to: string[];
+  parent_object: string;
+  parent_createable: boolean | null;
+  parent_mappings: string[];
+  parent_in_run: boolean;
+  parent_existing_records: number;
+  /** The lookups that pulled a chain mapping in, e.g. "Incident.CallerId". */
+  via: string[];
+  in_run: boolean;
+  is_gap: boolean;
+}
+
+export interface ReadinessCapacity {
+  mapping: string;
+  source_rows: number;
+  licence: string;
+  available: number;
+  short: boolean;
+  detail: string;
+}
+
+export interface ReadinessReport {
+  selected: string[];
+  requirements: ReadinessRequirement[];
+  gap_count: number;
+  status_counts: Record<string, number>;
+  /** Mappings outside the run that the selection depends on. */
+  chain_mappings: string[];
+  capacity: ReadinessCapacity[];
+  warnings: string[];
+}
+
+/** A write against the Salesforce org itself, run only when Apply is clicked. */
+export interface ReadinessSalesforceAction {
+  kind: 'create_record' | 'create_custom_field';
+  object: string;
+  rationale: string;
+  values?: Record<string, unknown>;
+  field_api_name?: string;
+  field_label?: string;
+  field_type?: string;
+  length?: number;
+  description?: string;
+}
+
+/** A write against the source system, run only when Apply is clicked. */
+export interface ReadinessSourceAction {
+  kind: 'fill_source_values';
+  table: string;
+  field: string;
+  value: string;
+  /** Extra encoded query narrowing the records; "is empty" is always added. */
+  filter: string;
+  rationale: string;
+  /** How many records it would change when it was validated. */
+  affected?: number;
+  /** Set when the column is a reference and value is a sys_id. */
+  reference_table?: string;
+}
+
+/** A mapping change in the resolution vocabulary the other agents use. */
+export interface ReadinessResolution {
+  kind: string;
+  mapping: string;
+  field: string;
+  rationale: string;
+  source_field?: string;
+  transform?: string;
+  transform_params?: Record<string, unknown>;
+  constant_value?: string;
+  parent_mappings?: string[];
+  value_map?: Record<string, string>;
+  value_map_default?: string;
+  suggested_action?: string;
+  [key: string]: unknown;
+}
+
+export interface ReadinessSuggestion {
+  title: string;
+  explanation: string;
+  include_mappings: string[];
+  /** Absent on checks stored before source fixes existed. */
+  source_actions?: ReadinessSourceAction[];
+  salesforce_actions: ReadinessSalesforceAction[];
+  resolutions: ReadinessResolution[];
+  manual_steps: string[];
+  rejected: { reason: string; [key: string]: unknown }[];
+  /** Every change in it validated, so Apply can run it whole. */
+  applicable: boolean;
+  /** Nothing to apply; the manual steps are the suggestion. */
+  needs_person: boolean;
+}
+
+export interface ReadinessGap {
+  key: string;
+  mapping: string;
+  object: string;
+  field: string;
+  status: ReadinessStatus;
+  in_run: boolean;
+  via: string[];
+  detail: string;
+  analysis: string;
+  suggestions: ReadinessSuggestion[];
+  /** "agent" when the model wrote the suggestions, "rules" when it could not. */
+  source: 'agent' | 'rules';
+}
+
+export interface ReadinessApplied {
+  run_id: string;
+  source_change_ids?: number[];
+  sf_change_ids: number[];
+  change_ids: number[];
+  include_mappings: string[];
+  applied_at: string;
+  /** Every change it made has since been undone, so it can be applied again. */
+  reverted?: boolean;
+}
+
+export interface ReadinessSfChange {
+  id: number;
+  readiness_id: number;
+  run_id: string;
+  kind: string;
+  object_name: string;
+  record_id: string;
+  field_name: string;
+  payload: Record<string, unknown>;
+  rationale: string;
+  revertible: boolean;
+  created_at: string;
+  reverted: boolean;
+}
+
+export interface ReadinessSourceChange {
+  id: number;
+  readiness_id: number;
+  run_id: string;
+  source_type: string;
+  kind: string;
+  table_name: string;
+  field_name: string;
+  value: string;
+  record_ids: string[];
+  record_count: number;
+  rationale: string;
+  created_at: string;
+  reverted: boolean;
+}
+
+export interface ReadinessCheck {
+  id: number;
+  report: ReadinessReport;
+  summary: string;
+  gaps: ReadinessGap[];
+  /** Keyed "gap:suggestion". */
+  applied: Record<string, ReadinessApplied>;
+  sf_changes: ReadinessSfChange[];
+  source_changes?: ReadinessSourceChange[];
+  model_invoked: boolean;
+  error: string;
+  usage: { total_tokens?: number; calls?: number };
+}
+
+export interface ReadinessApplyResult {
+  run_id: string;
+  source_change_ids: number[];
+  sf_change_ids: number[];
+  change_ids: number[];
+  include_mappings: string[];
+  source: { kind: string; table: string; field: string; value: string; records: number }[];
+  salesforce: { kind: string; object: string; record_id?: string; field?: string }[];
+  changes: { mapping_name: string; field?: string; applied?: boolean }[];
+}
+
+export interface ReadinessCredentials {
+  source_credentials?: Record<string, string>;
+  source_connection_id?: string;
+  destination_credentials?: Record<string, string>;
+  destination_connection_id?: string;
+}
+
 export const api = {
   sources: {
     list: (): Promise<Source[]> => request('/sources/'),
@@ -1557,6 +1775,55 @@ export const api = {
     /** Put one field back the way it was before an agent changed it. */
     revertChange: (change_id: number): Promise<unknown> =>
       request(`/mapping-agent/changes/${change_id}/revert`, { method: 'POST' }),
+
+    /** Undo every outstanding mapping change one agent run made, newest first. */
+    revertRun: (run_id: string): Promise<{ run_id: string; reverted: number[]; count: number }> =>
+      request(`/mapping-agent/runs/${encodeURIComponent(run_id)}/revert`, { method: 'POST' }),
+
+    /**
+     * Whether the source can supply every field and parent the destination
+     * requires. Stores the report with validated suggestions; nothing is
+     * written to a mapping or to Salesforce until one is applied.
+     */
+    readiness: (
+      body: ReadinessCredentials & { source_type: string; selected_objects: string[] },
+    ): Promise<ReadinessCheck> =>
+      request('/mapping-agent/readiness', { method: 'POST', body: JSON.stringify(body) }),
+
+    getReadiness: (readiness_id: number): Promise<ReadinessCheck> =>
+      request(`/mapping-agent/readiness/${readiness_id}`),
+
+    /** Run one approved suggestion: source writes, then Salesforce writes, then mappings. */
+    applyReadiness: (
+      readiness_id: number,
+      gap: number,
+      suggestion: number,
+      credentials: ReadinessCredentials,
+    ): Promise<ReadinessApplyResult> =>
+      request(
+        `/mapping-agent/readiness/${readiness_id}/apply?gap=${gap}&suggestion=${suggestion}`,
+        { method: 'POST', body: JSON.stringify(credentials) },
+      ),
+
+    /** Delete a record a readiness suggestion created in Salesforce. */
+    revertReadinessSfChange: (
+      change_id: number,
+      credentials: ReadinessCredentials,
+    ): Promise<{ id: number; reverted: boolean; already: boolean }> =>
+      request(`/mapping-agent/readiness/sf-changes/${change_id}/revert`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
+
+    /** Empty again the source values a readiness suggestion wrote, where they are unchanged. */
+    revertReadinessSourceChange: (
+      change_id: number,
+      credentials: ReadinessCredentials,
+    ): Promise<{ id: number; reverted: boolean; already: boolean; restored: number; kept: number }> =>
+      request(`/mapping-agent/readiness/source-changes/${change_id}/revert`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      }),
   },
 
   health: (): Promise<{ status: string }> => request('/health'),

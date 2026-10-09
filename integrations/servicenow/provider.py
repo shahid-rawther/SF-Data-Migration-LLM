@@ -151,6 +151,124 @@ class ServiceNowProvider(SourcePlugin):
         except Exception:
             return -1
 
+    def count_rows(self, table_name: str, credentials: dict, query: str = "") -> int:
+        """Count rows through the Aggregate API, so nothing has to be extracted."""
+        if not table_name:
+            return -1
+        base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
+        username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
+        password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        if not base_url or not username:
+            return -1
+        params = {"sysparm_count": "true"}
+        if query:
+            params["sysparm_query"] = query
+        try:
+            resp = requests.get(
+                f"{base_url}/api/now/stats/{table_name}",
+                auth=(username, password),
+                headers={"Accept": "application/json"},
+                params=params,
+                timeout=20,
+                allow_redirects=False,
+            )
+            if resp.status_code != 200 or "application/json" not in resp.headers.get(
+                "content-type", ""
+            ):
+                return -1
+            count = resp.json().get("result", {}).get("stats", {}).get("count", "0")
+            return int(count)
+        except Exception:
+            logger.debug("Could not count %s (%s)", table_name, query, exc_info=True)
+            return -1
+
+    def count_empty(self, table_name: str, field_name: str, credentials: dict) -> int:
+        element = (field_name or "").split(".")[-1]
+        if not element:
+            return -1
+        return self.count_rows(table_name, credentials, f"{element}ISEMPTY")
+
+    @staticmethod
+    def _connection(credentials: dict) -> tuple[str, tuple[str, str]]:
+        base_url = credentials.get("base_url", os.getenv("SERVICE_NOW_BASE_URL", "")).rstrip("/")
+        username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
+        password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
+        if not base_url or not username:
+            raise ValueError("ServiceNow credentials are missing")
+        return base_url, (username, password)
+
+    def find_record_ids(
+        self, table_name: str, credentials: dict, query: str, limit: int
+    ) -> list[str]:
+        base_url, auth = self._connection(credentials)
+        ids: list[str] = []
+        page = min(limit, 1000)
+        while len(ids) < limit:
+            resp = requests.get(
+                f"{base_url}/api/now/table/{table_name}",
+                auth=auth,
+                headers={"Accept": "application/json"},
+                params={
+                    "sysparm_query": f"{query}^ORDERBYsys_id" if query else "ORDERBYsys_id",
+                    "sysparm_fields": "sys_id",
+                    "sysparm_limit": min(page, limit - len(ids)),
+                    "sysparm_offset": len(ids),
+                    "sysparm_no_count": "true",
+                },
+                timeout=60,
+                allow_redirects=False,
+            )
+            resp.raise_for_status()
+            batch = [r["sys_id"] for r in resp.json().get("result", []) if r.get("sys_id")]
+            ids.extend(batch)
+            if len(batch) < page:
+                break
+        return ids[:limit]
+
+    def query_records(
+        self, table_name: str, credentials: dict, query: str, fields: list[str], limit: int
+    ) -> list[dict]:
+        """A few records of a table, with display values, for a person or agent to choose from."""
+        base_url, auth = self._connection(credentials)
+        resp = requests.get(
+            f"{base_url}/api/now/table/{table_name}",
+            auth=auth,
+            headers={"Accept": "application/json"},
+            params={
+                "sysparm_query": query,
+                "sysparm_fields": ",".join(["sys_id", *fields]),
+                "sysparm_limit": limit,
+                "sysparm_display_value": "true",
+                "sysparm_exclude_reference_link": "true",
+                "sysparm_no_count": "true",
+            },
+            timeout=30,
+            allow_redirects=False,
+        )
+        resp.raise_for_status()
+        return resp.json().get("result", [])
+
+    def update_record(
+        self, table_name: str, record_id: str, values: dict, credentials: dict
+    ) -> None:
+        base_url, auth = self._connection(credentials)
+        resp = requests.patch(
+            f"{base_url}/api/now/table/{table_name}/{record_id}",
+            auth=auth,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            # Keep sys_updated_on/by as they were: the migration carries them over.
+            params={"sysparm_suppress_auto_sys_field": "true", "sysparm_fields": "sys_id"},
+            json=values,
+            timeout=30,
+            allow_redirects=False,
+        )
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("error", {}).get("message") or resp.text[:300]
+            except ValueError:
+                detail = resp.text[:300]
+            raise RuntimeError(f"ServiceNow refused the update of {table_name}/{record_id}: {detail}")
+
     def get_source_fields(self, object_name: str, credentials: dict) -> list[SourceField]:
         """Return the list of fields for the driving ServiceNow table via the Schema API."""
         mapping = _load_mapping(object_name)
@@ -481,6 +599,12 @@ class ServiceNowProvider(SourcePlugin):
             job_id, tables, record_limit=record_limit,
             start_date=start_date, end_date=end_date,
         )
+
+    def extraction_errors(self) -> dict[str, str]:
+        """Tables the most recent extract failed on, with the error each raised."""
+        from integrations.servicenow.extraction import last_errors
+
+        return dict(last_errors)
 
     def extract_attachment_files(self, job_id: int, table_mapping: dict) -> None:
         from integrations.servicenow.extraction import extract_servicenow_files
