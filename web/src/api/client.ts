@@ -683,6 +683,37 @@ export interface CompatibilityReport {
   picklist_mapping_warnings?: BlockingRequiredField[];
 }
 
+export interface WorkflowFinding {
+  stage: string;
+  status: string;
+  name: string;
+  detail: string;
+}
+
+export interface WorkflowStage {
+  stage: string;
+  label: string;
+  status: string;
+  detail: string;
+  findings: WorkflowFinding[];
+}
+
+export interface ObjectWorkflow {
+  mapping: string;
+  salesforce_object: string;
+  template_found: boolean;
+  ok: boolean;
+  failing_rows: number;
+  summary: string;
+  stages: WorkflowStage[];
+}
+
+export interface WorkflowReport {
+  ok: boolean;
+  summary: string;
+  objects: ObjectWorkflow[];
+}
+
 export interface SavedConnection {
   id: string;
   name: string;
@@ -1460,6 +1491,17 @@ export const api = {
       request('/compat/type-check', {
         method: 'POST',
         body: JSON.stringify({ source_type, destination_type }),
+      }),
+  },
+
+  workflow: {
+    check: (
+      mapping_names: string[],
+      destination_credentials: Record<string, string>,
+    ): Promise<WorkflowReport> =>
+      request('/workflow/check', {
+        method: 'POST',
+        body: JSON.stringify({ mapping_names, destination_credentials }),
       }),
   },
 

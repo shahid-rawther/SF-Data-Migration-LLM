@@ -1,0 +1,73 @@
+{
+  "object": "ChangeRequest",
+  "required_fields": ["Subject", "Status", "Priority", "RiskLevel"],
+  "error_handling": [
+    {
+      "name": "Justification required for CAB",
+      "type": "validation_rule",
+      "when": [
+        {"field": "RiskLevel", "operator": "in", "values": ["High", "Critical"]}
+      ],
+      "when_missing": ["BusinessJustification"],
+      "message": "A high or critical change needs a business justification before it can be submitted."
+    }
+  ],
+  "triggers": [
+    {
+      "name": "Change_Request_After_Save",
+      "type": "record_triggered_flow",
+      "when": "after_save",
+      "active": true,
+      "entry_conditions": [
+        {"field": "Status", "operator": "equals", "value": "New"}
+      ],
+      "decisions": [
+        {
+          "name": "CAB review",
+          "when": [
+            {"field": "RiskLevel", "operator": "in", "values": ["High", "Critical"]}
+          ],
+          "outcome": "cab"
+        },
+        {
+          "name": "Standard change",
+          "when": [],
+          "outcome": "standard"
+        }
+      ],
+      "actions": [
+        {
+          "name": "Keep the requester",
+          "type": "field_update",
+          "when": "always",
+          "requires": ["RequestedById"]
+        },
+        {
+          "name": "Schedule the standard change",
+          "type": "field_update",
+          "when": "standard",
+          "requires": ["EstimatedStartTime"]
+        }
+      ],
+      "approvals": [
+        {
+          "name": "CAB Approval",
+          "when": "cab",
+          "required_fields": ["BusinessJustification", "ReviewerId"]
+        }
+      ],
+      "notifications": [
+        {
+          "name": "Tell the requester",
+          "when": "always",
+          "recipient_field": "RequestedById"
+        },
+        {
+          "name": "Tell the CAB reviewer",
+          "when": "cab",
+          "recipient_field": "ReviewerId"
+        }
+      ]
+    }
+  ]
+}

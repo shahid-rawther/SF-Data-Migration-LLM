@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, CredentialsSchema, DeferredLookupNotice, PreflightResult } from '../api/client';
+import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, CredentialsSchema, DeferredLookupNotice, PreflightResult, WorkflowReport } from '../api/client';
+import { WorkflowCheckPanel } from '../components/WorkflowCheckPanel';
 import { ConnectionPicker } from '../components/ConnectionPicker';
 import { DataReadinessPanel } from '../components/DataReadinessPanel';
 import { Disclosure } from '../components/Disclosure';
@@ -73,6 +74,9 @@ export function NewMigrationWizard() {
   // migration starts, and a blocker discovered then is a refusal to launch with
   // no opportunity to fix it first.
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+  const [checkingWorkflow, setCheckingWorkflow] = useState(false);
+  const [workflowReport, setWorkflowReport] = useState<WorkflowReport | null>(null);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [expandedCompatObj, setExpandedCompatObj] = useState<string | null>(null);
   const [showAllCompatFields, setShowAllCompatFields] = useState(false);
 
@@ -641,6 +645,20 @@ export function NewMigrationWizard() {
     }
   };
 
+  const runWorkflowCheck = async () => {
+    setCheckingWorkflow(true);
+    setWorkflowError(null);
+    setWorkflowReport(null);
+    try {
+      const report = await api.workflow.check(mappingNames, destCreds);
+      setWorkflowReport(report);
+    } catch (e: unknown) {
+      setWorkflowError(e instanceof Error ? e.message : 'Workflow check failed');
+    } finally {
+      setCheckingWorkflow(false);
+    }
+  };
+
   const openCreateFieldDialog = (sfObject: string, field: { destination_field: string; suggested_custom_field: string; source_field: string; suggested_field_type?: string }) => {
     const key = `${sfObject}::${field.destination_field}`;
     const suggestedName = field.suggested_custom_field || field.destination_field;
@@ -1186,7 +1204,7 @@ export function NewMigrationWizard() {
               Nothing is moved here. The checks read both systems and report what would go wrong.
             </p>
 
-            <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={runCompatibilityCheck}
                 disabled={checkingCompat}
@@ -1194,7 +1212,24 @@ export function NewMigrationWizard() {
               >
                 {checkingCompat ? 'Checking…' : compatReport ? 'Re-run compatibility check' : 'Run compatibility check'}
               </button>
+              <button
+                onClick={runWorkflowCheck}
+                disabled={checkingWorkflow || mappingNames.length === 0}
+                style={secondaryBtn}
+              >
+                {checkingWorkflow ? 'Checking workflow…' : workflowReport ? 'Re-check Salesforce workflow' : 'Check Salesforce workflow'}
+              </button>
             </div>
+            <p style={{ ...stepIntro, marginTop: -8 }}>
+              The workflow check walks Object, Trigger, Entry Conditions, Decisions, Actions, Approvals, Notifications, and Error Handling. It uses the template in data/workflow_templates, then checks transformed rows again before load.
+            </p>
+
+            {workflowError && (
+              <div style={{ color: '#0a0a0a', fontSize: 13, marginBottom: 12 }}>
+                {workflowError}
+              </div>
+            )}
+            {workflowReport && <WorkflowCheckPanel report={workflowReport} />}
 
             {compatError && (
               <div style={{ color: '#0a0a0a', fontSize: 13, marginBottom: 12 }}>

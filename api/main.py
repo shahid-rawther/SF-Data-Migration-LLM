@@ -18,6 +18,7 @@ from api.routers import (
     schema,
     sources,
     transforms,
+    workflow,
 )
 from api import sources as source_registry
 
@@ -43,6 +44,7 @@ app.include_router(compat.router, prefix="/api")
 app.include_router(schema.router, prefix="/api")
 app.include_router(mappings.router, prefix="/api")
 app.include_router(transforms.router, prefix="/api")
+app.include_router(workflow.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 
 # Plugin-contributed routers (e.g. Salesforce destination + custom-field endpoints).
