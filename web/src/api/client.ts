@@ -1306,7 +1306,7 @@ export const api = {
     validateCredentials: (
       sourceId: string,
       credentials: Record<string, string>,
-    ): Promise<{ valid: boolean }> =>
+    ): Promise<{ valid: boolean; message?: string }> =>
       request(`/sources/${sourceId}/validate-credentials`, {
         method: 'POST',
         body: JSON.stringify({ credentials }),

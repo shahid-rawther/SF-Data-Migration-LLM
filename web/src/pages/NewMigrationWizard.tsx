@@ -130,7 +130,7 @@ export function NewMigrationWizard() {
         setValidationMsg('Connected');
         setSourceValidated(true);
       } else {
-        setValidationMsg('Connection failed');
+        setValidationMsg(res.message || 'Connection failed');
         setSourceValidated(false);
       }
     } catch {
@@ -497,10 +497,9 @@ export function NewMigrationWizard() {
 
   const mappingNames = tableMappings.filter((m) => m.sfObject && m.mappingName).map((m) => m.mappingName);
 
-  // A saved connection has worked before; typed credentials have to be tested
-  // first, or step 3 opens on an empty table list with no reason given.
-  const sourceReady =
-    !!selectedSource && (sourceValidated || (!!selectedSourceConn && selectedSourceConn !== 'new'));
+  // Same rule as the destination step: a saved connection is not proof that
+  // it still works. Next stays disabled until Test connection succeeds.
+  const sourceReady = !!selectedSource && sourceValidated;
 
   const launchBlockers = [
     ...(compatReport?.blocking_required_fields ?? []).map((b) => ({
@@ -884,14 +883,25 @@ export function NewMigrationWizard() {
 
             <div style={navRow}>
               <span />
-              <button
-                disabled={!sourceReady}
-                onClick={() => goStep(2)}
-                style={{ ...primaryBtn, opacity: sourceReady ? 1 : 0.5 }}
-                title={sourceReady ? undefined : 'Choose a saved connection or test the new one first'}
-              >
-                Next →
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <button
+                  disabled={!sourceReady}
+                  onClick={() => goStep(2)}
+                  style={{
+                    ...primaryBtn,
+                    opacity: sourceReady ? 1 : 0.6,
+                    cursor: sourceReady ? 'pointer' : 'not-allowed',
+                  }}
+                  title={sourceReady ? undefined : 'Test the connection successfully before continuing'}
+                >
+                  Next →
+                </button>
+                {selectedSource && !sourceReady && (
+                  <span style={{ fontSize: 12, color: '#737373' }}>
+                    Test the connection to continue.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1087,7 +1097,7 @@ export function NewMigrationWizard() {
                   Destination — Salesforce objects
                 </span>
                 <span style={{ fontSize: 12, color: '#737373' }}>
-                  {selectedSfObjects.length} selected
+                  {!loadingSfObjects && `${selectedSfObjects.length} of ${sfObjects.length} selected`}
                 </span>
               </div>
               <DestinationObjectSelector

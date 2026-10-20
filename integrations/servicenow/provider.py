@@ -2,6 +2,7 @@ import logging
 import os
 import json
 from typing import Iterator
+from urllib.parse import urlparse
 
 import requests
 
@@ -54,6 +55,74 @@ def _category_for(name: str) -> str:
     return "ITSM Core Records"
 
 
+def _instance_origin(base_url: str) -> str:
+    """Keep only the instance host. A pasted UI path is not an API root."""
+    raw = (base_url or "").strip()
+    if not raw:
+        return ""
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    parsed = urlparse(raw)
+    if not parsed.netloc:
+        return ""
+    scheme = parsed.scheme or "https"
+    return f"{scheme}://{parsed.netloc}"
+
+
+def _servicenow_probe(origin: str, username: str, password: str) -> requests.Response:
+    """One authenticated API call. Redirects are not followed: a login page is HTML."""
+    return requests.get(
+        f"{origin}/api/now/table/sys_db_object",
+        auth=(username, password),
+        headers={"Accept": "application/json"},
+        params={"sysparm_limit": 1, "sysparm_fields": "name", "sysparm_no_count": "true"},
+        timeout=30,
+        allow_redirects=False,
+    )
+
+
+def _interpret_servicenow_probe(response: requests.Response) -> dict:
+    if response.status_code in (301, 302, 303, 307, 308):
+        return {
+            "valid": False,
+            "message": "ServiceNow redirected the API call. Use the instance URL, for example https://myinstance.service-now.com.",
+        }
+    if response.status_code == 401:
+        return {"valid": False, "message": "ServiceNow rejected the username or password."}
+    if response.status_code == 403:
+        return {
+            "valid": False,
+            "message": "ServiceNow accepted the login, but this user cannot read sys_db_object.",
+        }
+    if response.status_code in (502, 503, 504):
+        return {
+            "valid": False,
+            "message": (
+                f"ServiceNow is not responding (HTTP {response.status_code}). "
+                "The instance is down or still waking up. Wake it at "
+                "https://developer.servicenow.com and try again."
+            ),
+        }
+    body = response.text[:1000].lower()
+    looks_json = "json" in response.headers.get("content-type", "").lower() or body.lstrip().startswith("{")
+    if response.status_code == 200 and looks_json:
+        return {"valid": True, "message": ""}
+    if "hibernat" in body:
+        return {
+            "valid": False,
+            "message": "ServiceNow instance is hibernating. Wake it at https://developer.servicenow.com and try again.",
+        }
+    if not looks_json:
+        return {
+            "valid": False,
+            "message": "ServiceNow returned a web page instead of the API. Check that the instance URL is the host, not a browser page.",
+        }
+    return {
+        "valid": False,
+        "message": f"ServiceNow returned HTTP {response.status_code}.",
+    }
+
+
 def _load_mapping(name: str) -> dict | None:
     """Load a mapping config from DB (primary source)."""
     try:
@@ -99,25 +168,33 @@ class ServiceNowProvider(SourcePlugin):
         }
 
     def validate_credentials(self, credentials: dict) -> bool:
-        base_url = credentials.get("base_url", "").rstrip("/")
-        username = credentials.get("username", "")
-        password = credentials.get("password", "")
-        if not (base_url and username and password):
-            return False
+        return bool(self.credential_check(credentials).get("valid"))
+
+    def credential_check(self, credentials: dict) -> dict:
+        """Say whether these credentials reach the ServiceNow API, and why not.
+
+        A saved login can be right while this still fails: the instance is
+        hibernating, the URL points at a UI page, or the reply is slow. Those
+        are reported as themselves rather than as a rejected password.
+        """
+        origin = _instance_origin(credentials.get("base_url", ""))
+        username = (credentials.get("username") or "").strip()
+        password = credentials.get("password") or ""
+        if not (origin and username and password):
+            return {
+                "valid": False,
+                "message": "Enter the ServiceNow instance URL, username, and password.",
+            }
         try:
-            resp = requests.get(
-                f"{base_url}/api/now/table/sys_db_object",
-                auth=(username, password),
-                headers={"Accept": "application/json"},
-                params={"sysparm_limit": 1, "sysparm_no_count": "true"},
-                timeout=10,
-            )
-            ct = resp.headers.get("content-type", "")
-            if "application/json" not in ct:
-                return False
-            return resp.status_code == 200
-        except Exception:
-            return False
+            response = _servicenow_probe(origin, username, password)
+        except requests.Timeout:
+            return {
+                "valid": False,
+                "message": "ServiceNow did not respond in time. If this is a developer instance, wake it and try again.",
+            }
+        except requests.RequestException as exc:
+            return {"valid": False, "message": f"Could not reach ServiceNow: {exc}"}
+        return _interpret_servicenow_probe(response)
 
     def get_objects(self) -> list[MigratableObject]:
         """DB-driven object list with ServiceNow-specific category labels."""
