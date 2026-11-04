@@ -405,7 +405,9 @@ class ServiceNowProvider(SourcePlugin):
         username = credentials.get("username", os.getenv("SERVICE_NOW_USERNAME", ""))
         password = credentials.get("password", os.getenv("SERVICE_NOW_PASSWORD", ""))
         if not base_url or not username:
-            return []
+            raise RuntimeError(
+                "ServiceNow credentials are missing. Go back and test the source connection."
+            )
         try:
             resp = requests.get(
                 f"{base_url}/api/now/table/sys_db_object",
@@ -420,7 +422,9 @@ class ServiceNowProvider(SourcePlugin):
                 allow_redirects=False,
             )
             if resp.status_code in (301, 302, 303, 307, 308):
-                return []
+                raise RuntimeError(
+                    "ServiceNow redirected away from the API. Check the instance URL."
+                )
             ct = resp.headers.get("content-type", "")
             if "application/json" not in ct:
                 body_lower = resp.text[:1000].lower()
@@ -438,9 +442,11 @@ class ServiceNowProvider(SourcePlugin):
             names = sorted({r.get("name", "") for r in rows if r.get("name")})
             logger.info("Fetched %d source tables from ServiceNow", len(names))
             return names
-        except Exception:
+        except RuntimeError:
+            raise
+        except Exception as exc:
             logger.exception("Failed to fetch source tables from ServiceNow")
-            return []
+            raise RuntimeError(f"Could not list ServiceNow tables: {exc}") from exc
 
     def _resolve_table_hierarchy(self, table_name: str, base_url: str, auth: tuple) -> list[str]:
         """Walk the sys_db_object parent chain to collect the full table hierarchy.

@@ -44,13 +44,11 @@ export function SourceTableSelector({ tables, selected, onChange, loading }: Sou
   };
 
   // Every match, not just the drawn ones, so capping the rows above does not
-  // quietly narrow what this selects.
+  // quietly narrow what this selects. Deselect clears the whole selection,
+  // including tables that are not on screen.
   const selectAll = () => onChange([...new Set([...selected, ...filtered])]);
 
-  const deselectAll = () => {
-    const filteredSet = new Set(filtered);
-    onChange(selected.filter((s) => !filteredSet.has(s)));
-  };
+  const deselectAll = () => onChange([]);
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Source, SalesforceDiagnosticsResponse, SavedConnection, CompatibilityReport, CreateCustomFieldRequest, CredentialsSchema, DeferredLookupNotice, PreflightResult, WorkflowReport } from '../api/client';
 import { WorkflowCheckPanel } from '../components/WorkflowCheckPanel';
@@ -14,6 +14,30 @@ import type { TableMappingState } from '../components/TableMappingCard';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
+type WizardDraft = {
+  sourceId: string | null;
+  sourceCreds: Record<string, string>;
+  sourceValidated: boolean;
+  selectedSourceConn: string;
+  destCreds: Record<string, string>;
+  destValidated: boolean;
+  selectedDestConn: string;
+};
+
+const WIZARD_DRAFT_KEY = 'new-migration-wizard';
+
+function readWizardDraft(): WizardDraft | null {
+  try {
+    const raw = sessionStorage.getItem(WIZARD_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WizardDraft;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 const SALESFORCE_SCHEMA = {
   type: 'object',
   required: ['base_url', 'client_id', 'client_secret'],
@@ -27,11 +51,24 @@ const SALESFORCE_SCHEMA = {
 
 export function NewMigrationWizard() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // The step lives in the URL so the browser Back button, and the Back button
+  // on each screen, return to the previous step instead of leaving the wizard.
+  const stepParam = Number(searchParams.get('step'));
+  const step = (stepParam >= 1 && stepParam <= 6 ? stepParam : 1) as Step;
+  // The address remembers the step. The connection has to be remembered too,
+  // or a reload (and the browser Back button after one) opens Select Objects
+  // with nothing to list and blames the credentials.
+  const draftRef = useRef<WizardDraft | null>(readWizardDraft());
+  const draft = draftRef.current;
   const [sources, setSources] = useState<Source[]>([]);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
-  const [sourceCreds, setSourceCreds] = useState<Record<string, string>>({});
-  const [destCreds, setDestCreds] = useState<Record<string, string>>({ api_version: 'v60.0' });
+  const [sourceCreds, setSourceCreds] = useState<Record<string, string>>(draft?.sourceCreds ?? {});
+  const [destCreds, setDestCreds] = useState<Record<string, string>>(
+    draft?.destCreds && Object.keys(draft.destCreds).length > 0
+      ? draft.destCreds
+      : { api_version: 'v60.0' },
+  );
   // Live schema state
   const [sourceTables, setSourceTables] = useState<string[]>([]);
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
@@ -56,7 +93,7 @@ export function NewMigrationWizard() {
   const [validationMsg, setValidationMsg] = useState<string | null>(null);
   const [validatingDest, setValidatingDest] = useState(false);
   const [destValidationMsg, setDestValidationMsg] = useState<string | null>(null);
-  const [destValidated, setDestValidated] = useState(false);
+  const [destValidated, setDestValidated] = useState(draft?.destValidated ?? false);
   const [checkingDiagnostics, setCheckingDiagnostics] = useState(false);
   const [diagnostics, setDiagnostics] = useState<SalesforceDiagnosticsResponse | null>(null);
   const [expandDetails, setExpandDetails] = useState(false);
@@ -92,18 +129,20 @@ export function NewMigrationWizard() {
   // Saved connections state
   const [savedSourceConns, setSavedSourceConns] = useState<SavedConnection[]>([]);
   const [savedDestConns, setSavedDestConns] = useState<SavedConnection[]>([]);
-  const [selectedSourceConn, setSelectedSourceConn] = useState<string>(''); // connection id or 'new'
-  const [selectedDestConn, setSelectedDestConn] = useState<string>('');     // connection id or 'new'
+  const [selectedSourceConn, setSelectedSourceConn] = useState<string>(draft?.selectedSourceConn ?? ''); // connection id or 'new'
+  const [selectedDestConn, setSelectedDestConn] = useState<string>(draft?.selectedDestConn ?? '');     // connection id or 'new'
   const [sourceConnName, setSourceConnName] = useState('');
   const [destConnName, setDestConnName] = useState('');
   const [savingSourceConn, setSavingSourceConn] = useState(false);
   const [savingDestConn, setSavingDestConn] = useState(false);
   const [sourceConnSaved, setSourceConnSaved] = useState(false);
   const [destConnSaved, setDestConnSaved] = useState(false);
-  const [sourceValidated, setSourceValidated] = useState(false);
+  const [sourceValidated, setSourceValidated] = useState(draft?.sourceValidated ?? false);
+  const [draftReady, setDraftReady] = useState(() => !draft?.sourceId);
+  const [sourcesLoaded, setSourcesLoaded] = useState(false);
 
   useEffect(() => {
-    api.sources.list().then(setSources);
+    api.sources.list().then(setSources).finally(() => setSourcesLoaded(true));
     api.connections.list('salesforce').then(setSavedDestConns);
     api.mappings
       .list()
@@ -119,6 +158,42 @@ export function NewMigrationWizard() {
       setSavedSourceConns([]);
     }
   }, [selectedSource]);
+
+  // Put the saved source back once the catalogue arrives. Until then a later
+  // step must not render, or it shows empty lists and calls that a connection
+  // failure.
+  useEffect(() => {
+    if (!sourcesLoaded) return;
+    const sourceId = draftRef.current?.sourceId;
+    if (sourceId && !selectedSource) {
+      const match = sources.find((s) => s.id === sourceId);
+      if (match) setSelectedSource(match);
+    }
+    setDraftReady(true);
+  }, [sourcesLoaded, sources, selectedSource]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const next: WizardDraft = {
+      sourceId: selectedSource?.id ?? null,
+      sourceCreds,
+      sourceValidated,
+      selectedSourceConn,
+      destCreds,
+      destValidated,
+      selectedDestConn,
+    };
+    sessionStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(next));
+  }, [
+    draftReady,
+    selectedSource,
+    sourceCreds,
+    sourceValidated,
+    selectedSourceConn,
+    destCreds,
+    destValidated,
+    selectedDestConn,
+  ]);
 
   const validateSource = async () => {
     if (!selectedSource) return;
@@ -210,13 +285,20 @@ export function NewMigrationWizard() {
   };
 
   const [tableLoadError, setTableLoadError] = useState<string | null>(null);
+  const [destLoadError, setDestLoadError] = useState<string | null>(null);
 
   const loadSourceTables = useCallback(async () => {
     if (!selectedSource) return;
     setLoadingTables(true);
     setTableLoadError(null);
     try {
-      const res = await api.schema.sourceTables(selectedSource.id, sourceCreds);
+      const connectionId =
+        selectedSourceConn && selectedSourceConn !== 'new' && !sourceCreds.base_url
+          ? selectedSourceConn
+          : undefined;
+      const res = await api.schema.sourceTables(selectedSource.id, sourceCreds, {
+        connection_id: connectionId,
+      });
       setSourceTables(res.tables);
       if (res.tables.length === 0) {
         // Reaching here now means the call succeeded and the answer really was
@@ -233,20 +315,33 @@ export function NewMigrationWizard() {
     } finally {
       setLoadingTables(false);
     }
-  }, [selectedSource, sourceCreds]);
+  }, [selectedSource, sourceCreds, selectedSourceConn]);
 
   const loadSfObjects = useCallback(async () => {
     setLoadingSfObjects(true);
+    setDestLoadError(null);
     try {
-      const res = await api.schema.destinationObjects(destCreds);
+      const connectionId =
+        selectedDestConn && selectedDestConn !== 'new' && !destCreds.base_url
+          ? selectedDestConn
+          : undefined;
+      const res = await api.schema.destinationObjects(destCreds, 'salesforce', {
+        connection_id: connectionId,
+      });
       setSfObjects(res.objects.map((o) => ({ name: o.name, label: o.label })));
+      if (res.objects.length === 0) {
+        setDestLoadError(
+          'Salesforce answered, but listed no objects. Test the destination connection again.',
+        );
+      }
     } catch (err) {
       console.error('Failed to load SF objects', err);
       setSfObjects([]);
+      setDestLoadError(err instanceof Error ? err.message : 'Failed to load Salesforce objects');
     } finally {
       setLoadingSfObjects(false);
     }
-  }, [destCreds]);
+  }, [destCreds, selectedDestConn]);
 
   const syncTableMappings = useCallback((tables: string[], sfSelection: string[], taken: Set<string>) => {
     setTableMappings((prev) => {
@@ -762,16 +857,28 @@ export function NewMigrationWizard() {
     setBulkCreating(false);
   };
 
+  const sourceAttempt = useRef('');
+  const destAttempt = useRef('');
+
   const goStep = async (s: Step) => {
     setValidationMsg(null);
     setDestValidationMsg(null);
     setDiagnostics(null);
     setExpandDetails(false);
+    // Start the catalogue requests in this click, before the next screen
+    // paints. Waiting for the step to render is what made the lists show up late.
     if (s === 3) {
-      if (sourceTables.length === 0) loadSourceTables();
-      // Both sides are chosen on this step now, so the object list has to be
-      // there before step 4 rather than on entry to it.
-      if (sfObjects.length === 0) loadSfObjects();
+      if (selectedSource && sourceTables.length === 0) {
+        sourceAttempt.current = `${selectedSource.id}|${JSON.stringify(sourceCreds)}|${selectedSourceConn}`;
+        loadSourceTables();
+      }
+      const hasDest =
+        Boolean(destCreds.base_url && destCreds.client_id && destCreds.client_secret) ||
+        Boolean(selectedDestConn && selectedDestConn !== 'new');
+      if (hasDest && sfObjects.length === 0) {
+        destAttempt.current = `${JSON.stringify(destCreds)}|${selectedDestConn}`;
+        loadSfObjects();
+      }
     }
     if (s === 4) {
       syncTableMappings(selectedTables, selectedSfObjects, savedMappingNames);
@@ -783,8 +890,47 @@ export function NewMigrationWizard() {
       setCompatError(null);
       setDeferredLookups([]);
     }
-    setStep(s);
+    // Moving backward replaces the current entry, so Back from step 3 lands on
+    // step 2 and a second Back lands on step 1. Moving forward adds an entry.
+    setSearchParams({ step: String(s) }, { replace: s < step });
   };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [step]);
+
+  // A later step opened from the address, with no source chosen, is not a
+  // failed connection. Send the wizard back to the step that collects it.
+  useEffect(() => {
+    if (!draftReady) return;
+    if (step > 1 && !selectedSource) {
+      setSearchParams({ step: '1' }, { replace: true });
+      return;
+    }
+    if (step > 2 && !destValidated) {
+      setSearchParams({ step: '2' }, { replace: true });
+    }
+  }, [draftReady, step, selectedSource, destValidated, setSearchParams]);
+
+  useEffect(() => {
+    if (step < 3 || !selectedSource || sourceTables.length > 0) return;
+    const key = `${selectedSource.id}|${JSON.stringify(sourceCreds)}|${selectedSourceConn}`;
+    if (sourceAttempt.current === key) return;
+    sourceAttempt.current = key;
+    loadSourceTables();
+  }, [step, selectedSource, sourceTables.length, sourceCreds, selectedSourceConn, loadSourceTables]);
+
+  useEffect(() => {
+    if (step < 3 || sfObjects.length > 0) return;
+    const hasDest =
+      Boolean(destCreds.base_url && destCreds.client_id && destCreds.client_secret) ||
+      Boolean(selectedDestConn && selectedDestConn !== 'new');
+    if (!hasDest) return;
+    const key = `${JSON.stringify(destCreds)}|${selectedDestConn}`;
+    if (destAttempt.current === key) return;
+    destAttempt.current = key;
+    loadSfObjects();
+  }, [step, sfObjects.length, destCreds, selectedDestConn, loadSfObjects]);
 
   const submit = async () => {
     if (!selectedSource) return;
@@ -828,6 +974,16 @@ export function NewMigrationWizard() {
       </div>
 
       <div style={cardStyle}>
+        {!draftReady && step > 1 && (
+          <p style={{ color: '#737373', fontSize: 14 }}>Loading…</p>
+        )}
+        {draftReady && step > 1 && !selectedSource && (
+          <p style={{ color: '#737373', fontSize: 14 }}>Returning to Select Source…</p>
+        )}
+        {draftReady && !!selectedSource && step > 2 && !destValidated && (
+          <p style={{ color: '#737373', fontSize: 14 }}>Returning to Destination…</p>
+        )}
+
         {/* Step 1 — Source */}
         {step === 1 && (
           <div>
@@ -907,7 +1063,7 @@ export function NewMigrationWizard() {
         )}
 
         {/* Step 2 — Destination */}
-        {step === 2 && (
+        {step === 2 && selectedSource && (
           <div>
             <h2 style={h2}>Where is it going?</h2>
             <p style={stepIntro}>Salesforce</p>
@@ -1052,7 +1208,7 @@ export function NewMigrationWizard() {
         )}
 
         {/* Step 3 — Select what to migrate, on both sides */}
-        {step === 3 && (
+        {step === 3 && selectedSource && destValidated && (
           <div>
             <h2 style={h2}>What should move?</h2>
             <p style={stepIntro}>
@@ -1075,7 +1231,10 @@ export function NewMigrationWizard() {
                 }}>
                   {tableLoadError}
                   <button
-                    onClick={loadSourceTables}
+                    onClick={() => {
+                      sourceAttempt.current = '';
+                      loadSourceTables();
+                    }}
                     disabled={loadingTables}
                     style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d4d4d4', background: '#fff', cursor: 'pointer', fontSize: 12 }}
                   >
@@ -1100,6 +1259,24 @@ export function NewMigrationWizard() {
                   {!loadingSfObjects && `${selectedSfObjects.length} of ${sfObjects.length} selected`}
                 </span>
               </div>
+              {destLoadError && (
+                <div style={{
+                  padding: 12, marginBottom: 12, borderRadius: 8,
+                  background: '#fafafa', border: '1px solid #d4d4d4', fontSize: 13, color: '#171717',
+                }}>
+                  {destLoadError}
+                  <button
+                    onClick={() => {
+                      destAttempt.current = '';
+                      loadSfObjects();
+                    }}
+                    disabled={loadingSfObjects}
+                    style={{ marginLeft: 12, padding: '4px 12px', borderRadius: 6, border: '1px solid #d4d4d4', background: '#fff', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
               <DestinationObjectSelector
                 objects={sfObjects}
                 selected={selectedSfObjects}
@@ -1129,7 +1306,7 @@ export function NewMigrationWizard() {
         )}
 
         {/* Step 4 — Map to Salesforce (inline mapping) */}
-        {step === 4 && (
+        {step === 4 && selectedSource && destValidated && (
           <div>
             <h2 style={h2}>Map the fields</h2>
             <p style={stepIntro}>
@@ -1207,7 +1384,7 @@ export function NewMigrationWizard() {
         )}
 
         {/* Step 5 — Compatibility Check */}
-        {step === 5 && (
+        {step === 5 && selectedSource && destValidated && (
           <div>
             <h2 style={h2}>Check before you run</h2>
             <p style={stepIntro}>
@@ -1630,7 +1807,7 @@ export function NewMigrationWizard() {
         )}
 
         {/* Step 6 — Options & Review */}
-        {step === 6 && (
+        {step === 6 && selectedSource && destValidated && (
           <div>
             <h2 style={h2}>Review &amp; run</h2>
             <p style={stepIntro}>
