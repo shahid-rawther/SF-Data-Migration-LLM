@@ -61,7 +61,9 @@ class SalesforcePlugin(DestinationPlugin):
         client_secret = credentials.get("client_secret") or ""
         api_version = credentials.get("api_version", "v60.0")
         if not (base_url and client_id and client_secret):
-            return []
+            raise RuntimeError(
+                "Salesforce credentials are missing. Go back and test the destination connection."
+            )
         try:
             token_resp = requests.post(
                 f"{base_url}/services/oauth2/token",
@@ -73,7 +75,10 @@ class SalesforcePlugin(DestinationPlugin):
                 timeout=12,
             )
             if token_resp.status_code != 200:
-                return []
+                raise RuntimeError(
+                    f"Salesforce rejected the connection (HTTP {token_resp.status_code}). "
+                    "Test the destination connection again."
+                )
             access_token = token_resp.json().get("access_token", "")
             instance_url = (token_resp.json().get("instance_url") or base_url).rstrip("/")
             resp = requests.get(
@@ -91,8 +96,10 @@ class SalesforcePlugin(DestinationPlugin):
                         "createable": True,
                     })
             return sorted(result, key=lambda x: x["name"])
-        except Exception:
-            return []
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(f"Could not list Salesforce objects: {exc}") from exc
 
     def describe_object(self, object_name: str):
         from integrations.salesforce.http_client import salesforce_client

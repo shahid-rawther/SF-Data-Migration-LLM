@@ -18,7 +18,8 @@ interface DestinationObjectSelectorProps {
  *
  *  This is the destination side of the selection, and what the dependency
  *  hierarchy is computed from. An org describes over a thousand objects, so the
- *  list is searchable and there is deliberately no select-all.
+ *  list is searchable. Select All covers every match, and Deselect All clears
+ *  every checked object, including ones that are not on screen.
  */
 export function DestinationObjectSelector({
   objects,
@@ -42,22 +43,23 @@ export function DestinationObjectSelector({
     [objects],
   );
 
-  const filtered = useMemo(() => {
+  const matches = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
-    if (!term) return objects.slice(0, 200);
-    const matches: DestinationObject[] = [];
-    for (const entry of haystack) {
-      if (!entry.term.includes(term)) continue;
-      matches.push(entry.object);
-      if (matches.length === 200) break;
-    }
-    return matches;
+    if (!term) return objects;
+    return haystack.filter((entry) => entry.term.includes(term)).map((entry) => entry.object);
   }, [objects, haystack, debouncedSearch]);
+
+  const filtered = matches.slice(0, 200);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   const toggle = (name: string) =>
     onChange(selectedSet.has(name) ? selected.filter((n) => n !== name) : [...selected, name]);
+
+  const selectAll = () =>
+    onChange([...new Set([...selected, ...matches.map((object) => object.name)])]);
+
+  const deselectAll = () => onChange([]);
 
   if (loading) {
     return (
@@ -77,11 +79,12 @@ export function DestinationObjectSelector({
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
         />
-        {selected.length > 0 && (
-          <button type="button" onClick={() => onChange([])} style={btnStyle}>
-            Clear
-          </button>
-        )}
+        <button type="button" onClick={selectAll} style={btnStyle}>
+          Select All
+        </button>
+        <button type="button" onClick={deselectAll} style={btnStyle}>
+          Deselect All
+        </button>
         <span style={{ fontSize: 12, color: '#737373', whiteSpace: 'nowrap' }}>
           {selected.length} selected
         </span>

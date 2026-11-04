@@ -223,7 +223,10 @@ def destination_objects(body: DestinationObjectsRequest):
     if not dest:
         raise HTTPException(status_code=404, detail=f"Destination '{body.destination_type}' not found")
     creds = _resolve_credentials(body.credentials, body.connection_id)
-    objects = dest.list_objects(creds)
+    try:
+        objects = dest.list_objects(creds)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     return {"destination_type": body.destination_type, "objects": objects}
 
 

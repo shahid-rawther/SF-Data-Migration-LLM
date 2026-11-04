@@ -40,6 +40,50 @@ def _is_transient_error(exc: Exception) -> bool:
     return False
 
 
+def _workflow_block(
+    mapping_names: list[str], destination_credentials: dict
+) -> tuple[str, dict[str, int]] | None:
+    """Return a load-blocking message and per-object failure counts.
+
+    A missing template does not block. A template the mapped rows would break
+    does. An error while checking does not block either: the load stays
+    available and the failure is logged.
+    """
+    try:
+        from integrations.salesforce.workflow import STAGE_LABELS, check_mappings
+
+        report = check_mappings(
+            mapping_names,
+            destination_credentials=destination_credentials,
+            use_transformed_rows=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — a check fault must not stop the load
+        logger.warning("Salesforce workflow check could not be completed: %s", exc)
+        return None
+
+    blocking = [item for item in report.objects if item.template_found and not item.ok]
+    if not blocking:
+        return None
+
+    lines = ["Salesforce workflow check blocked the load."]
+    counts: dict[str, int] = {}
+    for item in blocking:
+        counts[item.mapping] = item.failing_rows or 1
+        lines.append(item.summary)
+        shown = 0
+        for stage in item.stages:
+            for finding in stage.findings:
+                if finding.status != "fail":
+                    continue
+                lines.append(f"{STAGE_LABELS[stage.stage]}: {finding.detail}")
+                shown += 1
+                if shown >= 6:
+                    break
+            if shown >= 6:
+                break
+    return " ".join(lines), counts
+
+
 def _run_with_retry(fn, *args, what: str = "operation", **kwargs):
     """Run ``fn`` with bounded retry + exponential backoff on transient errors."""
     last_exc: Exception | None = None
@@ -1053,6 +1097,39 @@ class MigrationManager:
                 return
             if not token.wait_if_paused():
                 return
+
+            # Mapped rows have to survive the org's automation, not just the
+            # field mapping. The template is applied in workflow order before
+            # anything is sent to Salesforce. No template means nothing to
+            # enforce, so the load continues.
+            workflow_block = _workflow_block(group, destination_credentials)
+            if workflow_block is not None:
+                detail, failed_by_object = workflow_block
+                for object_name, dropped in failed_by_object.items():
+                    total_failed += dropped
+                    counts = records_by_object.setdefault(object_name, {})
+                    counts["failed"] = counts.get("failed", 0) + dropped
+                    load_errors_by_object.setdefault(object_name, []).append(detail)
+                logger.warning("[Migration] %s", detail)
+                self._emit(
+                    session_id,
+                    ProgressEvent(
+                        session_id=session_id,
+                        phase="transformation",
+                        object_name=", ".join(group),
+                        batch_current=group_idx + 1,
+                        batch_total=total_groups,
+                        records_fetched=total_fetched,
+                        records_processed=total_processed,
+                        records_failed=total_failed,
+                        overall_percent=overall,
+                        status="running",
+                        message=detail,
+                        records_by_object=records_by_object,
+                        load_errors=load_errors_by_object,
+                    ),
+                )
+                continue
 
             if dry_run:
                 # Dry-run: skip Salesforce upload, count transformed records only

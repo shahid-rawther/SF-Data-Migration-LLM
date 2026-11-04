@@ -44,13 +44,11 @@ export function SourceTableSelector({ tables, selected, onChange, loading }: Sou
   };
 
   // Every match, not just the drawn ones, so capping the rows above does not
-  // quietly narrow what this selects.
+  // quietly narrow what this selects. Deselect clears the whole selection,
+  // including tables that are not on screen.
   const selectAll = () => onChange([...new Set([...selected, ...filtered])]);
 
-  const deselectAll = () => {
-    const filteredSet = new Set(filtered);
-    onChange(selected.filter((s) => !filteredSet.has(s)));
-  };
+  const deselectAll = () => onChange([]);
 
   if (loading) {
     return (
@@ -80,6 +78,17 @@ export function SourceTableSelector({ tables, selected, onChange, loading }: Sou
           {selected.length} selected
         </span>
       </div>
+
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {selected.map((name) => (
+            <button key={name} type="button" onClick={() => toggle(name)} style={chipStyle}>
+              {name}
+              <span style={{ color: '#737373' }}>×</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {filtered.length === 0 && (
         <p style={{ color: '#737373', textAlign: 'center', padding: '32px 0' }}>
@@ -144,4 +153,18 @@ const btnStyle: React.CSSProperties = {
   background: '#fff',
   cursor: 'pointer',
   fontSize: 13,
+};
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '3px 8px',
+  borderRadius: 999,
+  border: '1px solid #d4d4d4',
+  background: '#f5f5f5',
+  color: '#262626',
+  fontSize: 12,
+  fontFamily: 'monospace',
+  cursor: 'pointer',
 };

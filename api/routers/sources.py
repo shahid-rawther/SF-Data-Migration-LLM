@@ -92,8 +92,11 @@ def validate_credentials(source_id: str, body: CredentialValidationRequest):
     provider = source_registry.get(source_id)
     if not provider:
         raise HTTPException(status_code=404, detail=f"Source '{source_id}' not found")
-    valid = provider.validate_credentials(body.credentials)
-    return {"valid": valid}
+    check = getattr(provider, "credential_check", None)
+    if callable(check):
+        result = check(body.credentials)
+        return {"valid": bool(result.get("valid")), "message": result.get("message") or ""}
+    return {"valid": bool(provider.validate_credentials(body.credentials)), "message": ""}
 
 
 @router.post("/{source_id}/row-count")
